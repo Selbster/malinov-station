@@ -1,9 +1,8 @@
-using System.Linq;
 using Content.Shared.Cargo;
-using Content.Shared.Cargo.Components;
 using Content.Shared.Cargo.Prototypes;
 using Content.Shared.Station.Components;
 using Robust.Shared.Prototypes;
+using Robust.Shared.Serialization.TypeSerializers.Implementations.Custom;
 
 namespace Content.Server.Cargo.Components;
 
@@ -19,11 +18,11 @@ public sealed partial class StationCargoOrderDatabaseComponent : Component
     [DataField]
     public int Capacity = 20;
 
-    [ViewVariables]
-    public IEnumerable<CargoOrderData> AllOrders => Orders.SelectMany(p => p.Value);
+    [DataField]
+    public List<CargoOrderData> Orders = new();
 
     [DataField]
-    public Dictionary<ProtoId<CargoAccountPrototype>, List<CargoOrderData>> Orders = new();
+    public List<CargoOrderData> DeliveredOrders = new();
 
     /// <summary>
     /// Used to determine unique order IDs
@@ -36,10 +35,7 @@ public sealed partial class StationCargoOrderDatabaseComponent : Component
     /// Not every console can order from every market, but a console can't order from a market not on this list.
     /// </summary>
     [DataField]
-    public List<ProtoId<CargoMarketPrototype>> Markets = new()
-    {
-        "market",
-    };
+    public List<ProtoId<CargoMarketPrototype>> Markets = new() { "market" };
 
     // TODO: Can probably dump this
     /// <summary>
@@ -53,18 +49,22 @@ public sealed partial class StationCargoOrderDatabaseComponent : Component
     /// </summary>
     [DataField]
     public EntProtoId PrinterOutput = "PaperCargoInvoice";
+
+    [DataField]
+    public TimeSpan OrderCheckDelay = TimeSpan.FromSeconds(10);
+
+    [DataField(customTypeSerializer: typeof(TimeOffsetSerializer))]
+    public TimeSpan NextOrderCheck;
 }
 
 /// <summary>
 /// Event broadcast before a cargo order is fulfilled, allowing alternate systems to fulfill the order.
 /// </summary>
 [ByRefEvent]
-public record struct FulfillCargoOrderEvent(Entity<StationDataComponent> Station, CargoOrderData Order, Entity<CargoOrderConsoleComponent> OrderConsole)
+public record struct FulfillCargoOrderEvent(Entity<StationDataComponent> Station, CargoOrderData Order)
 {
-    public Entity<CargoOrderConsoleComponent> OrderConsole = OrderConsole;
-    public Entity<StationDataComponent> Station = Station;
-    public CargoOrderData Order = Order;
-
+    public readonly Entity<StationDataComponent> Station = Station;
+    public readonly CargoOrderData Order = Order;
     public EntityUid? FulfillmentEntity;
     public bool Handled = false;
 }

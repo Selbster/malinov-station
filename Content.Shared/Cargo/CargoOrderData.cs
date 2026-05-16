@@ -1,7 +1,8 @@
+using System.Text;
 using Content.Shared.Cargo.Prototypes;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization;
-using System.Text;
+
 namespace Content.Shared.Cargo
 {
     [DataDefinition, NetSerializable, Serializable]
@@ -14,33 +15,33 @@ namespace Content.Shared.Cargo
         public int OrderId { get; private set; }
 
         /// <summary>
-        /// The ID of the cargo product ordered.
+        /// List of items included in this order.
         /// </summary>
         [DataField]
-        public ProtoId<CargoProductPrototype> Product;
-
-        /// <summary>
-        /// The number of items in the order. Not readonly, as it might change
-        /// due to caps on the amount of orders that can be placed.
-        /// </summary>
-        [DataField]
-        public int OrderQuantity;
-
-        /// <summary>
-        /// How many instances of this order that we've already dispatched
-        /// </summary>
-        [DataField]
-        public int NumDispatched = 0;
+        public List<CargoOrderItemData> Basket;
 
         [DataField]
         public string Requester { get; private set; }
+
         // public String RequesterRank; // TODO Figure out how to get Character ID card data
         // public int RequesterId;
         [DataField]
         public string Reason { get; private set; }
-        public  bool Approved;
+
+        [ViewVariables]
+        public bool Approved;
+
+        [ViewVariables]
+        public bool Assigned;
+
+        [ViewVariables]
+        public NetEntity? AssignedEntity;
+
         [DataField]
         public string? Approver;
+        [ViewVariables]
+        public NetEntity? ApprovingConsole;
+
 
         /// <summary>
         /// Which account to deduct funds from when ordering
@@ -48,11 +49,19 @@ namespace Content.Shared.Cargo
         [DataField]
         public ProtoId<CargoAccountPrototype> Account;
 
-        public CargoOrderData(int orderId, ProtoId<CargoProductPrototype> product, int amount, string requester, string reason, ProtoId<CargoAccountPrototype> account)
+        [DataField]
+        public bool Visible = true;
+
+        public CargoOrderData(
+            int orderId,
+            List<CargoOrderItemData> basket,
+            string requester,
+            string reason,
+            ProtoId<CargoAccountPrototype> account
+        )
         {
             OrderId = orderId;
-            Product = product;
-            OrderQuantity = amount;
+            Basket = basket;
             Requester = requester;
             Reason = reason;
             Account = account;

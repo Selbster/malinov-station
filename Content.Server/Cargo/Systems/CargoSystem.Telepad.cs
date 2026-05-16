@@ -7,9 +7,7 @@ using Content.Shared.Cargo;
 using Content.Shared.Cargo.Components;
 using Content.Shared.DeviceLinking;
 using Content.Shared.Power;
-using Content.Shared.Station.Components;
 using Robust.Shared.Audio;
-using Robust.Shared.Random;
 using Robust.Shared.Utility;
 
 namespace Content.Server.Cargo.Systems;
@@ -40,15 +38,11 @@ public sealed partial class CargoSystem
             if (_station.GetOwningStation(uid, xform) != args.Station)
                 continue;
 
-            // todo cannot be fucking asked to figure out device linking rn but this shouldn't just default to the first port.
-            if (!TryGetLinkedConsole((uid, tele), out var console) ||
-                console.Value.Owner != args.OrderConsole.Owner)
+            if (!IsLinkedToConsole(uid, GetEntity(args.Order.ApprovingConsole)))
                 continue;
 
-            for (var i = 0; i < args.Order.OrderQuantity; i++)
-            {
-                tele.CurrentOrders.Add(args.Order);
-            }
+            var containers = PackOrderIntoContainers(args.Order);
+            tele.CurrentOrders.Add(args.Order);
             tele.Accumulator = tele.Delay;
             args.Handled = true;
             args.FulfillmentEntity = uid;
@@ -56,21 +50,30 @@ public sealed partial class CargoSystem
         }
     }
 
-    private bool TryGetLinkedConsole(Entity<CargoTelepadComponent> ent,
-        [NotNullWhen(true)] out Entity<CargoOrderConsoleComponent>? console)
+    private bool IsLinkedToConsole(EntityUid uid, EntityUid? approvingConsole)
     {
-        console = null;
-        if (!TryComp<DeviceLinkSinkComponent>(ent, out var sinkComponent) ||
-            sinkComponent.LinkedSources.FirstOrNull() is not { } linked)
+        if (approvingConsole == null || !TryGetLinkedConsoles(uid, out var consoles))
             return false;
 
-        if (!TryComp<CargoOrderConsoleComponent>(linked, out var consoleComp))
-            return false;
-
-        console = (linked, consoleComp);
-        return true;
+        return consoles.Any(console => console.Owner == approvingConsole);
     }
 
+    private bool TryGetLinkedConsoles(
+        EntityUid uid,
+        [NotNullWhen(true)] out List<Entity<CargoOrderConsoleComponent>> consoles
+    )
+    {
+        consoles = new();
+        if (!TryComp<DeviceLinkSinkComponent>(uid, out var sinkComponent))
+            return false;
+        foreach (var linked in sinkComponent.LinkedSources)
+        {
+            if (!TryComp<CargoOrderConsoleComponent>(linked, out var consoleComp))
+                continue;
+            consoles.Add((linked, consoleComp));
+        }
+        return consoles.Count > 0;
+    }
 
     private void UpdateTelepad(float frameTime)
     {
@@ -98,21 +101,25 @@ public sealed partial class CargoSystem
                 continue;
             }
 
-            if (comp.CurrentOrders.Count == 0 || !TryGetLinkedConsole((uid, comp), out var console))
+            comp.CurrentOrders.RemoveAll(order => order.Basket.Count(item => item.NumOrdered == item.Quantity) == 0);
+            if (comp.CurrentOrders.Count == 0)
             {
                 comp.Accumulator += comp.Delay;
                 continue;
             }
 
             var currentOrder = comp.CurrentOrders.First();
-            if (FulfillOrder(currentOrder, currentOrder.Account, xform.Coordinates, comp.PrinterOutput))
+            var containers = PackOrderIntoContainers(currentOrder);
+            if (
+                IsLinkedToConsole(uid, GetEntity(currentOrder.ApprovingConsole))
+                && FulfillOrder(containers.First(), xform.Coordinates, comp.PrinterOutput)
+            )
             {
                 _audio.PlayPvs(_audio.ResolveSound(comp.TeleportSound), uid, AudioParams.Default.WithVolume(-8f));
 
                 if (_station.GetOwningStation(uid) is { } station)
                     UpdateOrders(station);
 
-                comp.CurrentOrders.Remove(currentOrder);
                 comp.CurrentState = CargoTelepadState.Teleporting;
                 _appearance.SetData(uid, CargoTelepadVisuals.State, CargoTelepadState.Teleporting, appearance);
             }
@@ -128,32 +135,20 @@ public sealed partial class CargoSystem
 
     private void OnShutdown(Entity<CargoTelepadComponent> ent, ref ComponentShutdown args)
     {
-        if (ent.Comp.CurrentOrders.Count == 0)
-            return;
-
-        if (_station.GetStations().Count == 0)
-            return;
-
-        if (_station.GetOwningStation(ent) is not { } station)
-        {
-            station = _random.Pick(_station.GetStations().Where(HasComp<StationCargoOrderDatabaseComponent>).ToList());
-        }
-
-        if (!TryComp<StationCargoOrderDatabaseComponent>(station, out var db) ||
-            !TryComp<StationDataComponent>(station, out var data))
-            return;
-
-        if (!TryGetLinkedConsole(ent, out var console))
-            return;
-
         foreach (var order in ent.Comp.CurrentOrders)
         {
-            TryFulfillOrder((station, data), console.Value.Comp.Account, order, db);
+            order.Assigned = false;
+            order.AssignedEntity = null;
         }
+        ent.Comp.CurrentOrders.Clear();
     }
 
-    private void SetEnabled(EntityUid uid, CargoTelepadComponent component, ApcPowerReceiverComponent? receiver = null,
-        TransformComponent? xform = null)
+    private void SetEnabled(
+        EntityUid uid,
+        CargoTelepadComponent component,
+        ApcPowerReceiverComponent? receiver = null,
+        TransformComponent? xform = null
+    )
     {
         // False due to AllCompsOneEntity test where they may not have the powerreceiver.
         if (!Resolve(uid, ref receiver, ref xform, false))
