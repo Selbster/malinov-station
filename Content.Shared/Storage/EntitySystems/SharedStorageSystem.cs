@@ -55,17 +55,17 @@ public abstract partial class SharedStorageSystem : EntitySystem
     [Dependency] private ISharedAdminLogManager _adminLog = default!;
 
     [Dependency] protected ActionBlockerSystem ActionBlocker = default!;
-    [Dependency] private EntityLookupSystem _entityLookupSystem = default!;
+    [Dependency] private AreaPickupSystem _areaPickup = default!;
     [Dependency] private EntityWhitelistSystem _whitelistSystem = default!;
     [Dependency] private InventorySystem _inventory = default!;
     [Dependency] private SharedAppearanceSystem _appearance = default!;
     [Dependency] protected SharedAudioSystem Audio = default!;
     [Dependency] protected SharedContainerSystem ContainerSystem = default!;
-    [Dependency] private SharedDoAfterSystem _doAfterSystem = default!;
     [Dependency] protected SharedEntityStorageSystem EntityStorage = default!;
     [Dependency] private SharedInteractionSystem _interactionSystem = default!;
     [Dependency] protected SharedItemSystem ItemSystem = default!;
     [Dependency] private SharedPopupSystem _popupSystem = default!;
+    [Dependency] private QuickPickupSystem _quickPickup = default!;
     [Dependency] private SharedHandsSystem _sharedHandsSystem = default!;
     [Dependency] private SharedStackSystem _stack = default!;
     [Dependency] protected SharedTransformSystem TransformSystem = default!;
@@ -75,7 +75,6 @@ public abstract partial class SharedStorageSystem : EntitySystem
 
     [Dependency] private EntityQuery<ItemComponent> _itemQuery = default!;
     [Dependency] private EntityQuery<StackComponent> _stackQuery = default!;
-    [Dependency] private EntityQuery<TransformComponent> _xformQuery = default!;
     [Dependency] private EntityQuery<UserInterfaceUserComponent> _userQuery = default!;
 
     /// <summary>
@@ -99,13 +98,9 @@ public abstract partial class SharedStorageSystem : EntitySystem
 
     public bool CheckingCanInsert;
 
-    private readonly List<EntityUid> _entList = new();
-    private readonly HashSet<EntityUid> _entSet = new();
-
     private readonly List<ItemSizePrototype> _sortedSizes = new();
     private FrozenDictionary<string, ItemSizePrototype> _nextSmallest = FrozenDictionary<string, ItemSizePrototype>.Empty;
 
-    private const string QuickInsertUseDelayID = "quickInsert";
     private const string OpenUiUseDelayID = "storage";
 
     /// <summary>
@@ -142,7 +137,6 @@ public abstract partial class SharedStorageSystem : EntitySystem
         SubscribeLocalEvent<StorageComponent, InteractUsingEvent>(OnInteractUsing, after: new[] { typeof(ItemSlotsSystem) });
         SubscribeLocalEvent<StorageComponent, ActivateInWorldEvent>(OnActivate);
         SubscribeLocalEvent<StorageComponent, OpenStorageImplantEvent>(OnImplantActivate);
-        SubscribeLocalEvent<StorageComponent, AfterInteractEvent>(AfterInteract);
         SubscribeLocalEvent<StorageComponent, DestructionEventArgs>(OnDestroy);
         SubscribeLocalEvent<StorageComponent, BoundUserInterfaceMessageAttempt>(OnBoundUIAttempt);
         SubscribeLocalEvent<StorageComponent, BoundUIOpenedEvent>(OnBoundUIOpen);
@@ -150,8 +144,10 @@ public abstract partial class SharedStorageSystem : EntitySystem
         SubscribeLocalEvent<StorageComponent, EntInsertedIntoContainerMessage>(OnEntInserted);
         SubscribeLocalEvent<StorageComponent, EntRemovedFromContainerMessage>(OnEntRemoved);
         SubscribeLocalEvent<StorageComponent, ContainerIsInsertingAttemptEvent>(OnInsertAttempt);
-        SubscribeLocalEvent<StorageComponent, AreaPickupDoAfterEvent>(OnDoAfter);
         SubscribeLocalEvent<StorageComponent, GotReclaimedEvent>(OnReclaimed);
+        SubscribeLocalEvent<StorageComponent, QuickPickupEvent>(OnQuickPickup);
+        SubscribeLocalEvent<StorageComponent, BeforeAreaPickupEvent>(OnBeforeAreaPickup);
+        SubscribeLocalEvent<StorageComponent, AreaPickupDoAfterEvent>(OnAreaPickupDoAfter);
 
         SubscribeLocalEvent<MetaDataComponent, StackCountChangedEvent>(OnStackCountChanged);
 
@@ -208,7 +204,6 @@ public abstract partial class SharedStorageSystem : EntitySystem
 
     private void OnMapInit(Entity<StorageComponent> entity, ref MapInitEvent args)
     {
-        UseDelay.SetLength(entity.Owner, entity.Comp.QuickInsertCooldown, QuickInsertUseDelayID);
         UseDelay.SetLength(entity.Owner, entity.Comp.OpenUiCooldown, OpenUiUseDelayID);
     }
 
@@ -229,8 +224,6 @@ public abstract partial class SharedStorageSystem : EntitySystem
             SavedLocations = component.SavedLocations,
             Whitelist = component.Whitelist,
             Blacklist = component.Blacklist,
-            QuickInsert = component.QuickInsert,
-            AreaInsert = component.AreaInsert,
             StorageInsertSound = component.StorageInsertSound,
             StorageRemoveSound = component.StorageRemoveSound,
             StorageOpenSound = component.StorageOpenSound,
@@ -363,13 +356,9 @@ public abstract partial class SharedStorageSystem : EntitySystem
         var targetComp = EnsureComp<StorageComponent>(target);
         targetComp.Grid = new List<Box2i>(source.Comp.Grid);
         targetComp.MaxItemSize = source.Comp.MaxItemSize;
-        targetComp.QuickInsert = source.Comp.QuickInsert;
-        targetComp.QuickInsertCooldown = source.Comp.QuickInsertCooldown;
         targetComp.OpenUiCooldown = source.Comp.OpenUiCooldown;
         targetComp.ClickInsert = source.Comp.ClickInsert;
         targetComp.OpenOnActivate = source.Comp.OpenOnActivate;
-        targetComp.AreaInsert = source.Comp.AreaInsert;
-        targetComp.AreaInsertRadius = source.Comp.AreaInsertRadius;
         targetComp.Whitelist = source.Comp.Whitelist;
         targetComp.Blacklist = source.Comp.Blacklist;
         targetComp.StorageInsertSound = source.Comp.StorageInsertSound;
@@ -552,159 +541,6 @@ public abstract partial class SharedStorageSystem : EntitySystem
         args.Handled = true;
     }
 
-    /// <summary>
-    /// Allows a user to pick up entities by clicking them, or pick up all entities in a certain radius
-    /// around a click.
-    /// </summary>
-    /// <returns></returns>
-    private void AfterInteract(EntityUid uid, StorageComponent storageComp, AfterInteractEvent args)
-    {
-        if (args.Handled || !args.CanReach || !UseDelay.TryResetDelay(uid, checkDelayed: true, id: QuickInsertUseDelayID))
-            return;
-
-        // Pick up all entities in a radius around the clicked location.
-        // The last half of the if is because carpets exist and this is terrible
-        if (storageComp.AreaInsert && (args.Target == null || !HasComp<ItemComponent>(args.Target.Value)))
-        {
-            _entList.Clear();
-            _entSet.Clear();
-            _entityLookupSystem.GetEntitiesInRange(args.ClickLocation, storageComp.AreaInsertRadius, _entSet, LookupFlags.Dynamic | LookupFlags.Sundries);
-            var delay = 0f;
-
-            foreach (var entity in _entSet)
-            {
-                if (entity == args.User
-                    || !_itemQuery.TryGetComponent(entity, out var itemComp) // Need comp to get item size to get weight
-                    || !_prototype.Resolve(itemComp.Size, out var itemSize)
-                    || !CanInsert(uid, entity, out _, storageComp, item: itemComp)
-                    || !_interactionSystem.InRangeUnobstructed(args.User, entity))
-                {
-                    continue;
-                }
-
-                _entList.Add(entity);
-                delay += itemSize.Weight;
-
-                if (_entList.Count >= StorageComponent.AreaPickupLimit)
-                    break;
-            }
-
-            //If there's only one then let's be generous
-            if (_entList.Count >= 1)
-            {
-                var doAfterArgs = new DoAfterArgs(EntityManager, args.User, delay * AreaInsertDelayPerItem, new AreaPickupDoAfterEvent(GetNetEntityList(_entList)), uid, target: uid)
-                {
-                    BreakOnDamage = true,
-                    BreakOnMove = true,
-                    NeedHand = true,
-                };
-
-                _doAfterSystem.TryStartDoAfter(doAfterArgs);
-                args.Handled = true;
-            }
-
-            return;
-        }
-
-        // Pick up the clicked entity
-        if (storageComp.QuickInsert)
-        {
-            if (args.Target is not { Valid: true } target)
-                return;
-
-            if (ContainerSystem.IsEntityInContainer(target)
-                || target == args.User
-                || !_itemQuery.HasComponent(target))
-            {
-                return;
-            }
-
-            if (TryComp(uid, out TransformComponent? transformOwner) && TryComp(target, out TransformComponent? transformEnt))
-            {
-                var parent = transformOwner.ParentUid;
-
-                var position = TransformSystem.ToCoordinates(
-                    parent.IsValid() ? parent : uid,
-                    TransformSystem.GetMapCoordinates(transformEnt)
-                );
-
-                args.Handled = true;
-                if (PlayerInsertEntityInWorld((uid, storageComp), args.User, target))
-                {
-                    EntityManager.RaiseSharedEvent(new AnimateInsertingEntitiesEvent(GetNetEntity(uid),
-                        new List<NetEntity> { GetNetEntity(target) },
-                        new List<NetCoordinates> { GetNetCoordinates(position) },
-                        new List<Angle> { transformOwner.LocalRotation }), args.User);
-                }
-            }
-        }
-    }
-
-    private void OnDoAfter(EntityUid uid, StorageComponent component, AreaPickupDoAfterEvent args)
-    {
-        if (args.Handled || args.Cancelled)
-            return;
-
-        args.Handled = true;
-        var successfullyInserted = new List<EntityUid>();
-        var successfullyInsertedPositions = new List<EntityCoordinates>();
-        var successfullyInsertedAngles = new List<Angle>();
-
-        if (!_xformQuery.TryGetComponent(uid, out var xform))
-        {
-            return;
-        }
-
-        var entCount = Math.Min(StorageComponent.AreaPickupLimit, args.Entities.Count);
-
-        for (var i = 0; i < entCount; i++)
-        {
-            var entity = GetEntity(args.Entities[i]);
-
-            // Check again, situation may have changed for some entities, but we'll still pick up any that are valid
-            if (ContainerSystem.IsEntityInContainer(entity)
-                || entity == args.Args.User
-                || !_itemQuery.HasComponent(entity))
-            {
-                continue;
-            }
-
-            if (!_xformQuery.TryGetComponent(entity, out var targetXform) ||
-                targetXform.MapID != xform.MapID)
-            {
-                continue;
-            }
-
-            var position = TransformSystem.ToCoordinates(
-                xform.ParentUid.IsValid() ? xform.ParentUid : uid,
-                new MapCoordinates(TransformSystem.GetWorldPosition(targetXform), targetXform.MapID)
-            );
-
-            var angle = targetXform.LocalRotation;
-
-            if (PlayerInsertEntityInWorld((uid, component), args.Args.User, entity, playSound: false))
-            {
-                successfullyInserted.Add(entity);
-                successfullyInsertedPositions.Add(position);
-                successfullyInsertedAngles.Add(angle);
-            }
-        }
-
-        // If we picked up at least one thing, play a sound and do a cool animation!
-        if (successfullyInserted.Count > 0)
-        {
-            if (!_tag.HasTag(args.User, component.SilentStorageUserTag))
-                Audio.PlayPredicted(component.StorageInsertSound, uid, args.User, _audioParams);
-            EntityManager.RaiseSharedEvent(new AnimateInsertingEntitiesEvent(
-                GetNetEntity(uid),
-                GetNetEntityList(successfullyInserted),
-                GetNetCoordinatesList(successfullyInsertedPositions),
-                successfullyInsertedAngles), args.User);
-        }
-
-        args.Handled = true;
-    }
-
     private void OnReclaimed(EntityUid uid, StorageComponent storageComp, GotReclaimedEvent args)
     {
         ContainerSystem.EmptyContainer(storageComp.Container, destination: args.ReclaimerCoordinates);
@@ -761,6 +597,58 @@ public abstract partial class SharedStorageSystem : EntitySystem
 
         var failedEv = new StorageInsertFailedEvent((storage, storage.Comp), (player, player.Comp));
         RaiseLocalEvent(storage, ref failedEv);
+    }
+
+    private void OnQuickPickup(Entity<StorageComponent> entity, ref QuickPickupEvent args)
+    {
+        if (args.Handled)
+            return;
+
+        // Copy event fields because the lambda doesn't like capturing `ref` values.
+        var user = args.User;
+        var pickedUp = args.PickedUp;
+        args.Handled = _quickPickup.TryDoQuickPickup(
+            args,
+            () => PlayerInsertEntityInWorld(entity.AsNullable(), user, pickedUp)
+        );
+    }
+
+    private void OnBeforeAreaPickup(Entity<StorageComponent> entity, ref BeforeAreaPickupEvent args)
+    {
+        if (args.Handled)
+            return;
+
+        args.Handled = _areaPickup.DoBeforeAreaPickup(
+            ref args,
+            insertedEntity => CanInsert(entity, insertedEntity, out _, entity, insertedEntity)
+        );
+    }
+
+    private void OnAreaPickupDoAfter(Entity<StorageComponent> entity, ref AreaPickupDoAfterEvent args)
+    {
+        if (args.Handled ||
+            args.Cancelled)
+            return;
+
+        // Copy event fields because the lambda doesn't like capturing `ref` values.
+        var user = args.User;
+
+        // Don't play the insertion sound if the user has the silent tag.
+        var insertionSound = _prototype.TryIndex(entity.Comp.SilentStorageUserTag, out var silentTag) && _tag.HasTag(args.User, silentTag)
+            ? null
+            : entity.Comp.StorageInsertSound;
+
+        args.Handled = _areaPickup.TryDoAreaPickup(
+            ref args,
+            entity.Owner,
+            insertionSound,
+            entityToPickUp => PlayerInsertEntityInWorld(
+                entity.AsNullable(),
+                user,
+                entityToPickUp,
+                playSound: false
+            )
+        );
     }
 
     private void OnSetItemLocation(StorageSetItemLocationEvent msg, EntitySessionEventArgs args)
@@ -2003,8 +1891,6 @@ public abstract partial class SharedStorageSystem : EntitySystem
         public ProtoId<ItemSizePrototype>? MaxItemSize;
         public EntityWhitelist? Whitelist;
         public EntityWhitelist? Blacklist;
-        public bool QuickInsert;
-        public bool AreaInsert;
         public SoundSpecifier? StorageInsertSound;
         public SoundSpecifier? StorageRemoveSound;
         public SoundSpecifier? StorageOpenSound;
