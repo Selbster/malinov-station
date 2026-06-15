@@ -8,10 +8,18 @@
   - type: Sprite
     sprite: Structures/Machines/computers.rsi
     layers:
-      - map: ["computerLayerBody"]
-        state: telescreen_frame
-      - map: ["computerLayerScreen"]
-        state: telescreen
+      - state: telescreen_frame
+      - state: telescreen
+      - map: ["enum.PowerDeviceVisualLayers.Powered"]
+        state: telescreen_cameras
+        shader: unshaded
+  - type: Appearance
+  - type: GenericVisualizer
+    visuals:
+      enum.PowerDeviceVisuals.Powered:
+        enum.PowerDeviceVisualLayers.Powered:
+          True: { visible: true }
+          False: { visible: false }
   - type: Destructible
     thresholds:
     - trigger:
@@ -57,11 +65,7 @@
     node: TelescreenFrame
   - type: Sprite
     sprite: Structures/Machines/computers.rsi
-    layers:
-    - map: ["computerLayerBody"]
-      state: telescreen_frame
-    - map: ["computerLayerScreen"]
-      state: telescreen
+    state: telescreen_frame
   - type: Destructible
     thresholds:
     - trigger:
