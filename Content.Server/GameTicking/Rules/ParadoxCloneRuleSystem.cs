@@ -8,7 +8,14 @@ using Content.Shared.Gibbing.Components;
 using Content.Shared.Medical.SuitSensor;
 using Content.Shared.Mind;
 using Content.Shared.Objectives.Systems;
+using Content.Shared.ParadoxClone;
+using Content.Shared.Radio;
+using Content.Shared.Radio.Components;
+using Content.Shared.Random.Helpers;
+using Robust.Shared.Containers;
+using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
+using Robust.Shared.Timing;
 
 namespace Content.Server.GameTicking.Rules;
 
@@ -19,6 +26,15 @@ public sealed partial class ParadoxCloneRuleSystem : GameRuleSystem<ParadoxClone
     [Dependency] private SharedMindSystem _mind = default!;
     [Dependency] private SuitSensorSystem _sensor = default!;
     [Dependency] private TargetSystem _target = default!;
+    [Dependency] private IEntityManager _entMan = default!;
+    [Dependency] private SharedContainerSystem _containers = default!;
+    [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private SharedTransformSystem _transform = default!;
+
+    /// <summary>
+    /// The name of the container slot which contains the paradox clone ghost on an entity
+    /// </summary>
+    public const string ContainerName = "ParadoxCloneBox";
 
     public override void Initialize()
     {
@@ -56,40 +72,106 @@ public sealed partial class ParadoxCloneRuleSystem : GameRuleSystem<ParadoxClone
         }
         else
         {
-            // get possible targets
-            var allAliveHumanoids = _target.GetAliveHumans();
-
-            // we already checked when starting the gamerule, but someone might have died since then.
-            if (allAliveHumanoids.Count == 0)
+            var hadTarget = false;
+            if (args.Coords.IsValid(_entMan))
             {
-                Log.Warning("Could not find any alive players to create a paradox clone from!");
-                return;
+                if (_mind.TryGetMind(args.Coords.EntityId, out var mindId, out var mindComponent))
+                {
+                    ent.Comp.OriginalBody = args.Coords.EntityId;
+                    ent.Comp.OriginalMind = mindId;
+                    hadTarget = true;
+                }
             }
 
-            // pick a random player
-            var randomHumanoidMind = _random.Pick(allAliveHumanoids);
-            ent.Comp.OriginalMind = randomHumanoidMind;
-            ent.Comp.OriginalBody = randomHumanoidMind.Comp.OwnedEntity;
+            if (!hadTarget)
+            {
+                Log.Warning("Paradox clone didn't spawn on a living person with a mind");
+                // get possible targets
+                var allAliveHumanoids = _target.GetAliveHumans();
 
+                // we already checked when starting the gamerule, but someone might have died since then.
+                if (allAliveHumanoids.Count == 0)
+                {
+                    Log.Warning("Could not find any alive players to create a paradox clone from!");
+                    ForceEndSelf(ent.Owner);
+                    return;
+                }
+
+                // pick a random player
+                var randomHumanoidMind = _random.Pick(allAliveHumanoids);
+                ent.Comp.OriginalMind = randomHumanoidMind;
+                ent.Comp.OriginalBody = randomHumanoidMind.Comp.OwnedEntity;
+            }
         }
 
-        if (ent.Comp.OriginalBody == null || !_cloning.TryCloning(ent.Comp.OriginalBody.Value, args.Coords, ent.Comp.Settings, out var clone))
+        // We spawn a clone in nullspace. It'll be retrieved later.
+        if (ent.Comp.OriginalBody == null || !_cloning.TryCloning(ent.Comp.OriginalBody.Value, null, ent.Comp.Settings, out var clone))
         {
             Log.Error($"Unable to make a paradox clone of entity {ToPrettyString(ent.Comp.OriginalBody)}");
             return;
         }
 
-        var targetComp = EnsureComp<TargetOverrideComponent>(clone.Value);
+        // pause it, since nullspace is spaced and we dont want it dying
+        SetPaused((EntityUid)clone, true);
+
+        var ghost = Spawn(ent.Comp.GhostProto);
+
+        // set the ghost's coords so that tests pass
+        _transform.SetCoordinates(ghost, args.Coords);
+
+        // make sure the ghost can keep track of its "real" body
+        _entMan.AddComponent(ghost, new ParadoxCloneComponent
+        {
+            ClonedBody = (EntityUid)clone,
+            Epoch = _timing.CurTime,
+            MaxWanderTime = ent.Comp.WanderingTime,
+            MaxListenTime = ent.Comp.ListenTime
+        });
+
+        // stuff the ghost into the original entity
+        _entMan.EnsureComponent<ParadoxClonedEntityComponent>((EntityUid)ent.Comp.OriginalBody, out var holding);
+        holding.ParadoxCloneBox = _containers.EnsureContainer<ContainerSlot>((EntityUid)ent.Comp.OriginalBody, ContainerName);
+        holding.ParadoxCloneBox.ShowContents = false;
+        _containers.Insert(ghost, holding.ParadoxCloneBox);
+
+        // recover the comms the original has
+        HashSet<ProtoId<RadioChannelPrototype>> comms = new HashSet<ProtoId<RadioChannelPrototype>>();
+        if (_entMan.TryGetComponent<ActiveRadioComponent>(ent.Comp.OriginalBody, out var active))
+        {
+            foreach (var channel in active.Channels)
+            {
+                comms.Add(channel);
+            }
+        }
+
+        if (_entMan.TryGetComponent<WearingHeadsetComponent>(ent.Comp.OriginalBody, out var headsetComponent))
+        {
+            if (_entMan.TryGetComponent<ActiveRadioComponent>(headsetComponent.Headset, out var headsetActive))
+            {
+                foreach (var channel in headsetActive.Channels)
+                {
+                    comms.Add(channel);
+                }
+            }
+        }
+
+        // give them to the ghost
+        _entMan.AddComponent(ghost, new ActiveRadioComponent
+        {
+            Channels = comms,
+        });
+
+        var targetComp = EnsureComp<TargetOverrideComponent>(ghost);
         targetComp.Target = ent.Comp.OriginalMind; // set the kill target
 
-        var gibComp = EnsureComp<GibOnRoundEndComponent>(clone.Value);
+        var gibComp = EnsureComp<GibOnRoundEndComponent>(ghost);
         gibComp.SpawnProto = ent.Comp.GibProto;
         gibComp.PreventGibbingObjectives = new() { "ParadoxCloneKillObjective" }; // don't gib them if they killed the original.
 
         // turn their suit sensors off so they don't immediately get noticed
         _sensor.SetAllSensors(clone.Value, SuitSensorMode.SensorOff);
 
-        args.Entity = clone;
+        args.Entity = ghost;
     }
 
     private void AfterAntagEntitySelected(Entity<ParadoxCloneRuleComponent> ent, ref AfterAntagEntitySelectedEvent args)
