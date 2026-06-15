@@ -30,32 +30,49 @@ public abstract partial class SharedSurveillanceCameraSystem : EntitySystem
         args.Verbs.Add(verb);
     }
 
-    private void OnEmpPulse(EntityUid uid, SurveillanceCameraComponent component, ref EmpPulseEvent args)
+    /// <summary>
+    /// Handle the effects of being affected by an EMP.
+    /// </summary>
+    /// <param name="ent">Camera entity with a <see cref="SurveillanceCameraComponent"/>.</param>
+    /// <param name="args">
+    /// <see cref="EmpPulseEvent"/> arguments. Used to return expected behavior to <see cref="SharedEmpSystem"/>.
+    /// </param>
+    private void OnEmpPulse(Entity<SurveillanceCameraComponent> ent, ref EmpPulseEvent args)
     {
-        if (component.Active)
+        if (ent.Comp.Active)
         {
-            args.Affected = true;
+            args.Affected = false; // We handle our own effect
             args.Disabled = true;
-            SetActive(uid, false);
+            SetActive(ent, false);
         }
+
+        UpdateVisuals(ent, ent.Comp);
     }
 
-    private void OnEmpDisabledRemoved(EntityUid uid, SurveillanceCameraComponent component, ref EmpDisabledRemovedEvent args)
+    /// <summary>
+    /// Handle an EMP event wearing off and returning to normal function.
+    /// </summary>
+    /// <param name="ent">Camera entity with a <see cref="SurveillanceCameraComponent"/>.</param>
+    /// <param name="args"><see cref="EmpDisabledRemovedEvent"/> arguments. Unused.</param>
+    private void OnEmpDisabledRemoved(Entity<SurveillanceCameraComponent> ent, ref EmpDisabledRemovedEvent args)
     {
-        SetActive(uid, true);
+        SetActive(ent, true);
+        UpdateVisuals(ent, ent.Comp);
     }
 
     // TODO: predict the rest of the server side system
     public virtual void SetActive(EntityUid camera, bool setting, SurveillanceCameraComponent? component = null) { }
 
     protected virtual void OpenSetupInterface(EntityUid uid, EntityUid player, SurveillanceCameraComponent? camera = null) { }
+
+    protected virtual void UpdateVisuals(EntityUid uid, SurveillanceCameraComponent? component = null, AppearanceComponent? appearance = null) { }
 }
 
 [Serializable, NetSerializable]
 public enum SurveillanceCameraVisualsKey : byte
 {
     Key,
-    Layer
+    Layer,
 }
 
 [Serializable, NetSerializable]
@@ -64,9 +81,9 @@ public enum SurveillanceCameraVisuals : byte
     Active,
     InUse,
     Disabled,
+    Emp,
     // Reserved for future use
     Xray,
-    Emp
 }
 
 /// <summary>
