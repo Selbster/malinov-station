@@ -24,5 +24,11 @@ public sealed partial class RevolutionaryComponent : Component
     [DataField]
     public SoundSpecifier RevStartSound = new SoundPathSpecifier("/Audio/Ambience/Antag/headrev_start.ogg");
 
+    /// <summary>
+    /// The duration of the stun when you get deconverted.
+    /// </summary>
+    [DataField]
+    public float StunTime = 4f;
+
     public override bool SessionSpecific => true;
 }
