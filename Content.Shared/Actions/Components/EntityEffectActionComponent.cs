@@ -21,3 +21,8 @@ public sealed partial class EntityEffectActionComponent : Component
 /// Event raised when an entity effect action is performed.
 /// </summary>
 public sealed partial class EntityEffectActionEvent : EntityTargetActionEvent;
+
+/// <summary>
+/// Event raised to link between instant actions & the entity effect action.
+/// </summary>
+public sealed partial class EntityEffectInstantActionEvent : InstantActionEvent;
