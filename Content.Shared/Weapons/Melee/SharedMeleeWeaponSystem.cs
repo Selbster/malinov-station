@@ -747,7 +747,9 @@ public abstract partial class SharedMeleeWeaponSystem : EntitySystem
 
         if (appliedDamage.GetTotal() > FixedPoint2.Zero && targets.Count > 0)
         {
-            DoDamageEffect(targets, user, Transform(targets[0]));
+            if (!TryComp(targets[0], out TransformComponent? targetXform))
+                return true;
+            DoDamageEffect(targets, user, targetXform);
         }
 
         return true;
