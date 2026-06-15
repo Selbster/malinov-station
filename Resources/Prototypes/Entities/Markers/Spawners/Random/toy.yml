@@ -351,6 +351,10 @@
     - id: SadTromboneImplanter
     - !type:GroupSelector
       children:
+      - id: PartyBlowerBlue
+      - id: PartyBlowerPink
+    - !type:GroupSelector
+      children:
       - id: Whistle
         weight: 5
       - id: SecurityWhistle
