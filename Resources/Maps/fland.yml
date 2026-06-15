@@ -101009,14 +101009,6 @@ entities:
     - type: Transform
       pos: 51.5,-32.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: ClosetChefFilled
   entities:
   - uid: 1164
@@ -101024,27 +101016,11 @@ entities:
     - type: Transform
       pos: -10.5,24.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4789
     components:
     - type: Transform
       pos: -24.5,27.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10586
     components:
     - type: Transform
@@ -101057,326 +101033,126 @@ entities:
     - type: Transform
       pos: -17.5,7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4144
     components:
     - type: Transform
       pos: -26.5,35.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4590
     components:
     - type: Transform
       pos: -18.5,43.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4878
     components:
     - type: Transform
       pos: -18.5,40.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4893
     components:
     - type: Transform
       pos: -39.5,43.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 6297
     components:
     - type: Transform
       pos: -30.5,51.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 6542
     components:
     - type: Transform
       pos: -38.5,68.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 6636
     components:
     - type: Transform
       pos: -20.5,64.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 6769
     components:
     - type: Transform
       pos: -5.5,75.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10192
     components:
     - type: Transform
       pos: 17.5,1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10783
     components:
     - type: Transform
       pos: 6.5,16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 12146
     components:
     - type: Transform
       pos: -17.5,-16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13030
     components:
     - type: Transform
       pos: -44.5,-54.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13039
     components:
     - type: Transform
       pos: -29.5,-60.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13041
     components:
     - type: Transform
       pos: -29.5,-46.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13148
     components:
     - type: Transform
       pos: -41.5,-25.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13567
     components:
     - type: Transform
       pos: -32.5,-7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13644
     components:
     - type: Transform
       pos: -21.5,-29.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 15315
     components:
     - type: Transform
       pos: 48.5,-23.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18845
     components:
     - type: Transform
       pos: 19.5,64.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 25830
     components:
     - type: Transform
       pos: 50.5,0.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26247
     components:
     - type: Transform
       pos: 89.5,-16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26761
     components:
     - type: Transform
       pos: 91.5,-22.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26762
     components:
     - type: Transform
       pos: 93.5,-22.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29127
     components:
     - type: Transform
       pos: 57.5,20.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29182
     components:
     - type: Transform
@@ -101387,144 +101163,56 @@ entities:
     - type: Transform
       pos: 80.5,27.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29313
     components:
     - type: Transform
       pos: 70.5,6.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29361
     components:
     - type: Transform
       pos: 75.5,18.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
   - uid: 29362
     components:
     - type: Transform
       pos: 75.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
   - uid: 29567
     components:
     - type: Transform
       pos: 75.5,37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 30080
     components:
     - type: Transform
       pos: 95.5,42.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 30081
     components:
     - type: Transform
       pos: 95.5,44.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31421
     components:
     - type: Transform
       pos: 92.5,73.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31743
     components:
     - type: Transform
       pos: 10.5,30.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31800
     components:
     - type: Transform
       pos: -39.5,3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32326
     components:
     - type: Transform
       pos: 102.5,-47.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32342
     components:
     - type: Transform
@@ -101555,170 +101243,66 @@ entities:
     - type: Transform
       pos: 34.5,-3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32422
     components:
     - type: Transform
       pos: 34.5,-14.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32429
     components:
     - type: Transform
       pos: 120.5,-1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32445
     components:
     - type: Transform
       pos: 125.5,7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32538
     components:
     - type: Transform
       pos: 110.5,16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32603
     components:
     - type: Transform
       pos: 108.5,18.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32761
     components:
     - type: Transform
       pos: 103.5,26.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32773
     components:
     - type: Transform
       pos: 112.5,32.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33818
     components:
     - type: Transform
       pos: 35.5,38.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33862
     components:
     - type: Transform
       pos: 0.5,66.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33975
     components:
     - type: Transform
       pos: 24.5,70.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34060
     components:
     - type: Transform
       pos: 55.5,68.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 35223
     components:
     - type: Transform
       pos: 60.5,-17.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
 - proto: ClosetEmergencyN2FilledRandom
   entities:
   - uid: 13248
@@ -101763,443 +101347,171 @@ entities:
     - type: Transform
       pos: -18.5,7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4145
     components:
     - type: Transform
       pos: -26.5,34.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4591
     components:
     - type: Transform
       pos: -17.5,43.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4879
     components:
     - type: Transform
       pos: -18.5,39.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 6637
     components:
     - type: Transform
       pos: -19.5,64.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10191
     components:
     - type: Transform
       pos: 17.5,2.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10784
     components:
     - type: Transform
       pos: 7.5,16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 12147
     components:
     - type: Transform
       pos: -15.5,-16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13060
     components:
     - type: Transform
       pos: -43.5,-49.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13150
     components:
     - type: Transform
       pos: -32.5,-22.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13151
     components:
     - type: Transform
       pos: -41.5,-24.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13568
     components:
     - type: Transform
       pos: -32.5,-8.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 15316
     components:
     - type: Transform
       pos: 48.5,-22.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 15368
     components:
     - type: Transform
       pos: 53.5,-32.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18847
     components:
     - type: Transform
       pos: 17.5,64.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19995
     components:
     - type: Transform
       pos: 42.5,-37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 25831
     components:
     - type: Transform
       pos: 51.5,0.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26246
     components:
     - type: Transform
       pos: 89.5,-15.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26764
     components:
     - type: Transform
       pos: 94.5,-22.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29128
     components:
     - type: Transform
       pos: 57.5,21.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29273
     components:
     - type: Transform
       pos: 80.5,28.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29314
     components:
     - type: Transform
       pos: 71.5,6.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29568
     components:
     - type: Transform
       pos: 74.5,37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 30082
     components:
     - type: Transform
       pos: 95.5,43.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31718
     components:
     - type: Transform
       pos: 11.5,11.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31740
     components:
     - type: Transform
       pos: 21.5,30.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32327
     components:
     - type: Transform
       pos: 102.5,-48.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32419
     components:
     - type: Transform
       pos: 32.5,-3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32421
     components:
     - type: Transform
       pos: 33.5,-14.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32430
     components:
     - type: Transform
       pos: 120.5,-3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32760
     components:
     - type: Transform
       pos: 103.5,25.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33823
     components:
     - type: Transform
       pos: 34.5,38.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33976
     components:
     - type: Transform
       pos: 24.5,69.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 35224
     components:
     - type: Transform
       pos: 60.5,-18.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
 - proto: ClosetJanitorFilled
   entities:
   - uid: 1501
@@ -102207,14 +101519,6 @@ entities:
     - type: Transform
       pos: 5.5,13.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10302
     components:
     - type: Transform
@@ -102227,27 +101531,11 @@ entities:
     - type: Transform
       pos: 18.5,64.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34207
     components:
     - type: Transform
       pos: 34.5,62.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: ClosetL3JanitorFilled
   entities:
   - uid: 1500
@@ -102255,27 +101543,11 @@ entities:
     - type: Transform
       pos: 6.5,13.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32615
     components:
     - type: Transform
       pos: 110.5,18.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
 - proto: ClosetL3SecurityFilled
   entities:
   - uid: 4594
@@ -102283,14 +101555,6 @@ entities:
     - type: Transform
       pos: -37.5,50.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10695
     components:
     - type: Transform
@@ -102301,14 +101565,6 @@ entities:
     - type: Transform
       pos: 23.5,55.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: ClosetL3VirologyFilled
   entities:
   - uid: 19027
@@ -102316,53 +101572,21 @@ entities:
     - type: Transform
       pos: 27.5,41.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19028
     components:
     - type: Transform
       pos: 27.5,40.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19029
     components:
     - type: Transform
       pos: 30.5,40.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19030
     components:
     - type: Transform
       pos: 30.5,41.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: ClosetMaintenanceFilledRandom
   entities:
   - uid: 2611
@@ -102370,287 +101594,111 @@ entities:
     - type: Transform
       pos: -13.5,2.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4873
     components:
     - type: Transform
       pos: -20.5,29.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 12183
     components:
     - type: Transform
       pos: -7.5,-22.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 28160
     components:
     - type: Transform
       pos: 120.5,-20.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31662
     components:
     - type: Transform
       pos: -35.5,69.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31669
     components:
     - type: Transform
       pos: -26.5,70.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31717
     components:
     - type: Transform
       pos: 8.5,18.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31737
     components:
     - type: Transform
       pos: 17.5,30.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32138
     components:
     - type: Transform
       pos: -21.5,-0.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32417
     components:
     - type: Transform
       pos: 32.5,-5.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32434
     components:
     - type: Transform
       pos: 120.5,-8.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32507
     components:
     - type: Transform
       pos: 104.5,10.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32714
     components:
     - type: Transform
       pos: 103.5,20.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32734
     components:
     - type: Transform
       pos: 89.5,25.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33535
     components:
     - type: Transform
       pos: 10.5,69.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33683
     components:
     - type: Transform
       pos: 30.5,57.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33864
     components:
     - type: Transform
       pos: -1.5,74.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33954
     components:
     - type: Transform
       pos: 39.5,42.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34222
     components:
     - type: Transform
       pos: 39.5,56.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34546
     components:
     - type: Transform
       pos: 59.5,-24.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34716
     components:
     - type: Transform
       pos: 66.5,-3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
   - uid: 35202
     components:
     - type: Transform
       pos: 96.5,-42.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
 - proto: ClosetRadiationSuitFilled
   entities:
   - uid: 15308
@@ -102663,27 +101711,11 @@ entities:
     - type: Transform
       pos: 52.5,-32.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19994
     components:
     - type: Transform
       pos: 41.5,-37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 23565
     components:
     - type: Transform
@@ -102694,144 +101726,56 @@ entities:
     - type: Transform
       pos: 87.5,-7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 23569
     components:
     - type: Transform
       pos: 86.5,-7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 23570
     components:
     - type: Transform
       pos: 85.5,-7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26248
     components:
     - type: Transform
       pos: 89.5,-14.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26482
     components:
     - type: Transform
       pos: 82.5,-2.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26743
     components:
     - type: Transform
       pos: 101.5,-15.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26744
     components:
     - type: Transform
       pos: 100.5,-15.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26863
     components:
     - type: Transform
       pos: 111.5,-23.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32791
     components:
     - type: Transform
       pos: 68.5,0.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34612
     components:
     - type: Transform
       pos: 98.5,3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
   - uid: 34613
     components:
     - type: Transform
       pos: 97.5,3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
 - proto: ClosetSteelBase
   entities:
   - uid: 10901
@@ -102839,53 +101783,21 @@ entities:
     - type: Transform
       pos: 13.5,-2.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10902
     components:
     - type: Transform
       pos: 13.5,5.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19035
     components:
     - type: Transform
       pos: 27.5,46.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31688
     components:
     - type: Transform
       pos: -28.5,70.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
     - type: ContainerContainer
       containers:
         entity_storage: !type:Container
@@ -102902,27 +101814,11 @@ entities:
     - type: Transform
       pos: 39.5,44.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33953
     components:
     - type: Transform
       pos: 39.5,43.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: ClosetToolFilled
   entities:
   - uid: 2316
@@ -102930,170 +101826,66 @@ entities:
     - type: Transform
       pos: -19.5,-8.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 12092
     components:
     - type: Transform
       pos: -14.5,-21.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13043
     components:
     - type: Transform
       pos: -41.5,-49.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26445
     components:
     - type: Transform
       pos: 75.5,-20.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26446
     components:
     - type: Transform
       pos: 75.5,-19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26447
     components:
     - type: Transform
       pos: 75.5,-18.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26485
     components:
     - type: Transform
       pos: 79.5,-2.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31778
     components:
     - type: Transform
       pos: -44.5,-3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31779
     components:
     - type: Transform
       pos: -44.5,-2.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32212
     components:
     - type: Transform
       pos: 27.5,-39.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32219
     components:
     - type: Transform
       pos: 50.5,-51.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32310
     components:
     - type: Transform
       pos: 104.5,-52.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32413
     components:
     - type: Transform
       pos: 36.5,-11.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: ClosetWallAtmospherics
   entities:
   - uid: 32204
@@ -103101,14 +101893,6 @@ entities:
     - type: Transform
       pos: 73.5,-32.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
     - type: Fixtures
       fixtures: {}
 - proto: ClosetWallOrange
@@ -106682,14 +105466,6 @@ entities:
     - type: Transform
       pos: -33.5,-39.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateCoffin
   entities:
   - uid: 6643
@@ -106719,14 +105495,6 @@ entities:
     - type: Transform
       pos: 21.5,28.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateEmergencyRadiation
   entities:
   - uid: 9643
@@ -106739,14 +105507,6 @@ entities:
     - type: Transform
       pos: 76.5,6.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateEmptySpawner
   entities:
   - uid: 6962
@@ -106861,14 +105621,6 @@ entities:
     - type: Transform
       pos: 74.5,-1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateEngineeringAMEShielding
   entities:
   - uid: 25989
@@ -106888,53 +105640,21 @@ entities:
     - type: Transform
       pos: 73.5,1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32260
     components:
     - type: Transform
       pos: -29.5,62.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32728
     components:
     - type: Transform
       pos: 108.5,12.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33558
     components:
     - type: Transform
       pos: 47.5,37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateEngineeringCableHV
   entities:
   - uid: 32116
@@ -106942,27 +105662,11 @@ entities:
     - type: Transform
       pos: -20.5,1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34058
     components:
     - type: Transform
       pos: 53.5,66.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateEngineeringCableLV
   entities:
   - uid: 4808
@@ -106970,14 +105674,6 @@ entities:
     - type: Transform
       pos: -22.5,35.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateEngineeringCableMV
   entities:
   - uid: 32220
@@ -106985,14 +105681,6 @@ entities:
     - type: Transform
       pos: 50.5,-49.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateEngineeringElectricalSupplies
   entities:
   - uid: 3662
@@ -107000,53 +105688,21 @@ entities:
     - type: Transform
       pos: -22.5,1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26561
     components:
     - type: Transform
       pos: 78.5,1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29393
     components:
     - type: Transform
       pos: 71.5,21.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 32792
     components:
     - type: Transform
       pos: 68.5,-1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14948
-        moles:
-          Oxygen: 3.0603204
-          Nitrogen: 11.512634
 - proto: CrateEngineeringFoamGrenade
   entities:
   - uid: 35597
@@ -107061,14 +105717,6 @@ entities:
     - type: Transform
       pos: 106.5,12.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateFilledSpawner
   entities:
   - uid: 10785
@@ -107158,14 +105806,6 @@ entities:
     - type: Transform
       pos: -3.5,28.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9379
     components:
     - type: Transform
@@ -107183,14 +105823,6 @@ entities:
     - type: Transform
       pos: -9.5,-14.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateHydroponicsTools
   entities:
   - uid: 1353
@@ -107198,27 +105830,11 @@ entities:
     - type: Transform
       pos: -14.5,37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 1444
     components:
     - type: Transform
       pos: -16.5,35.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateLockBoxEngineering
   entities:
   - uid: 36027
@@ -107271,40 +105887,16 @@ entities:
     - type: Transform
       pos: 12.5,-30.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13123
     components:
     - type: Transform
       pos: -35.5,-44.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26136
     components:
     - type: Transform
       pos: 78.5,-33.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateMedicalSupplies
   entities:
   - uid: 34529
@@ -107312,14 +105904,6 @@ entities:
     - type: Transform
       pos: 62.5,-50.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateMedicalSurgery
   entities:
   - uid: 18648
@@ -107334,14 +105918,6 @@ entities:
     - type: Transform
       pos: 114.5,16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrateNPCChicken
   entities:
   - uid: 23691
@@ -107363,27 +105939,11 @@ entities:
     - type: Transform
       pos: 29.5,-30.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
   - uid: 30742
     components:
     - type: Transform
       pos: 87.5,49.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 1.9938449
-          Nitrogen: 7.5006547
     - type: ContainerContainer
       containers:
         entity_storage: !type:Container
@@ -107421,14 +105981,6 @@ entities:
     - type: Transform
       pos: -16.5,34.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 35872
     components:
     - type: Transform
@@ -107441,14 +105993,6 @@ entities:
     - type: Transform
       pos: 7.5,9.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14673
-        moles:
-          Oxygen: 1.7459903
-          Nitrogen: 6.568249
     - type: ContainerContainer
       containers:
         entity_storage: !type:Container
@@ -107498,14 +106042,6 @@ entities:
       rot: 1.5707963267948966 rad
       pos: -22.5,67.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: CrewMonitoringServer
   entities:
   - uid: 27828
@@ -170362,14 +168898,6 @@ entities:
       parent: 13329
     - type: Physics
       bodyType: Static
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14673
-        moles:
-          Oxygen: 1.7459903
-          Nitrogen: 6.568249
     - type: ContainerContainer
       containers:
         entity_storage: !type:Container
@@ -170397,14 +168925,6 @@ entities:
       parent: 13329
     - type: Physics
       bodyType: Static
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14673
-        moles:
-          Oxygen: 1.7459903
-          Nitrogen: 6.568249
     - type: ContainerContainer
       containers:
         entity_storage: !type:Container
@@ -172822,40 +171342,16 @@ entities:
     - type: Transform
       pos: -13.5,28.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 1194
     components:
     - type: Transform
       pos: -12.5,30.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34341
     components:
     - type: Transform
       pos: 84.5,-54.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerBotanistFilled
   entities:
   - uid: 1338
@@ -172863,40 +171359,16 @@ entities:
     - type: Transform
       pos: -16.5,39.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 1339
     components:
     - type: Transform
       pos: -16.5,40.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 1340
     components:
     - type: Transform
       pos: -16.5,41.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerCaptainFilledNoLaser
   entities:
   - uid: 26362
@@ -172911,27 +171383,11 @@ entities:
     - type: Transform
       pos: 23.5,36.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18475
     components:
     - type: Transform
       pos: 25.5,36.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerChiefEngineerFilled
   entities:
   - uid: 26220
@@ -172939,14 +171395,6 @@ entities:
     - type: Transform
       pos: 84.5,-15.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerChiefMedicalOfficerFilled
   entities:
   - uid: 18916
@@ -172954,14 +171402,6 @@ entities:
     - type: Transform
       pos: 25.5,64.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerDetectiveFilled
   entities:
   - uid: 4531
@@ -172969,14 +171409,6 @@ entities:
     - type: Transform
       pos: -25.5,37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerElectricalSuppliesFilled
   entities:
   - uid: 4807
@@ -172984,92 +171416,36 @@ entities:
     - type: Transform
       pos: -24.5,35.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10786
     components:
     - type: Transform
       pos: 6.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 12152
     components:
     - type: Transform
       pos: -11.5,-16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13133
     components:
     - type: Transform
       pos: -32.5,-44.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26483
     components:
     - type: Transform
       pos: 81.5,-2.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31791
     components:
     - type: Transform
       pos: -39.5,-0.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 33881
     components:
     - type: Transform
       pos: 29.5,53.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerEngineerFilled
   entities:
   - uid: 27104
@@ -173077,14 +171453,6 @@ entities:
     - type: Transform
       pos: 85.5,3.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerEngineerFilledHardsuit
   entities:
   - uid: 23867
@@ -173129,27 +171497,11 @@ entities:
     - type: Transform
       pos: -13.5,-8.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4600
     components:
     - type: Transform
       pos: -37.5,44.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 7253
     components:
     - type: Transform
@@ -173180,170 +171532,66 @@ entities:
     - type: Transform
       pos: 21.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9516
     components:
     - type: Transform
       pos: 20.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9517
     components:
     - type: Transform
       pos: 19.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9518
     components:
     - type: Transform
       pos: 18.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9519
     components:
     - type: Transform
       pos: 21.5,17.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9520
     components:
     - type: Transform
       pos: 20.5,17.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9521
     components:
     - type: Transform
       pos: 19.5,17.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9522
     components:
     - type: Transform
       pos: 18.5,17.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10123
     components:
     - type: Transform
       pos: 19.5,7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 10124
     components:
     - type: Transform
       pos: 20.5,7.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 15348
     components:
     - type: Transform
       pos: 43.5,-20.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18669
     components:
     - type: Transform
       pos: 27.5,55.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26615
     components:
     - type: Transform
       pos: 71.5,-8.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerFreezer
   entities:
   - uid: 1209
@@ -173351,40 +171599,16 @@ entities:
     - type: Transform
       pos: -3.5,26.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 1210
     components:
     - type: Transform
       pos: -3.5,27.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 4790
     components:
     - type: Transform
       pos: -28.5,27.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
     - type: ContainerContainer
       containers:
         entity_storage: !type:Container
@@ -173401,14 +171625,6 @@ entities:
     - type: Transform
       pos: 39.5,58.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerFreezerVaultFilled
   entities:
   - uid: 30188
@@ -173423,14 +171639,6 @@ entities:
     - type: Transform
       pos: 63.5,51.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerHeadOfSecurityFilled
   entities:
   - uid: 10498
@@ -173438,14 +171646,6 @@ entities:
     - type: Transform
       pos: 39.5,24.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerMedicalFilled
   entities:
   - uid: 18740
@@ -173453,40 +171653,16 @@ entities:
     - type: Transform
       pos: 7.5,52.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18821
     components:
     - type: Transform
       pos: 8.5,66.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18822
     components:
     - type: Transform
       pos: 8.5,67.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerMedicineFilled
   entities:
   - uid: 8431
@@ -173499,79 +171675,31 @@ entities:
     - type: Transform
       pos: 25.5,51.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18658
     components:
     - type: Transform
       pos: 0.5,55.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18809
     components:
     - type: Transform
       pos: 21.5,63.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18857
     components:
     - type: Transform
       pos: 7.5,70.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 18858
     components:
     - type: Transform
       pos: 7.5,72.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 31649
     components:
     - type: Transform
       pos: -39.5,64.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerParamedicFilled
   entities:
   - uid: 13332
@@ -173647,14 +171775,6 @@ entities:
     - type: Transform
       pos: -4.5,-23.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerResearchDirectorFilled
   entities:
   - uid: 15467
@@ -173662,14 +171782,6 @@ entities:
     - type: Transform
       pos: 53.5,-37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerSalvageSpecialistFilledHardsuit
   entities:
   - uid: 13468
@@ -173694,66 +171806,26 @@ entities:
     - type: Transform
       pos: 27.5,-51.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19250
     components:
     - type: Transform
       pos: 28.5,-51.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19251
     components:
     - type: Transform
       pos: 29.5,-51.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19252
     components:
     - type: Transform
       pos: 30.5,-51.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 25832
     components:
     - type: Transform
       pos: 56.5,-17.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerSecurityFilled
   entities:
   - uid: 2210
@@ -173761,14 +171833,6 @@ entities:
     - type: Transform
       pos: -7.5,-8.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 8662
     components:
     - type: Transform
@@ -173789,79 +171853,31 @@ entities:
     - type: Transform
       pos: 33.5,11.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9428
     components:
     - type: Transform
       pos: 34.5,11.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9429
     components:
     - type: Transform
       pos: 34.5,9.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9430
     components:
     - type: Transform
       pos: 33.5,9.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9431
     components:
     - type: Transform
       pos: 33.5,14.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9432
     components:
     - type: Transform
       pos: 34.5,14.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 9446
     components:
     - type: Transform
@@ -173872,53 +171888,21 @@ entities:
     - type: Transform
       pos: 20.5,1.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 11813
     components:
     - type: Transform
       pos: 13.5,-10.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 19160
     components:
     - type: Transform
       pos: 33.5,17.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 34611
     components:
     - type: Transform
       pos: 27.5,23.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerWallMedicalFilled
   entities:
   - uid: 18856
@@ -173926,14 +171910,6 @@ entities:
     - type: Transform
       pos: 7.5,69.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
     - type: Fixtures
       fixtures: {}
 - proto: LockerWardenFilled
@@ -173943,14 +171919,6 @@ entities:
     - type: Transform
       pos: 27.5,13.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: LockerWeldingSuppliesFilled
   entities:
   - uid: 2317
@@ -173958,66 +171926,26 @@ entities:
     - type: Transform
       pos: -19.5,-9.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 12153
     components:
     - type: Transform
       pos: -13.5,-16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 13134
     components:
     - type: Transform
       pos: -33.5,-44.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26484
     components:
     - type: Transform
       pos: 78.5,-2.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 26559
     components:
     - type: Transform
       pos: 67.5,-25.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: MachineAnomalyGenerator
   entities:
   - uid: 13840
@@ -175122,28 +173050,12 @@ entities:
       rot: 1.5707963267948966 rad
       pos: -22.5,69.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 6624
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: -22.5,70.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 8901
     components:
     - type: Transform
@@ -175155,179 +173067,75 @@ entities:
     - type: Transform
       pos: 8.5,41.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16938
     components:
     - type: Transform
       pos: 7.5,41.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16939
     components:
     - type: Transform
       pos: 6.5,41.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16940
     components:
     - type: Transform
       pos: 5.5,41.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16941
     components:
     - type: Transform
       rot: -1.5707963267948966 rad
       pos: 5.5,36.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16942
     components:
     - type: Transform
       rot: -1.5707963267948966 rad
       pos: 5.5,37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16943
     components:
     - type: Transform
       rot: -1.5707963267948966 rad
       pos: 5.5,38.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16944
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 2.5,37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16945
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 2.5,38.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16946
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 2.5,39.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16947
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 6.5,36.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16948
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 6.5,37.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 16949
     components:
     - type: Transform
       rot: 1.5707963267948966 rad
       pos: 6.5,38.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 20040
     components:
     - type: Transform
@@ -201305,14 +199113,6 @@ entities:
     - type: Transform
       pos: 17.5,9.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14673
-        moles:
-          Oxygen: 1.7459903
-          Nitrogen: 6.568249
 - proto: SuitStorageWarden
   entities:
   - uid: 9436
@@ -233328,40 +231128,16 @@ entities:
     - type: Transform
       pos: 98.5,18.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29339
     components:
     - type: Transform
       pos: 64.5,15.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14948
-        moles:
-          Oxygen: 3.0603204
-          Nitrogen: 11.512634
   - uid: 32203
     components:
     - type: Transform
       pos: -35.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: WardrobeBlueFilled
   entities:
   - uid: 29311
@@ -233369,27 +231145,11 @@ entities:
     - type: Transform
       pos: 58.5,9.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29338
     components:
     - type: Transform
       pos: 64.5,16.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14948
-        moles:
-          Oxygen: 3.0603204
-          Nitrogen: 11.512634
 - proto: WardrobeCargoFilled
   entities:
   - uid: 11620
@@ -233397,14 +231157,6 @@ entities:
     - type: Transform
       pos: 0.5,-19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: WardrobeChapelFilled
   entities:
   - uid: 6609
@@ -233412,14 +231164,6 @@ entities:
     - type: Transform
       pos: -20.5,73.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: WardrobeGreenFilled
   entities:
   - uid: 29250
@@ -233427,14 +231171,6 @@ entities:
     - type: Transform
       pos: 85.5,25.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: WardrobeGreyFilled
   entities:
   - uid: 29253
@@ -233442,14 +231178,6 @@ entities:
     - type: Transform
       pos: 79.5,22.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: WardrobeMedicalDoctorFilled
   entities:
   - uid: 18859
@@ -233464,14 +231192,6 @@ entities:
     - type: Transform
       pos: 72.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: WardrobePinkFilled
   entities:
   - uid: 29252
@@ -233479,40 +231199,16 @@ entities:
     - type: Transform
       pos: 79.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29312
     components:
     - type: Transform
       pos: 58.5,8.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
   - uid: 29340
     components:
     - type: Transform
       pos: 64.5,14.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14948
-        moles:
-          Oxygen: 3.0603204
-          Nitrogen: 11.512634
 - proto: WardrobePrisonFilled
   entities:
   - uid: 10299
@@ -233549,14 +231245,6 @@ entities:
     - type: Transform
       pos: 21.5,-29.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: WardrobeWhiteFilled
   entities:
   - uid: 21253
@@ -233564,14 +231252,6 @@ entities:
     - type: Transform
       pos: 59.5,22.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.14954
-        moles:
-          Oxygen: 3.2184362
-          Nitrogen: 12.107451
 - proto: WardrobeYellowFilled
   entities:
   - uid: 29251
@@ -233579,14 +231259,6 @@ entities:
     - type: Transform
       pos: 85.5,19.5
       parent: 13329
-    - type: EntityStorage
-      air:
-        volume: 200
-        immutable: False
-        temperature: 293.1495
-        moles:
-          Oxygen: 3.0981817
-          Nitrogen: 11.655066
 - proto: WarningAir
   entities:
   - uid: 23803
