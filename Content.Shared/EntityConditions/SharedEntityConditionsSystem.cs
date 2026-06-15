@@ -7,8 +7,15 @@ namespace Content.Shared.EntityConditions;
 /// Specifically it handles the receiving of events for causing entity effects, and provides
 /// public API for other systems to take advantage of entity effects.
 /// </summary>
-public sealed partial class SharedEntityConditionsSystem : EntitySystem, IEntityConditionRaiser
+public sealed partial class SharedEntityConditionsSystem : EntitySystem
 {
+    private Dictionary<Type, EntityConditionHandler> _handlers = new();
+
+    public void RegisterHandler(EntityConditionHandler handler)
+    {
+        _handlers[handler.ConditionType] = handler;
+    }
+
     /// <summary>
     /// Checks a list of conditions to verify that they all return true.
     /// </summary>
@@ -59,17 +66,32 @@ public sealed partial class SharedEntityConditionsSystem : EntitySystem, IEntity
     /// <returns>Returns true if we meet the condition and false otherwise</returns>
     public bool TryCondition(EntityUid target, EntityCondition condition)
     {
-        return condition.Inverted != condition.RaiseEvent(target, this);
+        return condition.Inverted != CheckCondition(target, condition);
     }
 
-    /// <summary>
-    /// Raises a condition to an entity. You should not be calling this unless you know what you're doing.
-    /// </summary>
-    public bool RaiseConditionEvent<T>(EntityUid target, T effect) where T : EntityConditionBase<T>
+    private bool CheckCondition(EntityUid target, EntityCondition condition)
     {
-        var effectEv = new EntityConditionEvent<T>(effect);
-        RaiseLocalEvent(target, ref effectEv);
-        return effectEv.Result;
+        if (_handlers.TryGetValue(condition.GetType(), out var handler))
+            return handler.CheckCondition(target, condition);
+        return false;
+    }
+}
+
+/// <summary>
+/// Abstract base class for entity condition handlers.
+/// Extends EntitySystem so concrete handlers are proper engine systems.
+/// </summary>
+public abstract partial class EntityConditionHandler : EntitySystem
+{
+    [Dependency] private SharedEntityConditionsSystem _conditions = default!;
+
+    public abstract Type ConditionType { get; }
+    public abstract bool CheckCondition(EntityUid target, EntityCondition condition);
+
+    /// <inheritdoc/>
+    public override void Initialize()
+    {
+        _conditions.RegisterHandler(this);
     }
 }
 
@@ -78,37 +100,24 @@ public sealed partial class SharedEntityConditionsSystem : EntitySystem, IEntity
 /// </summary>
 /// <typeparam name="T">The Component that is required for the effect</typeparam>
 /// <typeparam name="TCon">The Condition we're testing</typeparam>
-public abstract partial class EntityConditionSystem<T, TCon> : EntitySystem where T : Component where TCon : EntityConditionBase<TCon>
+public abstract partial class EntityConditionSystem<T, TCon> : EntityConditionHandler
+    where T : Component where TCon : EntityCondition
 {
-    /// <inheritdoc/>
-    public override void Initialize()
-    {
-        SubscribeLocalEvent<T, EntityConditionEvent<TCon>>(Condition);
-    }
-    protected abstract void Condition(Entity<T> entity, ref EntityConditionEvent<TCon> args);
-}
+    [Dependency] private EntityQuery<T> _query = default!;
 
-/// <summary>
-/// Used to raise an EntityCondition without losing the type of condition.
-/// </summary>
-public interface IEntityConditionRaiser
-{
-    bool RaiseConditionEvent<T>(EntityUid target, T effect) where T : EntityConditionBase<T>;
-}
+    public override Type ConditionType => typeof(TCon);
 
-/// <summary>
-/// Used to store an <see cref="EntityCondition"/> so it can be raised without losing the type of the condition.
-/// </summary>
-/// <typeparam name="T">The Condition wer are raising.</typeparam>
-public abstract partial class EntityConditionBase<T> : EntityCondition where T : EntityConditionBase<T>
-{
-    public override bool RaiseEvent(EntityUid target, IEntityConditionRaiser raiser)
+    protected abstract void Condition(Entity<T> entity, TCon condition, ref bool result);
+
+    public override bool CheckCondition(EntityUid target, EntityCondition condition)
     {
-        if (this is not T type)
+        if (condition is not TCon typed)
             return false;
-
-        // If the result of the event matches the result we're looking for then we pass.
-        return raiser.RaiseConditionEvent(target, type);
+        if (!_query.TryGetComponent(target, out var comp))
+            return false;
+        var result = false;
+        Condition((target, comp), typed, ref result);
+        return result;
     }
 }
 
@@ -118,8 +127,6 @@ public abstract partial class EntityConditionBase<T> : EntityCondition where T :
 [ImplicitDataDefinitionForInheritors]
 public abstract partial class EntityCondition
 {
-    public abstract bool RaiseEvent(EntityUid target, IEntityConditionRaiser raiser);
-
     /// <summary>
     /// If true, invert the result. So false returns true and true returns false!
     /// </summary>
@@ -130,23 +137,4 @@ public abstract partial class EntityCondition
     /// A basic description of this condition, which displays in the guidebook.
     /// </summary>
     public abstract string EntityConditionGuidebookText(IPrototypeManager prototype);
-}
-
-/// <summary>
-/// An Event carrying an entity effect.
-/// </summary>
-/// <param name="Condition">The Condition we're checking</param>
-[ByRefEvent]
-public record struct EntityConditionEvent<T>(T Condition) where T : EntityConditionBase<T>
-{
-    /// <summary>
-    /// The result of our check, defaults to false if nothing handles it.
-    /// </summary>
-    [DataField]
-    public bool Result;
-
-    /// <summary>
-    /// The Condition being raised in this event
-    /// </summary>
-    public readonly T Condition = Condition;
 }
