@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Content.Client.Tabletop.UI;
 using Content.Client.Viewport;
@@ -32,7 +33,7 @@ namespace Content.Client.Tabletop
 
         // Time in seconds to wait until sending the location of a dragged entity to the server again
         private const float Delay = 1f / 10; // 10 Hz
-
+        private List<(EntityUid Entity, MapCoordinates Coords, int Count, TimeSpan LastMove)> _waitingOnServerToMove = new();
         private float _timePassed; // Time passed since last update sent to the server.
         private EntityUid? _draggedEntity; // Entity being dragged
         private ScalingViewport? _viewport; // Viewport currently being used
@@ -52,6 +53,7 @@ namespace Content.Client.Tabletop
             SubscribeNetworkEvent<TabletopPlayEvent>(OnTabletopPlay);
             SubscribeLocalEvent<TabletopDraggableComponent, ComponentRemove>(HandleDraggableRemoved);
             SubscribeLocalEvent<TabletopDraggableComponent, AppearanceChangeEvent>(OnAppearanceChange);
+            SubscribeNetworkEvent<TabletopServerUpdatedMovedMessage>(OnServerUpdated);
         }
 
         private void HandleDraggableRemoved(EntityUid uid, TabletopDraggableComponent component, ComponentRemove args)
@@ -59,6 +61,37 @@ namespace Content.Client.Tabletop
             if (_draggedEntity == uid)
                 StopDragging(false);
         }
+
+        private void OnServerUpdated(TabletopServerUpdatedMovedMessage args)
+        {
+            var ent = GetEntity(args.Entity);
+            RemoveFromWaitingOnServer(ent);
+        }
+
+        private void AddToWaitingOnServer(EntityUid ent, MapCoordinates coords)
+        {
+            var index = _waitingOnServerToMove.FindIndex(i => i.Entity == ent);
+            if (index < 0)
+                _waitingOnServerToMove.Add((ent, coords, 1, _gameTiming.CurTime));
+            else
+            {
+                var value = _waitingOnServerToMove[index];
+                _waitingOnServerToMove[index] = value with { Coords = coords, Count = value.Count + 1 , LastMove = _gameTiming.CurTime};
+            }
+        }
+
+        private void RemoveFromWaitingOnServer(EntityUid ent)
+        {
+            var index = _waitingOnServerToMove.FindIndex(i => i.Entity == ent);
+            if (index < 0)
+                return;
+            var value = _waitingOnServerToMove[index];
+            if (value.Count <= 1)
+                _waitingOnServerToMove.RemoveAt(index);
+            else
+                _waitingOnServerToMove[index] = value with { Count = value.Count - 1 };
+        }
+
 
         public override void FrameUpdate(float frameTime)
         {
@@ -76,6 +109,18 @@ namespace Content.Client.Tabletop
                 return;
             }
 
+            List<(EntityUid Entity, MapCoordinates Coords, int Count, TimeSpan LastMove)> toBeRemoved = new();
+            foreach (var item in _waitingOnServerToMove)
+            {
+                if (item.LastMove + TimeSpan.FromSeconds(1) < _gameTiming.CurTime)
+                {
+                    toBeRemoved.Add(item);
+                    continue;
+                }
+                if (_draggedEntity != item.Entity)
+                    _transformSystem.SetMapCoordinates(item.Entity, item.Coords);
+            }
+            _waitingOnServerToMove = _waitingOnServerToMove.Except(toBeRemoved).ToList();
             // If no entity is being dragged or no viewport is clicked, return
             if (_draggedEntity == null || _viewport == null) return;
 
@@ -260,6 +305,7 @@ namespace Content.Client.Tabletop
             // Set the dragging player on the component to noone
             if (broadcast && _draggedEntity != null && HasComp<TabletopDraggableComponent>(_draggedEntity.Value))
             {
+                AddToWaitingOnServer(_draggedEntity.Value, Transforms.GetMapCoordinates(_draggedEntity.Value));
                 RaisePredictiveEvent(new TabletopMoveEvent(GetNetEntity(_draggedEntity.Value), Transforms.GetMapCoordinates(_draggedEntity.Value), GetNetEntity(_table!.Value)));
                 RaisePredictiveEvent(new TabletopDraggingPlayerChangedEvent(GetNetEntity(_draggedEntity.Value), false));
             }
