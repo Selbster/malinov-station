@@ -211,6 +211,11 @@ namespace Content.Server.Cargo.Systems
                 return;
             }
 
+            if (!_emag.CheckFlag(uid, EmagType.Interaction))
+            {
+                order.SetApproverData(_identity.GetIdentityShortInfo(player, uid));
+            }
+
             var ev = new FulfillCargoOrderEvent((station.Value, stationData), order, (uid, component));
             RaiseLocalEvent(ref ev);
             ev.FulfillmentEntity ??= station.Value;
@@ -223,6 +228,7 @@ namespace Content.Server.Cargo.Systems
                 {
                     ConsolePopup(args.Actor, Loc.GetString("cargo-console-unfulfilled"));
                     PlayDenySound(uid, component);
+                    order.Approver = null;
                     return;
                 }
             }
@@ -232,8 +238,6 @@ namespace Content.Server.Cargo.Systems
 
             if (!_emag.CheckFlag(uid, EmagType.Interaction))
             {
-                order.SetApproverData(_identity.GetIdentityShortInfo(player, uid));
-
                 var message = Loc.GetString("cargo-console-unlock-approved-order-broadcast",
                     ("productName", Loc.GetString(product.Name)),
                     ("orderAmount", order.OrderQuantity),
