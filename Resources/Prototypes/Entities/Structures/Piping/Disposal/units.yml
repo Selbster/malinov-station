@@ -40,11 +40,11 @@
       enum.DisposalUnitVisuals.IsReady:
         enum.DisposalUnitVisualLayers.Base:
           True: { state: disposal }
-          False: { state: disposal-charging }         
+          False: { state: disposal-charging }
       enum.DisposalUnitVisuals.IsFlushing:
         enum.DisposalUnitVisualLayers.OverlayFlushing:
           True: { visible: true }
-          False: { visible: false }      
+          False: { visible: false }
       enum.DisposalUnitVisuals.IsEngaged:
         enum.DisposalUnitVisualLayers.OverlayEngaged:
           True: { visible: true }
@@ -67,7 +67,7 @@
           True: { state: disposal }
           False: { state: condisposal }
         enum.DisposalUnitVisualLayers.OverlayEngaged:
-          False: { visible: false } 
+          False: { visible: false }
         enum.DisposalUnitVisualLayers.OverlayCharging:
           False: { visible: false }
         enum.DisposalUnitVisualLayers.OverlayFull:
@@ -114,6 +114,11 @@
   - type: StaticPrice
     price: 70
   - type: PowerSwitch
+  - type: ApcPowerReceiver
+    powerLoad: 5
+  - type: PowerState
+    idlePowerDraw: 5
+    workingPowerDraw: 1000
 
 - type: entity
   id: DisposalUnit
@@ -185,7 +190,7 @@
           True: { state: mailing }
           False: { state: conmailing }
         enum.DisposalUnitVisualLayers.OverlayEngaged:
-          False: { visible: false } 
+          False: { visible: false }
         enum.DisposalUnitVisualLayers.OverlayCharging:
           False: { visible: false }
         enum.DisposalUnitVisualLayers.OverlayFull:
