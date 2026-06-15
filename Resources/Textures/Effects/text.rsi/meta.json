@@ -116,25 +116,82 @@
       "name": "z"
     },
     {
-      "name": "exclamation"
+      "name": "angle-l"
     },
     {
-      "name": "question"
+      "name": "angle-r"
     },
     {
-      "name": "star"
+      "name": "apostrophe"
     },
     {
-      "name": "plus"
+      "name": "backslash"
     },
     {
-      "name": "dash"
+      "name": "blank"
+    },
+    {
+      "name": "bracket-l"
+    },
+    {
+      "name": "bracket-r"
+    },
+    {
+      "name": "caret"
     },
     {
       "name": "colon"
     },
     {
-      "name": "blank"
+      "name": "comma"
+    },
+    {
+      "name": "dash"
+    },
+    {
+      "name": "equals"
+    },
+    {
+      "name": "exclamation"
+    },
+    {
+      "name": "hash"
+    },
+    {
+      "name": "paren-l"
+    },
+    {
+      "name": "paren-r"
+    },
+    {
+      "name": "percent"
+    },
+    {
+      "name": "period"
+    },
+    {
+      "name": "plus"
+    },
+    {
+      "name": "question"
+    },
+    {
+      "name": "quotation"
+    },
+    {
+      "name": "semicolon"
+    },
+    {
+      "name": "slash"
+    },
+    {
+      "name": "speso"
+    },
+    {
+      "name": "star"
+    },
+    {
+      "name": "underscore"
     }
   ]
 }
