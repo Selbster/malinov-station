@@ -580,7 +580,9 @@
   - type: ZombieAccentOverride
     accent: zombieMoth
   - type: Vocal
-    sounds:
+    voices:
+      UnisexMoth: humanoid-profile-editor-voice-neutral
+    defaultSoundsBySex:
       Male: UnisexMoth
       Female: UnisexMoth
       Unsexed: UnisexMoth
@@ -1088,7 +1090,7 @@
     speechSounds: Goat
     speechVerb: Goat
   - type: Vocal
-    sounds:
+    defaultSoundsBySex:
       Female: Goat
       Male: Goat
       Unsexed: Goat
@@ -1515,7 +1517,7 @@
     rules: ghost-role-information-nonantagonist-rules
   - type: GhostTakeoverAvailable
   - type: Vocal
-    sounds:
+    defaultSoundsBySex:
       Unsexed: Kangaroo
   - type: Puller
     needsHands: false
@@ -1770,7 +1772,7 @@
     speechVerb: Reptilian
     allowedEmotes: ['Thump']
   - type: Vocal
-    sounds:
+    defaultSoundsBySex:
       Male: MaleReptilian
       Female: FemaleReptilian
       Unsexed: MaleReptilian
@@ -2056,7 +2058,7 @@
       types:
         Blunt: 0.1
   - type: Vocal
-    sounds:
+    defaultSoundsBySex:
       Male: Mouse
       Female: Mouse
       Unsexed: Mouse
@@ -2447,7 +2449,7 @@
     speechSounds: Parrot
     speechVerb: Parrot
   - type: Vocal
-    sounds:
+    defaultSoundsBySex:
       Unsexed: Parrot
   - type: ActiveListener
   - type: Vocalizer
@@ -2742,7 +2744,7 @@
     speechSounds: Arachnid
     allowedEmotes: ['Click', 'Chitter']
   - type: Vocal
-    sounds:
+    defaultSoundsBySex:
       Male: UnisexArachnid
       Female: UnisexArachnid
       Unsexed: UnisexArachnid
@@ -3915,7 +3917,7 @@
     speechSounds: Alto
     allowedEmotes: ['Chirp']
   - type: Vocal
-    sounds:
+    defaultSoundsBySex:
       Male: UnisexDiona
       Female: UnisexDiona
       Unsexed: UnisexDiona
