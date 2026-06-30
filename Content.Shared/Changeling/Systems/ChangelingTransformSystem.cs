@@ -181,6 +181,9 @@ public sealed partial class ChangelingTransformSystem : EntitySystem
         if (args.Target is not { } targetIdentity)
             return;
 
+        if (TerminatingOrDeleted(targetIdentity))
+            return;
+
         var beforeTransformEvent = new BeforeChangelingTransformEvent(targetIdentity);
         RaiseLocalEvent(args.User, beforeTransformEvent);
 
