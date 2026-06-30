@@ -27,10 +27,9 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
     private readonly HumanoidVisualLayers _layer;
     private bool _interactive;
 
-    private List<ColorSelectorSliders>? _colorSliders;
-
     public event Action<GUIBoundKeyEventArgs, LayerMarkingItem>? Pressed;
     public event Action<GUIBoundKeyEventArgs, LayerMarkingItem>? Unpressed;
+    public event Action<LayerMarkingItem, bool>? OnToggled;
     public ProtoId<MarkingPrototype> MarkingId => _markingPrototype.ID;
 
     public LayerMarkingItem(MarkingsViewModel model, ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer, MarkingPrototype prototype, bool interactive)
@@ -50,7 +49,6 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
         UpdateSelection();
 
         SelectButton.OnPressed += SelectButtonPressed;
-        ColorsButton.OnPressed += ColorsButtonPressed;
 
         OnKeyBindDown += OnPressed;
         OnKeyBindUp += OnUnpressed;
@@ -79,7 +77,7 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
 
     private void MarkingsChanged(ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer)
     {
-        if (_organ != organ ||  _layer != layer)
+        if (_organ != organ || _layer != layer)
             return;
 
         UpdateSelection();
@@ -95,22 +93,6 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
     {
         var selected = _markingsModel.IsMarkingSelected(_organ, _layer, _markingPrototype.ID);
         SelectButton.Pressed = selected && _interactive;
-        ColorsButton.Visible = selected && _interactive && _markingsModel.IsMarkingColorCustomizable(_organ, _layer, _markingPrototype.ID);
-
-        if (!selected || !_interactive)
-        {
-            ColorsButton.Pressed = false;
-            ColorsContainer.Visible = false;
-        }
-
-        if (_markingsModel.GetMarking(_organ, _layer, _markingPrototype.ID) is { } marking &&
-            _colorSliders is { } sliders)
-        {
-            for (var i = 0; i < _markingPrototype.Sprites.Count; i++)
-            {
-                sliders[i].Color = marking.MarkingColors[i];
-            }
-        }
     }
 
     private void SelectButtonPressed(BaseButton.ButtonEventArgs args)
@@ -121,67 +103,7 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
             return;
         }
 
-        if (_markingsModel.IsMarkingSelected(_organ, _layer, _markingPrototype.ID))
-        {
-            if (!_markingsModel.TryDeselectMarking(_organ, _layer, _markingPrototype.ID))
-            {
-                SelectButton.Pressed = true;
-            }
-        }
-        else
-        {
-            if (!_markingsModel.TrySelectMarking(_organ, _layer, _markingPrototype.ID))
-            {
-                SelectButton.Pressed = false;
-            }
-        }
-    }
-
-    private void ColorsButtonPressed(BaseButton.ButtonEventArgs args)
-    {
-        ColorsContainer.Visible = ColorsButton.Pressed;
-
-        if (_colorSliders is not null)
-            return;
-
-        if (_markingsModel.GetMarking(_organ, _layer, _markingPrototype.ID) is not { } marking)
-            return;
-
-        _colorSliders = new();
-
-        for (var i = 0; i < _markingPrototype.Sprites.Count; i++)
-        {
-            var container = new BoxContainer()
-            {
-                Orientation = LayoutOrientation.Vertical,
-                HorizontalExpand = true,
-            };
-
-            ColorsContainer.AddChild(container);
-
-            var selector = new ColorSelectorSliders();
-            selector.SelectorType = ColorSelectorSliders.ColorSelectorType.Hsv;
-
-            var label = _markingPrototype.Sprites[i] switch
-            {
-                SpriteSpecifier.Rsi rsi => Loc.GetString($"marking-{_markingPrototype.ID}-{rsi.RsiState}"),
-                SpriteSpecifier.Texture texture => Loc.GetString($"marking-{_markingPrototype.ID}-{texture.TexturePath.Filename}"),
-                _ => throw new InvalidOperationException("SpriteSpecifier not of known type"),
-            };
-
-            container.AddChild(new Label { Text = label });
-            container.AddChild(selector);
-
-            selector.Color = marking.MarkingColors[i];
-
-            _colorSliders.Add(selector);
-
-            var colorIndex = i;
-            selector.OnColorChanged += _ =>
-            {
-                _markingsModel.TrySetMarkingColor(_organ, _layer, _markingPrototype.ID, colorIndex, selector.Color);
-            };
-        }
+        OnToggled?.Invoke(this, SelectButton.Pressed);
     }
 
     public bool CheckMatchesSearch(string query)
