@@ -9,6 +9,7 @@ using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
 using Robust.Client.UserInterface.XAML;
 using Robust.Shared.Prototypes;
+using Robust.Shared.Utility;
 
 namespace Content.Client.Humanoid;
 
@@ -20,7 +21,10 @@ public sealed partial class LayerMarkingPicker : BoxContainer
     private readonly HumanoidVisualLayers _layer;
     private readonly MarkingsViewModel _markingsModel;
     private List<ISearchableControl> _searchable = new();
-    private const int _columnWidth = 500;
+
+    private readonly Dictionary<ProtoId<MarkingPrototype>, BoxContainer> _selectedEntries = new();
+    private readonly Dictionary<ProtoId<MarkingPrototype>, BoxContainer> _selectedColorContainers = new();
+    private ProtoId<MarkingPrototype>? _activeColorEntry;
 
     public LayerMarkingPicker(MarkingsViewModel markingsModel, ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer, IReadOnlyDictionary<string, MarkingPrototype> allMarkings)
     {
@@ -30,8 +34,6 @@ public sealed partial class LayerMarkingPicker : BoxContainer
         _allMarkings = allMarkings;
         _organ = organ;
         _layer = layer;
-
-        OrderingItems.AddChild(new LayerMarkingOrderer(markingsModel, organ, layer));
 
         UpdateMarkings();
 
@@ -44,8 +46,6 @@ public sealed partial class LayerMarkingPicker : BoxContainer
         };
 
         UpdateCount();
-
-        ReorderButton.OnPressed += ReorderButtonPressed;
     }
 
     protected override void EnteredTree()
@@ -66,10 +66,27 @@ public sealed partial class LayerMarkingPicker : BoxContainer
 
     private void MarkingsChanged(ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer)
     {
-        if (_organ != organ ||  _layer != layer)
+        if (_organ != organ || _layer != layer)
             return;
 
         UpdateCount();
+        RefreshSelectedList();
+    }
+
+    private void RefreshSelectedList()
+    {
+        var stillSelected = new HashSet<ProtoId<MarkingPrototype>>();
+        foreach (var (markingId, _) in _selectedEntries)
+        {
+            if (_markingsModel.IsMarkingSelected(_organ, _layer, markingId))
+                stillSelected.Add(markingId);
+        }
+
+        foreach (var (markingId, container) in _selectedEntries.ToArray())
+        {
+            if (!stillSelected.Contains(markingId))
+                RemoveSelectedEntry(markingId);
+        }
     }
 
     private void UpdateMarkings()
@@ -77,6 +94,7 @@ public sealed partial class LayerMarkingPicker : BoxContainer
         foreach (var marking in _allMarkings.Values.OrderBy(marking => Loc.GetString($"marking-{marking.ID}")))
         {
             var item = new LayerMarkingItem(_markingsModel, _organ, _layer, marking, true);
+            item.OnToggled += OnItemToggled;
             Items.AddChild(item);
         }
         _searchable = Items.GetSearchableControls();
@@ -88,26 +106,136 @@ public sealed partial class LayerMarkingPicker : BoxContainer
         MarkingsStatus.Text = Loc.GetString("markings-limits", ("required", isRequired), ("count", count), ("selectable", count - selected));
     }
 
-    private void ReorderButtonPressed(BaseButton.ButtonEventArgs args)
+    private void OnItemToggled(LayerMarkingItem item, bool selected)
     {
-        if (ReorderButton.Pressed)
+        if (selected)
         {
-            SelectionItems.Visible = false;
-            SearchBar.Visible = false;
-            OrderingItems.Visible = true;
+            if (!_markingsModel.TrySelectMarking(_organ, _layer, item.MarkingId))
+                return;
+
+            AddSelectedEntry(item.MarkingId);
         }
         else
         {
-            SelectionItems.Visible = true;
-            SearchBar.Visible = true;
-            OrderingItems.Visible = false;
+            _markingsModel.TryDeselectMarking(_organ, _layer, item.MarkingId);
+            RemoveSelectedEntry(item.MarkingId);
         }
     }
 
-    protected override void Resized()
+    private void AddSelectedEntry(ProtoId<MarkingPrototype> markingId)
     {
-        base.Resized();
+        if (_selectedEntries.ContainsKey(markingId))
+            return;
 
-        Items.Columns = (int)(Width / _columnWidth);
+        var colorContainer = new BoxContainer
+        {
+            Orientation = LayoutOrientation.Vertical,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+
+        var header = new Button
+        {
+            Text = Loc.GetString($"marking-{markingId}"),
+            HorizontalExpand = true,
+            ToggleMode = true,
+        };
+        header.OnPressed += _ => OnSelectedEntryPressed(markingId);
+
+        var container = new BoxContainer
+        {
+            Orientation = LayoutOrientation.Vertical,
+            HorizontalExpand = true,
+        };
+        container.AddChild(header);
+        container.AddChild(colorContainer);
+
+        SelectedList.AddChild(container);
+        _selectedEntries[markingId] = container;
+        _selectedColorContainers[markingId] = colorContainer;
+    }
+
+    private void RemoveSelectedEntry(ProtoId<MarkingPrototype> markingId)
+    {
+        if (!_selectedEntries.TryGetValue(markingId, out var container))
+            return;
+
+        SelectedList.RemoveChild(container);
+        _selectedEntries.Remove(markingId);
+        _selectedColorContainers.Remove(markingId);
+
+        if (_activeColorEntry == markingId)
+        {
+            _activeColorEntry = null;
+        }
+    }
+
+    private void OnSelectedEntryPressed(ProtoId<MarkingPrototype> markingId)
+    {
+        if (_activeColorEntry.HasValue && _activeColorEntry.Value != markingId)
+        {
+            if (_selectedColorContainers.TryGetValue(_activeColorEntry.Value, out var prevContainer))
+            {
+                prevContainer.Visible = false;
+            }
+        }
+
+        if (_activeColorEntry == markingId)
+        {
+            if (_selectedColorContainers.TryGetValue(markingId, out var prev))
+                prev.Visible = false;
+            _activeColorEntry = null;
+            return;
+        }
+
+        _activeColorEntry = markingId;
+
+        if (!_selectedColorContainers.TryGetValue(markingId, out var colorContainer))
+            return;
+
+        if (colorContainer.ChildCount > 0)
+        {
+            colorContainer.Visible = true;
+            return;
+        }
+
+        if (_markingsModel.GetMarking(_organ, _layer, markingId) is not { } marking)
+            return;
+
+        if (!_allMarkings.TryGetValue(markingId, out var markingProto))
+            return;
+
+        for (var i = 0; i < markingProto.Sprites.Count; i++)
+        {
+            var sliderContainer = new BoxContainer
+            {
+                Orientation = LayoutOrientation.Vertical,
+                HorizontalExpand = true,
+            };
+
+            colorContainer.AddChild(sliderContainer);
+
+            var selector = new ColorSelectorSliders();
+            selector.SelectorType = ColorSelectorSliders.ColorSelectorType.Hsv;
+
+            var label = markingProto.Sprites[i] switch
+            {
+                SpriteSpecifier.Rsi rsi => Loc.GetString($"marking-{markingId}-{rsi.RsiState}"),
+                SpriteSpecifier.Texture texture => Loc.GetString($"marking-{markingId}-{texture.TexturePath.Filename}"),
+                _ => throw new InvalidOperationException("SpriteSpecifier not of known type"),
+            };
+
+            sliderContainer.AddChild(new Label { Text = label });
+            sliderContainer.AddChild(selector);
+
+            selector.Color = marking.MarkingColors[i];
+
+            var colorIndex = i;
+            selector.OnColorChanged += _ =>
+            {
+                _markingsModel.TrySetMarkingColor(_organ, _layer, markingId, colorIndex, selector.Color);
+            };
+        }
+
+        colorContainer.Visible = true;
     }
 }

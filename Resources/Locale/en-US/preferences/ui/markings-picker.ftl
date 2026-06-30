@@ -19,6 +19,7 @@ markings-limits = { $required ->
     }
 }
 markings-reorder = Reorder markings
+markings-selected = Selected
 
 humanoid-marking-modifier-respect-limits = Respect limits
 humanoid-marking-modifier-respect-group-sex = Respect group & sex restrictions

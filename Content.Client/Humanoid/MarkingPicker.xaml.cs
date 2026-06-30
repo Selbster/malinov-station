@@ -9,13 +9,22 @@ namespace Content.Client.Humanoid;
 public sealed partial class MarkingPicker : Control
 {
     private MarkingsViewModel? _markingsModel;
+    private readonly Dictionary<int, OrganMarkingPicker> _organPickers = new();
 
     public MarkingPicker()
     {
         RobustXamlLoader.Load(this);
         IoCManager.InjectDependencies(this);
 
-        UpdateMarkings();
+        OrganSelector.OnItemSelected += args =>
+        {
+            OrganSelector.SelectId(args.Id);
+
+            foreach (var (_, picker) in _organPickers)
+                picker.Visible = false;
+            if (_organPickers.TryGetValue(args.Id, out var selected))
+                selected.Visible = true;
+        };
     }
 
     public void SetModel(MarkingsViewModel model)
@@ -47,7 +56,9 @@ public sealed partial class MarkingPicker : Control
         if (_markingsModel is null)
             return;
 
-        OrganTabs.RemoveAllChildren();
+        OrganSelector.Clear();
+        OrganPanel.RemoveAllChildren();
+        _organPickers.Clear();
 
         var i = 0;
         foreach (var (organ, organData) in _markingsModel.OrganData)
@@ -56,13 +67,19 @@ public sealed partial class MarkingPicker : Control
             if (control.Empty)
                 continue;
 
-            OrganTabs.AddChild(control);
-            OrganTabs.SetTabTitle(i, Loc.GetString($"markings-organ-{organ.Id}"));
+            OrganSelector.AddItem(Loc.GetString($"markings-organ-{organ.Id}"), i);
+            control.Visible = false;
+            OrganPanel.AddChild(control);
+            _organPickers[i] = control;
             i++;
         }
 
         if (i > 0)
-            OrganTabs.CurrentTab = 0;
-        OrganTabs.TabsVisible = i > 1;
+        {
+            OrganSelector.SelectId(0);
+            _organPickers[0].Visible = true;
+        }
+
+        OrganSelector.Visible = i > 1;
     }
 }
