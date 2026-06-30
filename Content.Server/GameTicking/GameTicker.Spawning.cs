@@ -89,6 +89,15 @@ namespace Content.Server.GameTicking
             }
 
             var spawnableStations = GetSpawnableStations();
+
+            if (spawnableStations.Count == 0)
+            {
+                _sawmill.Warning("SpawnPlayers: no spawnable stations found, sending all players to lobby.");
+                foreach (var player in readyPlayers)
+                    _chatManager.DispatchServerMessage(player, Loc.GetString("job-not-available-wait-in-lobby"));
+                return;
+            }
+
             var assignedJobs = _stationJobs.AssignJobs(profiles, spawnableStations);
 
             _stationJobs.AssignOverflowJobs(ref assignedJobs, playerNetIds, profiles, spawnableStations);
