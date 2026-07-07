@@ -89,7 +89,10 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
         SelectButton.Text = Loc.GetString($"marking-{_markingPrototype.ID}");
     }
 
-    private void UpdateSelection()
+    /// <summary>
+    /// Resyncs the visual pressed state of the select button with the actual selection state in the model.
+    /// </summary>
+    public void UpdateSelection()
     {
         var selected = _markingsModel.IsMarkingSelected(_organ, _layer, _markingPrototype.ID);
         SelectButton.Pressed = selected && _interactive;
