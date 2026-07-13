@@ -33,7 +33,9 @@ public sealed partial class LayerMarkingPicker : BoxContainer
     private readonly Dictionary<ProtoId<MarkingPrototype>, BoxContainer> _selectedColorContainers = new();
     private ProtoId<MarkingPrototype>? _activeColorEntry;
 
-    public LayerMarkingPicker(MarkingsViewModel markingsModel, ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer, IReadOnlyDictionary<string, MarkingPrototype> allMarkings)
+    private readonly Func<string, string>? _itemNameOverride;
+
+    public LayerMarkingPicker(MarkingsViewModel markingsModel, ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer, IReadOnlyDictionary<string, MarkingPrototype> allMarkings, bool showSelectedPanel = true, bool showStatusLabel = true, Func<string, string>? itemNameOverride = null)
     {
         RobustXamlLoader.Load(this);
         IoCManager.InjectDependencies(this);
@@ -44,6 +46,10 @@ public sealed partial class LayerMarkingPicker : BoxContainer
         _allMarkings = allMarkings;
         _organ = organ;
         _layer = layer;
+        _itemNameOverride = itemNameOverride;
+
+        SelectedPanel.Visible = showSelectedPanel;
+        MarkingsStatus.Visible = showStatusLabel;
 
         UpdateMarkings();
 
@@ -56,13 +62,16 @@ public sealed partial class LayerMarkingPicker : BoxContainer
         };
 
         UpdateCount();
+        // Seed the "Selected" panel with any markings that are already selected in the model
+        // (e.g. loaded from a saved profile) instead of only ever adding to it on user interaction.
+        RefreshSelectedList();
     }
 
     protected override void EnteredTree()
     {
         base.EnteredTree();
 
-        _markingsModel.MarkingsReset += UpdateCount;
+        _markingsModel.MarkingsReset += OnMarkingsReset;
         _markingsModel.MarkingsChanged += MarkingsChanged;
     }
 
@@ -70,8 +79,14 @@ public sealed partial class LayerMarkingPicker : BoxContainer
     {
         base.ExitedTree();
 
-        _markingsModel.MarkingsReset -= UpdateCount;
+        _markingsModel.MarkingsReset -= OnMarkingsReset;
         _markingsModel.MarkingsChanged -= MarkingsChanged;
+    }
+
+    private void OnMarkingsReset()
+    {
+        UpdateCount();
+        RefreshSelectedList();
     }
 
     private void MarkingsChanged(ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer)
@@ -86,13 +101,13 @@ public sealed partial class LayerMarkingPicker : BoxContainer
     private void RefreshSelectedList()
     {
         var stillSelected = new HashSet<ProtoId<MarkingPrototype>>();
-        foreach (var (markingId, _) in _selectedEntries)
+        foreach (var marking in _markingsModel.SelectedMarkings(_organ, _layer) ?? Enumerable.Empty<Marking>())
         {
-            if (_markingsModel.IsMarkingSelected(_organ, _layer, markingId))
-                stillSelected.Add(markingId);
+            stillSelected.Add(marking.MarkingId);
+            AddSelectedEntry(marking.MarkingId);
         }
 
-        foreach (var (markingId, container) in _selectedEntries.ToArray())
+        foreach (var (markingId, _) in _selectedEntries.ToArray())
         {
             if (!stillSelected.Contains(markingId))
                 RemoveSelectedEntry(markingId);
@@ -103,7 +118,7 @@ public sealed partial class LayerMarkingPicker : BoxContainer
     {
         foreach (var marking in _allMarkings.Values.OrderBy(marking => Loc.GetString($"marking-{marking.ID}")))
         {
-            var item = new LayerMarkingItem(_markingsModel, _organ, _layer, marking, true);
+            var item = new LayerMarkingItem(_markingsModel, _organ, _layer, marking, true, _itemNameOverride);
             item.OnToggled += OnItemToggled;
             Items.AddChild(item);
         }
@@ -248,6 +263,25 @@ public sealed partial class LayerMarkingPicker : BoxContainer
         if (!_allMarkings.TryGetValue(markingId, out var markingProto))
             return;
 
+        PopulateColorSliders(_markingsModel, _organ, _layer, colorContainer, markingId, markingProto, marking.MarkingColors);
+
+        colorContainer.Visible = true;
+    }
+
+    /// <summary>
+    /// Builds a column of per-sprite color sliders for a marking into <paramref name="container" />,
+    /// wired to write changes back into <paramref name="markingsModel" />.
+    /// </summary>
+    public static void PopulateColorSliders(
+        MarkingsViewModel markingsModel,
+        ProtoId<OrganCategoryPrototype> organ,
+        HumanoidVisualLayers layer,
+        BoxContainer container,
+        ProtoId<MarkingPrototype> markingId,
+        MarkingPrototype markingProto,
+        IReadOnlyList<Color> colors,
+        bool showSpriteLabels = true)
+    {
         for (var i = 0; i < markingProto.Sprites.Count; i++)
         {
             var sliderContainer = new BoxContainer
@@ -256,30 +290,35 @@ public sealed partial class LayerMarkingPicker : BoxContainer
                 HorizontalExpand = true,
             };
 
-            colorContainer.AddChild(sliderContainer);
+            container.AddChild(sliderContainer);
 
             var selector = new ColorSelectorSliders();
             selector.SelectorType = ColorSelectorSliders.ColorSelectorType.Hsv;
 
-            var label = markingProto.Sprites[i] switch
+            if (showSpriteLabels)
             {
-                SpriteSpecifier.Rsi rsi => Loc.GetString($"marking-{markingId}-{rsi.RsiState}"),
-                SpriteSpecifier.Texture texture => Loc.GetString($"marking-{markingId}-{texture.TexturePath.Filename}"),
-                _ => throw new InvalidOperationException("SpriteSpecifier not of known type"),
-            };
+                // Falls back to the raw, untranslated locale key (e.g. an RSI state name) when no
+                // per-sprite label is defined, which is only meaningful when a marking has more
+                // than one sprite/color — callers with a single-sprite marking should pass false.
+                var label = markingProto.Sprites[i] switch
+                {
+                    SpriteSpecifier.Rsi rsi => Loc.GetString($"marking-{markingId}-{rsi.RsiState}"),
+                    SpriteSpecifier.Texture texture => Loc.GetString($"marking-{markingId}-{texture.TexturePath.Filename}"),
+                    _ => throw new InvalidOperationException("SpriteSpecifier not of known type"),
+                };
 
-            sliderContainer.AddChild(new Label { Text = label });
+                sliderContainer.AddChild(new Label { Text = label });
+            }
+
             sliderContainer.AddChild(selector);
 
-            selector.Color = marking.MarkingColors[i];
+            selector.Color = colors[i];
 
             var colorIndex = i;
             selector.OnColorChanged += _ =>
             {
-                _markingsModel.TrySetMarkingColor(_organ, _layer, markingId, colorIndex, selector.Color);
+                markingsModel.TrySetMarkingColor(organ, layer, markingId, colorIndex, selector.Color);
             };
         }
-
-        colorContainer.Visible = true;
     }
 }
