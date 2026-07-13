@@ -41,6 +41,9 @@ markings-organ-FootLeft = Левая стопа
 markings-organ-FootRight = Правая стопа
 markings-organ-Eyes = Глаза
 
+markings-organ-group-arms = Руки
+markings-organ-group-legs = Ноги
+
 markings-layer-Special = Особое
 markings-layer-Tail = Хвост
 markings-layer-Tail-Moth = Крылья
