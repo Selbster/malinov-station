@@ -41,6 +41,9 @@ markings-organ-FootLeft = Left Foot
 markings-organ-FootRight = Right Foot
 markings-organ-Eyes = Eyes
 
+markings-organ-group-arms = Arms
+markings-organ-group-legs = Legs
+
 markings-layer-Special = Special
 markings-layer-Tail = Tail
 markings-layer-Tail-Moth = Wings
