@@ -10,7 +10,7 @@
         </BoxContainer>
     </BoxContainer>
     <!-- Right: selected markings with color editing -->
-    <PanelContainer MinSize="220 0" HorizontalExpand="True" StyleClasses="BackgroundPanel" VerticalExpand="True">
+    <PanelContainer Name="SelectedPanel" MinSize="220 0" HorizontalExpand="True" StyleClasses="BackgroundPanel" VerticalExpand="True">
         <BoxContainer Orientation="Vertical" VerticalExpand="True">
             <Label Text="{Loc 'markings-selected'}" StyleClasses="LabelHeading" Margin="4" />
             <ScrollContainer Name="SelectedScroll" VerticalExpand="True" HorizontalExpand="True">

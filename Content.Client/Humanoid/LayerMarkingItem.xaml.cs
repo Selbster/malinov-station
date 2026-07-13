@@ -25,6 +25,7 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
     private readonly MarkingPrototype _markingPrototype;
     private readonly ProtoId<OrganCategoryPrototype> _organ;
     private readonly HumanoidVisualLayers _layer;
+    private readonly Func<string, string>? _nameOverride;
     private bool _interactive;
 
     public event Action<GUIBoundKeyEventArgs, LayerMarkingItem>? Pressed;
@@ -32,7 +33,7 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
     public event Action<LayerMarkingItem, bool>? OnToggled;
     public ProtoId<MarkingPrototype> MarkingId => _markingPrototype.ID;
 
-    public LayerMarkingItem(MarkingsViewModel model, ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer, MarkingPrototype prototype, bool interactive)
+    public LayerMarkingItem(MarkingsViewModel model, ProtoId<OrganCategoryPrototype> organ, HumanoidVisualLayers layer, MarkingPrototype prototype, bool interactive, Func<string, string>? nameOverride = null)
     {
         RobustXamlLoader.Load(this);
         IoCManager.InjectDependencies(this);
@@ -44,6 +45,7 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
         _organ = organ;
         _layer = layer;
         _interactive = interactive;
+        _nameOverride = nameOverride;
 
         UpdateData();
         UpdateSelection();
@@ -86,7 +88,9 @@ public sealed partial class LayerMarkingItem : BoxContainer, ISearchableControl
     private void UpdateData()
     {
         MarkingTexture.Textures = _markingPrototype.Sprites.Select(layer => _sprite.Frame0(layer)).ToList();
-        SelectButton.Text = Loc.GetString($"marking-{_markingPrototype.ID}");
+
+        var name = Loc.GetString($"marking-{_markingPrototype.ID}");
+        SelectButton.Text = _nameOverride?.Invoke(name) ?? name;
     }
 
     /// <summary>

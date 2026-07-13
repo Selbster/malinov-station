@@ -1,0 +1,9 @@
+<Control xmlns="https://spacestation14.io">
+    <BoxContainer Orientation="Vertical" HorizontalExpand="True">
+        <BoxContainer Name="Pickers" Orientation="Horizontal" HorizontalExpand="True" />
+        <BoxContainer Name="ColorSection" Orientation="Vertical" HorizontalExpand="True" Visible="False" Margin="0 8 0 0">
+            <CheckBox Name="SyncColorsCheck" Text="{Loc 'humanoid-profile-editor-hair-sync-colors'}" Visible="False" />
+            <BoxContainer Name="ColorContent" Orientation="Horizontal" HorizontalExpand="True" Margin="0 4 0 0" />
+        </BoxContainer>
+    </BoxContainer>
+</Control>
