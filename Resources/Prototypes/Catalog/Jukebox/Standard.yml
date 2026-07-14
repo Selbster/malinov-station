@@ -39,3 +39,21 @@
   name: PigeonBeans - Sunset
   path:
     path: /Audio/Jukebox/sunset.ogg
+
+- type: jukebox
+  id: marlyn_monroe
+  name: Sons Of The Forest - Marlyn Monroe
+  path:
+    path: /Audio/Jukebox/Sons_Of_The_Forest_-_Marlyn_Monroe.ogg
+
+- type: jukebox
+  id: nevereverever
+  name: Sons Of The Forest - Never ever ever
+  path:
+    path: /Audio/Jukebox/Sons_Of_The_Forest_-_Nevereverever.ogg
+
+- type: jukebox
+  id: lifes_got_away
+  name: Sons Of The Forest - Life's Got Away
+  path:
+    path: /Audio/Jukebox/Sons_Of_The_Forest_-_Life's_Got_Away.ogg
