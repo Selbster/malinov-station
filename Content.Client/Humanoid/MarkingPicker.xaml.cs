@@ -120,6 +120,10 @@ public sealed partial class MarkingPicker : Control
             var layers = new HashSet<HumanoidVisualLayers>(organData.Layers);
             layers.ExceptWith(HairMarkingsPicker.Layers);
 
+            // Tail and Special aren't meant to be user-editable markings on the torso.
+            if (organ == "Torso")
+                layers.ExceptWith(new[] { HumanoidVisualLayers.Tail, HumanoidVisualLayers.Special });
+
             if (layers.Count == 0)
                 continue;
 
