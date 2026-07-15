@@ -111,3 +111,27 @@
   name: Агата Кристи - Сказочная тайга
   path:
     path: /Audio/Jukebox/Agata_Kristi_-_Skazochnaya_tajjga.ogg
+
+- type: jukebox
+  id: space_song
+  name: Beach House - Space Song
+  path:
+    path: /Audio/Jukebox/Beach_House_-_Space_Song.ogg
+
+- type: jukebox
+  id: metamorphosis
+  name: INTERWORLD - METAMORPHOSIS
+  path:
+    path: /Audio/Jukebox/INTERWORLD_-_METAMORPHOSIS.ogg
+
+- type: jukebox
+  id: the_perfect_girl
+  name: Mareux - The Perfect Girl
+  path:
+    path: /Audio/Jukebox/Mareux_-_The_Perfect_Girl.ogg
+
+- type: jukebox
+  id: after_dark
+  name: Mr.Kitty - After Dark
+  path:
+    path: /Audio/Jukebox/Mr_Kitty_-_After_Dark.ogg
