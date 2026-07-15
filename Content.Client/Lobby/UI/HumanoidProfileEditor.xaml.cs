@@ -107,6 +107,7 @@ namespace Content.Client.Lobby.UI
             _allowFlavorText = _cfgManager.GetCVar(CCVars.FlavorText);
 
             Markings.SetModel(_markingsModel);
+            HairPicker.SetModel(_markingsModel);
 
             ImportButton.OnPressed += args =>
             {
