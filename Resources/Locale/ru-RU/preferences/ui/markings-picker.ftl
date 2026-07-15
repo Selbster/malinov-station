@@ -19,6 +19,7 @@ markings-limits = { $required ->
         }
 }
 markings-reorder = Выбранные черты
+markings-selected = Выбрано
 
 humanoid-marking-modifier-respect-limits = Учитывать ограничения
 humanoid-marking-modifier-respect-group-sex = Учитывать ограничение расы и пола
@@ -39,6 +40,9 @@ markings-organ-LegRight = Правая нога
 markings-organ-FootLeft = Левая стопа
 markings-organ-FootRight = Правая стопа
 markings-organ-Eyes = Глаза
+
+markings-organ-group-arms = Руки
+markings-organ-group-legs = Ноги
 
 markings-layer-Special = Особое
 markings-layer-Tail = Хвост

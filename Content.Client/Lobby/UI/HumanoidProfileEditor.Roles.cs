@@ -147,6 +147,7 @@ public sealed partial class HumanoidProfileEditor
                 {
                     Orientation = LayoutOrientation.Vertical,
                     Name = department.ID,
+                    HorizontalExpand = true,
                     ToolTip = Loc.GetString("humanoid-profile-editor-jobs-amount-in-department-tooltip",
                         ("departmentName", departmentName))
                 };
@@ -192,6 +193,8 @@ public sealed partial class HumanoidProfileEditor
                 var jobContainer = new BoxContainer()
                 {
                     Orientation = LayoutOrientation.Horizontal,
+                    HorizontalExpand = true,
+                    Margin = new Thickness(0, 0, 8, 0),
                 };
 
                 var selector = new RequirementsSelector()
@@ -311,6 +314,8 @@ public sealed partial class HumanoidProfileEditor
             var antagContainer = new BoxContainer()
             {
                 Orientation = LayoutOrientation.Horizontal,
+                HorizontalExpand = true,
+                Margin = new Thickness(0, 0, 8, 0),
             };
 
             var selector = new RequirementsSelector()

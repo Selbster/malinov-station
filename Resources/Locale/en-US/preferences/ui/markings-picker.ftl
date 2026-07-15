@@ -19,6 +19,7 @@ markings-limits = { $required ->
     }
 }
 markings-reorder = Reorder markings
+markings-selected = Selected
 
 humanoid-marking-modifier-respect-limits = Respect limits
 humanoid-marking-modifier-respect-group-sex = Respect group & sex restrictions
@@ -39,6 +40,9 @@ markings-organ-LegRight = Right Leg
 markings-organ-FootLeft = Left Foot
 markings-organ-FootRight = Right Foot
 markings-organ-Eyes = Eyes
+
+markings-organ-group-arms = Arms
+markings-organ-group-legs = Legs
 
 markings-layer-Special = Special
 markings-layer-Tail = Tail

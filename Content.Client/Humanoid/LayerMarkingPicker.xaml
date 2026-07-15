@@ -1,12 +1,21 @@
-<BoxContainer xmlns="https://spacestation14.io" Orientation="Vertical">
-    <LineEdit Name="SearchBar" PlaceHolder="{Loc 'markings-search'}" HorizontalExpand="True" />
-    <ScrollContainer Name="SelectionItems" HorizontalExpand="True" VerticalExpand="True">
-        <GridContainer Name="Items" Columns="2" Margin="4" />
-    </ScrollContainer>
-    <ScrollContainer Name="OrderingItems" HorizontalExpand="True" VerticalExpand="True" Visible="False">
-    </ScrollContainer>
-    <BoxContainer HorizontalExpand="True" Margin="4">
-        <Label Name="MarkingsStatus" HorizontalExpand="True" />
-        <Button Name="ReorderButton" ToggleMode="True" Text="{Loc 'markings-reorder'}" />
+<BoxContainer xmlns="https://spacestation14.io" Orientation="Horizontal" VerticalExpand="True">
+    <!-- Left: available markings list -->
+    <BoxContainer Orientation="Vertical" HorizontalExpand="True">
+        <LineEdit Name="SearchBar" PlaceHolder="{Loc 'markings-search'}" HorizontalExpand="True" />
+        <ScrollContainer Name="SelectionItems" HorizontalExpand="True" VerticalExpand="True">
+            <BoxContainer Name="Items" Orientation="Vertical" Margin="4" />
+        </ScrollContainer>
+        <BoxContainer HorizontalExpand="True" Margin="4">
+            <Label Name="MarkingsStatus" HorizontalExpand="True" />
+        </BoxContainer>
     </BoxContainer>
+    <!-- Right: selected markings with color editing -->
+    <PanelContainer Name="SelectedPanel" MinSize="220 0" HorizontalExpand="True" StyleClasses="BackgroundPanel" VerticalExpand="True">
+        <BoxContainer Orientation="Vertical" VerticalExpand="True">
+            <Label Text="{Loc 'markings-selected'}" StyleClasses="LabelHeading" Margin="4" />
+            <ScrollContainer Name="SelectedScroll" VerticalExpand="True" HorizontalExpand="True">
+                <BoxContainer Name="SelectedList" Orientation="Vertical" />
+            </ScrollContainer>
+        </BoxContainer>
+    </PanelContainer>
 </BoxContainer>
