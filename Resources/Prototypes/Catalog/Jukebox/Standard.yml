@@ -57,3 +57,57 @@
   name: Sons Of The Forest - Life's Got Away
   path:
     path: /Audio/Jukebox/Sons_Of_The_Forest_-_Life's_Got_Away.ogg
+
+- type: jukebox
+  id: hey_you
+  name: Sons Of The Forest - Hey You
+  path:
+    path: /Audio/Jukebox/Sons_Of_The_Forest_-_Hey_You.ogg
+
+- type: jukebox
+  id: highway_to_hell
+  name: ACDC - Highway to Hell
+  path:
+    path: /Audio/Jukebox/ACDC_-_Highway_to_Hell.ogg
+
+- type: jukebox
+  id: eye_of_the_tiger
+  name: Survivor - Eye Of The Tiger
+  path:
+    path: /Audio/Jukebox/Survivor_-_Eye_Of_The_Tiger.ogg
+
+- type: jukebox
+  id: DURAN_INVISIBLE
+  name: Duran Duran - INVISIBLE
+  path:
+    path: /Audio/Jukebox/Duran_Duran_-_INVISIBLE.ogg
+
+- type: jukebox
+  id: tb_hotel
+  name: Toby Fox - Hotel
+  path:
+    path: /Audio/Jukebox/Toby_Fox_-_Hotel.ogg
+
+- type: jukebox
+  id: v_krayu_magnolijj
+  name: Ариэль - В краю магнолий
+  path:
+    path: /Audio/Jukebox/Arijel_-_V_krayu_magnolijj.ogg
+
+- type: jukebox
+  id: ak_kak_na_vojjne
+  name: Агата Кристи - Как на войне
+  path:
+    path: /Audio/Jukebox/Agata_Kristi_-_Kak_na_vojjne.ogg
+
+- type: jukebox
+  id: ak_opium
+  name: Агата Кристи - Опиум для никого
+  path:
+    path: /Audio/Jukebox/Agata_Kristi_-_Opium_dlya.ogg
+
+- type: jukebox
+  id: ak_taiga
+  name: Агата Кристи - Сказочная тайга
+  path:
+    path: /Audio/Jukebox/Agata_Kristi_-_Skazochnaya_tajjga.ogg
