@@ -36,6 +36,3 @@ lobby-state-background-janishootout-artist = psychpsyo
 
 lobby-state-background-reclaimernuke-title = Reclaimer Nuke
 lobby-state-background-reclaimernuke-artist = GetOutMarutak
-
-lobby-state-background-slonik-title = Званый ужин
-lobby-state-background-slonik-artist = Mihalag

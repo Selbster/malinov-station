@@ -5,6 +5,7 @@ using Content.Server.Explosion.EntitySystems;
 using Content.Server.Pinpointer;
 using Content.Server.Popups;
 using Content.Server.Station.Systems;
+using Content.Shared._MalinovStation.Audio;
 using Content.Shared.Audio;
 using Content.Shared.Containers.ItemSlots;
 using Content.Shared.Coordinates.Helpers;
@@ -19,6 +20,7 @@ using Robust.Shared.Audio;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Containers;
 using Robust.Shared.Map.Components;
+using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
 using Robust.Shared.Utility;
 using Robust.Shared.Timing;
@@ -31,6 +33,7 @@ public sealed partial class NukeSystem : EntitySystem
     [Dependency] private ChatSystem _chatSystem = default!;
     [Dependency] private ExplosionSystem _explosions = default!;
     [Dependency] private IRobustRandom _random = default!;
+    [Dependency] private IPrototypeManager _protoMan = default!;
     [Dependency] private ItemSlotsSystem _itemSlots = default!;
     [Dependency] private NavMapSystem _navMap = default!;
     [Dependency] private PointLightSystem _pointLight = default!;
@@ -497,7 +500,8 @@ public sealed partial class NukeSystem : EntitySystem
         var posText = $"({x}, {y})";
 
         // We are collapsing the randomness here, otherwise we would get separate random song picks for checking duration and when actually playing the song afterwards
-        _selectedNukeSong = _audio.ResolveSound(component.ArmMusic);
+        _selectedNukeSong = MalinovSoundCollectionHelper.ResolveWithCustomCollection(
+            _audio, _protoMan, _random, component.ArmMusic, MalinovSoundCollections.NukeMusic);
 
         // warn a crew
         var announcement = Loc.GetString("nuke-component-announcement-armed",
