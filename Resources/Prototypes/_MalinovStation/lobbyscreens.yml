@@ -1,0 +1,5 @@
+- type: lobbyBackground
+  id: Slonik
+  background: /Textures/_MalinovStation/LobbyScreens/slonik.webp
+  title: lobby-state-background-slonik-title
+  artist: lobby-state-background-slonik-artist

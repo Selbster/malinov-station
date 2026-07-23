@@ -1,0 +1,5 @@
+- type: soundCollection
+  id: NukeMusicMalinov
+  files:
+    - /Audio/_MalinovStation/StationEvents/An_Enigmatic_Encounter.ogg
+    - /Audio/_MalinovStation/StationEvents/Chris_F_-_28_Days_Later_Theme.ogg

@@ -1,6 +1,7 @@
 using System.Linq;
 using Content.Server.GameTicking;
 using Content.Server.GameTicking.Events;
+using Content.Shared._MalinovStation.Audio;
 using Content.Shared.Audio;
 using Content.Shared.Audio.Events;
 using Content.Shared.CCVar;
@@ -101,7 +102,7 @@ public sealed partial class ContentAudioSystem : SharedContentAudioSystem
             return [];
         }
 
-        var playlist = _lobbyMusicCollection.PickFiles
+        var playlist = MalinovSoundCollectionHelper.GetMergedFiles(_prototypeManager, _lobbyMusicCollection, MalinovSoundCollections.LobbyMusic)
                                             .Select(x => x.ToString())
                                             .ToArray();
         _robustRandom.Shuffle(playlist);
