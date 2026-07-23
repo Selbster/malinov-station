@@ -1,0 +1,9 @@
+Project-Condor:
+  org: malinov-station
+  project: 2
+  inbox: Inbox
+  labels:
+    "W: In Progress": "В прогрессе"
+    "W: Discussion": "Проектирование и обсуждение"
+    "W: Backlog": "Отставание"
+    "W: Next": "Следующий"

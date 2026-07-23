@@ -1,0 +1,48 @@
+name: Сообщить об ошибке карты
+description: Для проблем, связанных с маппингом.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что нашли время заполнить issue. Этот шаблон предназначен для проблем, связанных с маппингом.
+        Для отзывов или помощи с запуском Space Station 14, пожалуйста, присоединяйтесь к нашему Discord серверу (https://discord.gg/gN7mcJwNF).
+  - type: input
+    attributes:
+      label: В какой версии возникла проблема?
+      description: Вы можете найти версию, открыв changelog в игре и посмотрев в правый нижний угол окна changelog.
+      placeholder: wizards/aa1337b
+    validations:
+      required: false
+  - type: input
+    attributes:
+      label: На какой станции, шаттле или сетке возникла проблема?
+      description: Название станции, шаттла или сетки. Если вы не знаете название, постарайтесь описать его.
+      placeholder: Bagel
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Описание
+      description: |
+        Четкое и краткое описание проблемы.
+        Если проблема визуального характера, приложите скриншот.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Воспроизведение
+      description: Перечислите шаги, необходимые для воспроизведения проблемы.
+      placeholder: |
+        1.
+        2.
+        3.
+        ...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Дополнительный контекст
+      description: Добавьте здесь любые дополнительные сведения о проблеме.
+    validations:
+      required: false
+

@@ -1,0 +1,41 @@
+name: Сообщить об ошибке
+description: Для проблем, которые не подходят под другие формы issue.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что нашли время заполнить issue. Этот шаблон предназначен для проблем, которые не подходят под другие шаблоны.
+        Для отзывов или помощи с запуском Space Station 14, пожалуйста, присоединяйтесь к нашему [Discord](https://discord.gg/rGvu9hKffJ).
+  - type: input
+    attributes:
+      label: В какой версии возникла проблема?
+      description: Вы можете найти версию, открыв changelog в игре и посмотрев в правый нижний угол окна changelog.
+      placeholder: wizards/aa1337b
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: Описание
+      description: |
+        Четкое и краткое описание проблемы.
+        Если проблема визуального характера, приложите скриншот.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Воспроизведение
+      description: Перечислите шаги, необходимые для воспроизведения проблемы.
+      placeholder: |
+        1.
+        2.
+        3.
+        ...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Дополнительный контекст
+      description: Добавьте здесь любые дополнительные сведения о проблеме.
+    validations:
+      required: false
+
