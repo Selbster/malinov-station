@@ -1,0 +1,64 @@
+# Shared steps reused across every organ surgery.
+
+- type: surgeryStep
+  id: SurgeryStepIncision
+  name: surgery-step-incision-name
+  description: surgery-step-incision-desc
+  duration: 3
+  kind: Incision
+  requiredTool: Scalpel
+  bleedDelta: 3
+  popup: surgery-step-incision-popup
+
+- type: surgeryStep
+  id: SurgeryStepSternotomy
+  name: surgery-step-sternotomy-name
+  description: surgery-step-sternotomy-desc
+  duration: 4
+  kind: Generic
+  requiredTool: Saw
+  bleedDelta: 2
+  popup: surgery-step-sternotomy-popup
+
+- type: surgeryStep
+  id: SurgeryStepRetraction
+  name: surgery-step-retraction-name
+  description: surgery-step-retraction-desc
+  duration: 2
+  kind: Retraction
+  requiredTool: Retractor
+
+- type: surgeryStep
+  id: SurgeryStepClampBleeders
+  name: surgery-step-clamp-bleeders-name
+  description: surgery-step-clamp-bleeders-desc
+  duration: 2
+  kind: ClampBleeders
+  requiredTool: Hemostat
+  bleedDelta: -3
+
+- type: surgeryStep
+  id: SurgeryStepExtractOrgan
+  name: surgery-step-extract-organ-name
+  description: surgery-step-extract-organ-desc
+  duration: 4
+  kind: ExtractOrgan
+  popup: surgery-step-extract-organ-popup
+
+- type: surgeryStep
+  id: SurgeryStepInsertOrgan
+  name: surgery-step-insert-organ-name
+  description: surgery-step-insert-organ-desc
+  duration: 4
+  kind: InsertOrgan
+  popup: surgery-step-insert-organ-popup
+
+- type: surgeryStep
+  id: SurgeryStepCauterize
+  name: surgery-step-cauterize-name
+  description: surgery-step-cauterize-desc
+  duration: 2
+  kind: Cauterize
+  requiredTool: Cautery
+  bleedDelta: -1
+  popup: surgery-step-cauterize-popup

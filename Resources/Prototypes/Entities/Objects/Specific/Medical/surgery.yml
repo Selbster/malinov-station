@@ -32,6 +32,8 @@
         Heat: 5
     soundHit:
       path: /Audio/Effects/lightburn.ogg
+  - type: SurgeryTool
+    toolType: Cautery
 
 # Drill
 
@@ -57,6 +59,8 @@
       path: /Audio/Items/drill_hit.ogg
   - type: StaticPrice
     price: 40
+  - type: SurgeryTool
+    toolType: Drill
 
 # Scalpel
 
@@ -88,6 +92,8 @@
         Slash: 8
     soundHit:
       path: /Audio/Weapons/bladeslice.ogg
+  - type: SurgeryTool
+    toolType: Scalpel
 
 - type: entity
   name: shiv
@@ -109,6 +115,10 @@
         - ItemMask
         restitution: 0.3
         friction: 0.2
+  - type: SurgeryTool
+    toolType: Scalpel
+    speed: 1.3
+    successRate: 0.85
 
 
 - type: entity
@@ -125,6 +135,9 @@
     damage:
       types:
         Slash: 12
+  - type: SurgeryTool
+    toolType: Scalpel
+    speed: 0.85
 
 - type: entity
   name: laser scalpel
@@ -136,6 +149,9 @@
     state: laser
   - type: Item
     heldPrefix: laser
+  - type: SurgeryTool
+    toolType: Scalpel
+    speed: 0.8
 
 # Scissors
 
@@ -151,6 +167,8 @@
   - type: Item
     sprite: Objects/Specific/Medical/Surgery/scissors.rsi
     storedRotation: 90
+  - type: SurgeryTool
+    toolType: Retractor
 
 - type: entity
   name: hemostat
@@ -163,6 +181,8 @@
   - type: Item
     heldPrefix: hemostat
     storedRotation: 90
+  - type: SurgeryTool
+    toolType: Hemostat
 
   # - type: entity
   #   name: bone setter
@@ -192,6 +212,8 @@
     qualities:
     - Sawing
     - Slicing
+  - type: SurgeryTool
+    toolType: Saw
 # No melee for regular saw because have you ever seen someone use a band saw as a weapon? It's dumb.
 
 - type: entity
@@ -213,6 +235,10 @@
       path: /Audio/Weapons/bladeslice.ogg
   - type: Tool
     speedModifier: 0.5
+  - type: SurgeryTool
+    toolType: Saw
+    speed: 1.4
+    successRate: 0.8
 
 - type: entity
   name: circular saw
@@ -232,6 +258,9 @@
       path: /Audio/Items/drill_hit.ogg
   - type: Tool
     speedModifier: 1.5
+  - type: SurgeryTool
+    toolType: Saw
+    speed: 0.75
 
 - type: entity
   name: advanced circular saw
@@ -247,3 +276,6 @@
     attackRate: 1.5
   - type: Tool
     speedModifier: 2.0
+  - type: SurgeryTool
+    toolType: Saw
+    speed: 0.6

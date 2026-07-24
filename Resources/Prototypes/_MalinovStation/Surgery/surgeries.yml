@@ -1,0 +1,258 @@
+# Organ extraction/installation surgeries. Availability of each is derived from whether the patient
+# currently has (or lacks) targetOrgan - see SharedSurgerySystem.GetAvailableSurgeries.
+
+# Heart (thoracic)
+
+- type: surgery
+  id: SurgeryHeartExtraction
+  name: surgery-heart-extraction-name
+  description: surgery-heart-extraction-desc
+  targetOrgan: Heart
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSternotomy
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryHeartInstallation
+  name: surgery-heart-installation-name
+  description: surgery-heart-installation-desc
+  targetOrgan: Heart
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSternotomy
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Lungs (thoracic)
+
+- type: surgery
+  id: SurgeryLungsExtraction
+  name: surgery-lungs-extraction-name
+  description: surgery-lungs-extraction-desc
+  targetOrgan: Lungs
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSternotomy
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryLungsInstallation
+  name: surgery-lungs-installation-name
+  description: surgery-lungs-installation-desc
+  targetOrgan: Lungs
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSternotomy
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Stomach
+
+- type: surgery
+  id: SurgeryStomachExtraction
+  name: surgery-stomach-extraction-name
+  description: surgery-stomach-extraction-desc
+  targetOrgan: Stomach
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryStomachInstallation
+  name: surgery-stomach-installation-name
+  description: surgery-stomach-installation-desc
+  targetOrgan: Stomach
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Liver
+
+- type: surgery
+  id: SurgeryLiverExtraction
+  name: surgery-liver-extraction-name
+  description: surgery-liver-extraction-desc
+  targetOrgan: Liver
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryLiverInstallation
+  name: surgery-liver-installation-name
+  description: surgery-liver-installation-desc
+  targetOrgan: Liver
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Kidneys
+
+- type: surgery
+  id: SurgeryKidneysExtraction
+  name: surgery-kidneys-extraction-name
+  description: surgery-kidneys-extraction-desc
+  targetOrgan: Kidneys
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryKidneysInstallation
+  name: surgery-kidneys-installation-name
+  description: surgery-kidneys-installation-desc
+  targetOrgan: Kidneys
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Appendix
+
+- type: surgery
+  id: SurgeryAppendixExtraction
+  name: surgery-appendix-extraction-name
+  description: surgery-appendix-extraction-desc
+  targetOrgan: Appendix
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryAppendixInstallation
+  name: surgery-appendix-installation-name
+  description: surgery-appendix-installation-desc
+  targetOrgan: Appendix
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Eyes
+
+- type: surgery
+  id: SurgeryEyesExtraction
+  name: surgery-eyes-extraction-name
+  description: surgery-eyes-extraction-desc
+  targetOrgan: Eyes
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryEyesInstallation
+  name: surgery-eyes-installation-name
+  description: surgery-eyes-installation-desc
+  targetOrgan: Eyes
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Ears
+
+- type: surgery
+  id: SurgeryEarsExtraction
+  name: surgery-ears-extraction-name
+  description: surgery-ears-extraction-desc
+  targetOrgan: Ears
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryEarsInstallation
+  name: surgery-ears-installation-name
+  description: surgery-ears-installation-desc
+  targetOrgan: Ears
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Tongue
+
+- type: surgery
+  id: SurgeryTongueExtraction
+  name: surgery-tongue-extraction-name
+  description: surgery-tongue-extraction-desc
+  targetOrgan: Tongue
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryTongueInstallation
+  name: surgery-tongue-installation-name
+  description: surgery-tongue-installation-desc
+  targetOrgan: Tongue
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
