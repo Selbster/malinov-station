@@ -116,21 +116,37 @@ entity-effect-guidebook-even-health-change =
 entity-effect-guidebook-status-effect-old =
     { $type ->
         [update]{ $chance ->
-                [1] Causes
-                *[other] cause
-            } { LOC($key) } for at least { NATURALFIXED($time, 3) } { MANY("second", $time) } without accumulation
+                [1] Вызывает
+                *[other] вызывают
+            } { LOC($key) } минимум на { NATURALFIXED($time, 3) } { $time ->
+                [one] секунду
+                [few] секунды
+                *[other] секунд
+            }, эффект не накапливается
         [add]   { $chance ->
-                [1] Causes
-                *[other] cause
-            } { LOC($key) } for at least { NATURALFIXED($time, 3) } { MANY("second", $time) } with accumulation
+                [1] Вызывает
+                *[other] вызывают
+            } { LOC($key) } минимум на { NATURALFIXED($time, 3) } { $time ->
+                [one] секунду
+                [few] секунды
+                *[other] секунд
+            }, эффект накапливается
         [set]  { $chance ->
-                [1] Causes
-                *[other] cause
-            } { LOC($key) } for { NATURALFIXED($time, 3) } { MANY("second", $time) } without accumulation
+                [1] Вызывает
+                *[other] вызывают
+            } { LOC($key) } минимум на { NATURALFIXED($time, 3) } { $time ->
+                [one] секунду
+                [few] секунды
+                *[other] секунд
+            }, эффект не накапливается
         *[remove]{ $chance ->
-                [1] Removes
-                *[other] remove
-            } { NATURALFIXED($time, 3) } { MANY("second", $time) } of { LOC($key) }
+                [1] Удаляет
+                *[other] удаляют
+            } { NATURALFIXED($time, 3) } { $time ->
+                [one] секунду
+                [few] секунды
+                *[other] секунд
+            } от { LOC($key) }
     }
 
 entity-effect-guidebook-status-effect =
@@ -206,21 +222,37 @@ entity-effect-guidebook-status-effect-indef =
 entity-effect-guidebook-knockdown =
     { $type ->
         [update]{ $chance ->
-                [1] Causes
-                *[other] cause
-            } { LOC($key) } for at least { NATURALFIXED($time, 3) } { MANY("second", $time) } without accumulation
+                [1] Вызывает
+                *[other] вызывают
+            } { LOC($key) } минимум на { NATURALFIXED($time, 3) } { $time ->
+                [one] секунду
+                [few] секунды
+                *[other] секунд
+            }, эффект не накапливается
         [add]   { $chance ->
-                [1] Causes
-                *[other] cause
-            } knockdown for at least { NATURALFIXED($time, 3) } { MANY("second", $time) } with accumulation
+                [1] Вызывает
+                *[other] вызывают
+            } нокдаун минимум на { NATURALFIXED($time, 3) } { $time ->
+                [one] секунду
+                [few] секунды
+                *[other] секунд
+            }, эффект накапливается
         *[set]  { $chance ->
-                [1] Causes
-                *[other] cause
-            } knockdown for at least { NATURALFIXED($time, 3) } { MANY("second", $time) } without accumulation
+                [1] Вызывает
+                *[other] вызывают
+            } нокдаун минимум на { NATURALFIXED($time, 3) } { $time ->
+                [one] секунду
+                [few] секунды
+                *[other] секунд
+            }, эффект не накапливается
         [remove]{ $chance ->
-                [1] Removes
-                *[other] remove
-            } { NATURALFIXED($time, 3) } { MANY("second", $time) } of knockdown
+                [1] Убирает
+                *[other] убирают
+            } { NATURALFIXED($time, 3) } { $time ->
+                [one] секунду
+                [few] секунды
+                *[other] секунд
+            } нокдауна
     }
 
 entity-effect-guidebook-set-solution-temperature-effect =
@@ -354,9 +386,13 @@ entity-effect-guidebook-drunk =
 
 entity-effect-guidebook-electrocute =
     { $chance ->
-        [1] Electrocutes
-        *[other] electrocute
-    } the metabolizer for { NATURALFIXED($time, 3) } { MANY("second", $time) }
+        [1] Бьёт
+        *[other] бьют
+    } цель током на { NATURALFIXED($time, 3) } { $time ->
+        [one] секунду
+        [few] секунды
+        *[other] секунд
+    }
 
 entity-effect-guidebook-emote =
     { $chance ->
@@ -420,15 +456,23 @@ entity-effect-guidebook-modify-blood-level =
 
 entity-effect-guidebook-paralyze =
     { $chance ->
-        [1] Paralyzes
-        *[other] paralyze
-    } the metabolizer for at least { NATURALFIXED($time, 3) } { MANY("second", $time) }
+        [1] Парализует
+        *[other] парализуют
+    } цель минимум на { NATURALFIXED($time, 3) } { $time ->
+        [one] секунду
+        [few] секунды
+        *[other] секунд
+    }
 
 entity-effect-guidebook-movespeed-modifier =
     { $chance ->
-        [1] Modifies
-        *[other] modify
-    } movement speed by { NATURALFIXED($sprintspeed, 3) }x for at least { NATURALFIXED($time, 3) } { MANY("second", $time) }
+        [1] Изменяет
+        *[other] изменяют
+    } скорость передвижения в { NATURALFIXED($sprintspeed, 3) } раза минимум на { NATURALFIXED($time, 3) } { $time ->
+        [one] секунду
+        [few] секунды
+        *[other] секунд
+    }
 
 entity-effect-guidebook-reset-narcolepsy =
     { $chance ->
@@ -462,15 +506,23 @@ entity-effect-guidebook-innoculate-zombie-infection =
 
 entity-effect-guidebook-reduce-rotting =
     { $chance ->
-        [1] Regenerates
-        *[other] regenerate
-    } { NATURALFIXED($time, 3) } { MANY("second", $time) } of rotting
+        [1] Уменьшает
+        *[other] уменьшают
+    } разложение на { NATURALFIXED($time, 3) } { $time ->
+        [one] секунду
+        [few] секунды
+        *[other] секунд
+    }
 
 entity-effect-guidebook-area-reaction =
     { $chance ->
-        [1] Causes
-        *[other] cause
-    } a smoke or foam reaction for { NATURALFIXED($duration, 3) } { MANY("second", $duration) }
+        [1] Вызывает
+        *[other] вызывают
+    } реакцию образования дыма или пены на { NATURALFIXED($duration, 3) } { $duration ->
+        [one] секунду
+        [few] секунды
+        *[other] секунд
+    }
 
 entity-effect-guidebook-add-to-solution-reaction =
     { $chance ->
