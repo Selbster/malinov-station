@@ -88,24 +88,33 @@ public abstract partial class SharedSurgerySystem : EntitySystem
     }
 
     /// <summary>
-    /// All surgeries currently applicable to this patient - organ presence/absence and species match.
+    /// All surgeries currently applicable to this patient - organ presence/absence, prerequisite organ,
+    /// and species match. Shared between the UI-facing surgery list and the server's authoritative gate on
+    /// actually starting a surgery, so a surgery that isn't offered can't be started by a raw BUI message either.
     /// </summary>
     public IEnumerable<SurgeryPrototype> GetAvailableSurgeries(EntityUid body)
     {
-        ProtoId<Humanoid.Prototypes.SpeciesPrototype>? species = null;
-        if (TryComp<HumanoidProfileComponent>(body, out var profile))
-            species = profile.Species;
-
         foreach (var surgery in Proto.EnumeratePrototypes<SurgeryPrototype>())
         {
-            if (HasOrgan(body, surgery.TargetOrgan) != surgery.RequireOrganPresent)
-                continue;
-
-            if (surgery.SpeciesWhitelist is { } whitelist && (species is not { } s || !whitelist.Contains(s)))
-                continue;
-
-            yield return surgery;
+            if (IsEligiblePatient(body, surgery))
+                yield return surgery;
         }
+    }
+
+    /// <summary>Whether <paramref name="body"/> currently meets every precondition to start <paramref name="surgery"/>.</summary>
+    public bool IsEligiblePatient(EntityUid body, SurgeryPrototype surgery)
+    {
+        if (HasOrgan(body, surgery.TargetOrgan) != surgery.RequireOrganPresent)
+            return false;
+
+        if (surgery.RequiresOrgan is { } required && !HasOrgan(body, required))
+            return false;
+
+        if (surgery.SpeciesWhitelist is { } whitelist &&
+            (!TryComp<HumanoidProfileComponent>(body, out var profile) || !whitelist.Contains(profile.Species)))
+            return false;
+
+        return true;
     }
 
     public int GetStepIndex(EntityUid body, ProtoId<SurgeryPrototype> surgery)

@@ -2,6 +2,7 @@ using Content.Shared._MalinovStation.Surgery;
 using Content.Shared.Body;
 using Content.Shared.Body.Systems;
 using Content.Shared.Popups;
+using Robust.Shared.Containers;
 
 namespace Content.Server._MalinovStation.Surgery;
 
@@ -9,17 +10,20 @@ public sealed partial class SurgerySystem
 {
     [Dependency] private SharedBloodstreamSystem _bloodstream = default!;
 
+    /// <summary>Container holding a cascaded extremity (hand/foot) tucked inside its severed limb - see <see cref="LimbExtractionCascade"/>.</summary>
+    private const string LimbCascadeContainerId = "surgery_cascade";
+
     /// <summary>
-    /// Amputating a whole arm/leg takes the hand/foot on that side with it - otherwise it's left
-    /// floating with no limb sprite connecting it to the body. Reattaching an arm/leg does NOT cascade
-    /// the other way - a limb without its extremity is a normal intermediate (stump) state.
+    /// Amputating a whole arm/leg takes the hand/foot on that side with it, tucked into a container on
+    /// the limb so the two come away (and get carried) as a single item instead of two separate ones.
+    /// Reattaching the limb pulls the tucked extremity back into the body at the same time.
     /// </summary>
     private static readonly Dictionary<string, string> LimbExtractionCascade = new()
     {
-        ["ArmLeft"] = "HandLeft",
-        ["ArmRight"] = "HandRight",
-        ["LegLeft"] = "FootLeft",
-        ["LegRight"] = "FootRight",
+        [OrganCategoryIds.ArmLeft] = OrganCategoryIds.HandLeft,
+        [OrganCategoryIds.ArmRight] = OrganCategoryIds.HandRight,
+        [OrganCategoryIds.LegLeft] = OrganCategoryIds.FootLeft,
+        [OrganCategoryIds.LegRight] = OrganCategoryIds.FootRight,
     };
 
     private void InitializeSteps()
@@ -37,13 +41,14 @@ public sealed partial class SurgerySystem
             case SurgeryStepKind.ExtractOrgan:
                 if (TryFindOrgan(body, surgery.TargetOrgan, out var organToExtract))
                 {
-                    _hands.PickupOrDrop(user, organToExtract);
-
                     if (LimbExtractionCascade.TryGetValue(surgery.TargetOrgan.Id, out var pairedCategory) &&
                         TryFindOrgan(body, pairedCategory, out var pairedOrgan))
                     {
-                        _hands.PickupOrDrop(user, pairedOrgan);
+                        var cascade = _container.EnsureContainer<ContainerSlot>(organToExtract, LimbCascadeContainerId);
+                        _container.Insert(pairedOrgan, cascade);
                     }
+
+                    _hands.PickupOrDrop(user, organToExtract);
                 }
                 break;
 
@@ -53,6 +58,12 @@ public sealed partial class SurgerySystem
                 {
                     _hands.TryDrop(user, organToInsert);
                     _container.Insert(organToInsert, organs);
+
+                    if (_container.TryGetContainer(organToInsert, LimbCascadeContainerId, out var cascade) &&
+                        cascade is ContainerSlot { ContainedEntity: { } cascadedOrgan })
+                    {
+                        _container.Insert(cascadedOrgan, organs);
+                    }
                 }
                 break;
 
@@ -60,7 +71,7 @@ public sealed partial class SurgerySystem
                 if (step.BleedDelta != 0)
                     _bloodstream.TryModifyBleedAmount(body, step.BleedDelta);
                 if (step.Damage != null)
-                    _damageable.TryChangeDamage(body, step.Damage, true);
+                    _damageable.TryChangeDamage(body, step.Damage, ignoreResistances: true, interruptsDoAfters: false);
                 break;
         }
 

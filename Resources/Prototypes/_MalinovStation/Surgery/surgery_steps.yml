@@ -7,10 +7,7 @@
   duration: 3
   kind: Incision
   requiredTool: Scalpel
-  bleedDelta: 3
-  damage:
-    types:
-      Slash: 2
+  bleedDelta: 4
   mishapDamage:
     types:
       Slash: 4
@@ -23,10 +20,7 @@
   duration: 4
   kind: Generic
   requiredTool: Saw
-  bleedDelta: 2
-  damage:
-    types:
-      Piercing: 4
+  bleedDelta: 4
   mishapDamage:
     types:
       Piercing: 8
@@ -40,10 +34,7 @@
   duration: 4
   kind: Generic
   requiredTool: Drill
-  bleedDelta: 2
-  damage:
-    types:
-      Piercing: 4
+  bleedDelta: 4
   mishapDamage:
     types:
       Piercing: 8
@@ -57,16 +48,24 @@
   duration: 5
   kind: Generic
   requiredTool: Saw
-  bleedDelta: 4
-  damage:
-    types:
-      Piercing: 6
-      Slash: 2
+  bleedDelta: 6
   mishapDamage:
     types:
       Piercing: 10
       Slash: 6
   popup: surgery-step-saw-limb-popup
+
+- type: surgeryStep
+  id: SurgeryStepSetBone
+  name: surgery-step-set-bone-name
+  description: surgery-step-set-bone-desc
+  duration: 4
+  kind: Generic
+  requiredTool: BoneSetter
+  mishapDamage:
+    types:
+      Blunt: 3
+  popup: surgery-step-set-bone-popup
 
 - type: surgeryStep
   id: SurgeryStepRetraction

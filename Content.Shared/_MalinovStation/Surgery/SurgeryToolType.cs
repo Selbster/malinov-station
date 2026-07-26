@@ -11,4 +11,5 @@ public enum SurgeryToolType : byte
     Cautery,
     Saw,
     Drill,
+    BoneSetter,
 }

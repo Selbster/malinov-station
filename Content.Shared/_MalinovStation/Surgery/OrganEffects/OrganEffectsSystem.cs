@@ -1,6 +1,7 @@
 using Content.Shared.Body;
 using Content.Shared.Eye.Blinding.Components;
 using Content.Shared.Eye.Blinding.Systems;
+using Content.Shared.Mobs.Systems;
 using Content.Shared.Movement.Systems;
 using Content.Shared.Popups;
 using Content.Shared.Speech.Muting;
@@ -18,6 +19,7 @@ namespace Content.Shared._MalinovStation.Surgery.OrganEffects;
 public sealed partial class OrganEffectsSystem : EntitySystem
 {
     [Dependency] private BlindableSystem _blindable = default!;
+    [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private MovementSpeedModifierSystem _movementSpeed = default!;
     [Dependency] private SharedPopupSystem _popup = default!;
     [Dependency] private SharedSurgerySystem _surgery = default!;
@@ -60,7 +62,7 @@ public sealed partial class OrganEffectsSystem : EntitySystem
         var wasBlind = blindable.IsBlind;
         _blindable.AdjustEyeDamage((args.Target, blindable), blindable.MaxDamage - blindable.EyeDamage);
 
-        if (!wasBlind)
+        if (!wasBlind && !_mobState.IsDead(args.Target))
             _popup.PopupEntity(Loc.GetString("surgery-organ-effect-eyes-lost"), args.Target, args.Target, PopupType.LargeCaution);
     }
 
@@ -77,7 +79,7 @@ public sealed partial class OrganEffectsSystem : EntitySystem
         ent.Comp.SavedEyeDamage = null;
         ent.Comp.SavedMinDamage = null;
 
-        if (wasBlind && !blindable.IsBlind)
+        if (wasBlind && !blindable.IsBlind && !_mobState.IsDead(args.Target))
             _popup.PopupEntity(Loc.GetString("surgery-organ-effect-eyes-restored"), args.Target, args.Target, PopupType.LargeCaution);
     }
 
@@ -90,13 +92,14 @@ public sealed partial class OrganEffectsSystem : EntitySystem
         if (!ent.Comp.WasMuted)
         {
             EnsureComp<MutedComponent>(args.Target);
-            _popup.PopupEntity(Loc.GetString("surgery-organ-effect-tongue-lost"), args.Target, args.Target, PopupType.LargeCaution);
+            if (!_mobState.IsDead(args.Target))
+                _popup.PopupEntity(Loc.GetString("surgery-organ-effect-tongue-lost"), args.Target, args.Target, PopupType.LargeCaution);
         }
     }
 
     private void OnTongueInserted(Entity<TongueOrganComponent> ent, ref OrganGotInsertedEvent args)
     {
-        if (!ent.Comp.WasMuted && RemComp<MutedComponent>(args.Target))
+        if (!ent.Comp.WasMuted && RemComp<MutedComponent>(args.Target) && !_mobState.IsDead(args.Target))
             _popup.PopupEntity(Loc.GetString("surgery-organ-effect-tongue-restored"), args.Target, args.Target, PopupType.LargeCaution);
 
         ent.Comp.WasMuted = false;
@@ -107,13 +110,13 @@ public sealed partial class OrganEffectsSystem : EntitySystem
         if (LifeStage(args.Target) >= EntityLifeStage.Terminating)
             return;
 
-        if (!EnsureComp<NoHeartComponent>(args.Target, out _))
+        if (!EnsureComp<NoHeartComponent>(args.Target, out _) && !_mobState.IsDead(args.Target))
             _popup.PopupEntity(Loc.GetString("surgery-organ-effect-heart-lost"), args.Target, args.Target, PopupType.LargeCaution);
     }
 
     private void OnHeartInserted(Entity<HeartOrganComponent> ent, ref OrganGotInsertedEvent args)
     {
-        if (RemComp<NoHeartComponent>(args.Target))
+        if (RemComp<NoHeartComponent>(args.Target) && !_mobState.IsDead(args.Target))
             _popup.PopupEntity(Loc.GetString("surgery-organ-effect-heart-restored"), args.Target, args.Target, PopupType.LargeCaution);
     }
 
@@ -136,7 +139,7 @@ public sealed partial class OrganEffectsSystem : EntitySystem
     /// </summary>
     private void RecalculateLegs(EntityUid body)
     {
-        var legCount = (_surgery.HasOrgan(body, "LegLeft") ? 1 : 0) + (_surgery.HasOrgan(body, "LegRight") ? 1 : 0);
+        var legCount = (_surgery.HasOrgan(body, OrganCategoryIds.LegLeft) ? 1 : 0) + (_surgery.HasOrgan(body, OrganCategoryIds.LegRight) ? 1 : 0);
 
         if (legCount >= 2)
         {

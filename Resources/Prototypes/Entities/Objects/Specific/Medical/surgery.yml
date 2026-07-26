@@ -184,12 +184,20 @@
   - type: SurgeryTool
     toolType: Hemostat
 
-  # - type: entity
-  #   name: bone setter
-  #   id: BoneSetter
-  #   parent: Retractor
-  #   description: A surgical tool used for setting bones.
-  #   components:
+- type: entity
+  name: bone setter
+  id: BoneSetter
+  parent: Retractor
+  description: A surgical tool used for setting bones back in place.
+  components:
+  - type: Sprite
+    state: setter
+  - type: Item
+    heldPrefix: setter
+    storedRotation: 90
+  - type: SurgeryTool
+    toolType: BoneSetter
+
 # Saws
 
 - type: entity

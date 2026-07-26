@@ -38,6 +38,14 @@ public sealed partial class SurgeryPrototype : IPrototype
     [DataField(required: true)]
     public bool RequireOrganPresent { get; private set; }
 
+    /// <summary>
+    /// An additional organ category that must be present for this surgery to be offered - e.g. a hand
+    /// can't be installed without an arm to attach it to, even though the hand's own <see cref="TargetOrgan"/>
+    /// is what's actually missing/present.
+    /// </summary>
+    [DataField]
+    public ProtoId<OrganCategoryPrototype>? RequiresOrgan { get; private set; }
+
     [DataField(required: true)]
     public List<ProtoId<SurgeryStepPrototype>> Steps { get; private set; } = new();
 

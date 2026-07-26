@@ -23,6 +23,10 @@ surgery-step-saw-limb-name = Saw Through Limb
 surgery-step-saw-limb-desc = Saw all the way through the bone to sever the limb.
 surgery-step-saw-limb-popup = { CAPITALIZE(THE($user)) } saws through { THE($target) }'s limb.
 
+surgery-step-set-bone-name = Set Bone
+surgery-step-set-bone-desc = Fix the bone in place with a bone setter so the limb can be reattached.
+surgery-step-set-bone-popup = { CAPITALIZE(THE($user)) } sets { THE($target) }'s bone in place.
+
 surgery-step-retraction-name = Retract Incision
 surgery-step-retraction-desc = Hold the incision open with a retractor.
 

@@ -23,6 +23,10 @@ surgery-step-saw-limb-name = Отпилить конечность
 surgery-step-saw-limb-desc = Полностью распилить кость, чтобы отделить конечность.
 surgery-step-saw-limb-popup = { CAPITALIZE($user) } отпиливает конечность { OBJECT($target) }.
 
+surgery-step-set-bone-name = Зафиксировать кость
+surgery-step-set-bone-desc = Зафиксировать кость костным фиксатором, чтобы можно было пришить конечность.
+surgery-step-set-bone-popup = { CAPITALIZE($user) } фиксирует кость { OBJECT($target) }.
+
 surgery-step-retraction-name = Развести края раны
 surgery-step-retraction-desc = Удержать надрез открытым с помощью ретрактора.
 

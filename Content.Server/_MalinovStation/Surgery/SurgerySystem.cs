@@ -82,10 +82,12 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
         if (cursor >= surgery.Steps.Count || surgery.Steps[cursor] != args.Step)
             return;
 
-        // Only gate on organ presence when *starting* a surgery - an extraction surgery's own
-        // ExtractOrgan step removes the organ partway through, which shouldn't lock out its
-        // remaining steps (e.g. Cauterize).
-        if (cursor == 0 && HasOrgan(body, surgery.TargetOrgan) != surgery.RequireOrganPresent)
+        // Only gate on eligibility (organ presence, prerequisite organ, species) when *starting* a surgery -
+        // an extraction surgery's own ExtractOrgan step removes the organ partway through, which shouldn't
+        // lock out its remaining steps (e.g. Cauterize). Re-checking here (not just trusting the client's
+        // GetSurgeriesToShow-filtered list) keeps a surgery that isn't offered from being startable via a
+        // raw BUI message regardless.
+        if (cursor == 0 && !IsEligiblePatient(body, surgery))
             return;
 
         if (!TryValidateStep(user, body, surgery, step, out var used, out var blockedReason))
@@ -126,7 +128,7 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
         }
 
         var doAfterArgs = new DoAfterArgs(EntityManager, user, duration,
-            new SurgeryStepDoAfterEvent(args.Surgery, args.Step, successRate), body.Owner, body.Owner, used)
+            new SurgeryStepDoAfterEvent(args.Surgery, args.Step, successRate, cursor), body.Owner, body.Owner, used)
         {
             NeedHand = true,
             BreakOnMove = true,
@@ -140,7 +142,7 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
     /// <summary>Whether this patient is even capable of feeling the pain of an unanesthetized surgery.</summary>
     private bool FeelsPain(EntityUid body)
     {
-        if (!HasOrgan(body, "Brain"))
+        if (!HasOrgan(body, OrganCategoryIds.Brain))
             return false;
 
         return !TryComp<MobStateComponent>(body, out var mobState) || !_mobState.IsDead(body, mobState);
@@ -170,6 +172,12 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
         if (!Proto.TryIndex(args.Surgery, out var surgery) || !Proto.TryIndex(args.Step, out var step))
             return;
 
+        // Someone else (another surgeon, or this same surgery being reset) already moved the cursor since
+        // this DoAfter started - e.g. two people completing the same step concurrently. Applying the effect
+        // now would double it up and desync the cursor from the step list, so just drop it silently.
+        if (GetStepIndex(body, args.Surgery) != args.Cursor)
+            return;
+
         var user = args.User;
 
         if (!_random.Prob(args.SuccessRate))
@@ -177,7 +185,7 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
             _popup.PopupEntity(Loc.GetString("surgery-step-failed"), body, user, PopupType.SmallCaution);
 
             if (step.MishapDamage != null)
-                _damageable.TryChangeDamage(body.Owner, step.MishapDamage, true);
+                _damageable.TryChangeDamage(body.Owner, step.MishapDamage, ignoreResistances: true, interruptsDoAfters: false);
 
             RefreshUi(body);
             return;
@@ -185,7 +193,10 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
 
         ApplyStepEffect(user, body, surgery, step);
 
-        var nextIndex = GetStepIndex(body, args.Surgery) + 1;
+        if (args.Used is { } usedEnt && TryComp<SurgeryToolComponent>(usedEnt, out var usedTool) && usedTool.EndSound != null)
+            _audio.PlayPvs(usedTool.EndSound, usedEnt);
+
+        var nextIndex = args.Cursor + 1;
         if (nextIndex >= surgery.Steps.Count)
             body.Comp.StepIndex.Remove(args.Surgery);
         else

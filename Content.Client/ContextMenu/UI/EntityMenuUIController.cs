@@ -293,7 +293,14 @@ namespace Content.Client.ContextMenu.UI
             var element = new EntityMenuElement(entity);
             element.SubMenu = new ContextMenuPopup(_context, element);
             element.SubMenu.OnPopupOpen += () => _verb.OpenVerbMenu(entity, popup: element.SubMenu);
-            element.SubMenu.OnPopupHide += element.SubMenu.MenuBody.RemoveAllChildren;
+            element.SubMenu.OnPopupHide += () =>
+            {
+                // The pop-up's own Dispose() cascade disposes its children (including MenuBody) before
+                // removing itself from its parent, which triggers this hide handler. Guard against
+                // touching an already-disposed MenuBody in that case (see Control.Dispose(bool)).
+                if (!element.SubMenu.MenuBody.Disposed)
+                    element.SubMenu.MenuBody.RemoveAllChildren();
+            };
             _context.AddElement(menu, element);
             Elements.TryAdd(entity, element);
         }

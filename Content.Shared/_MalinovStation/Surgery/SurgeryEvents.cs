@@ -88,11 +88,20 @@ public sealed partial class SurgeryStepDoAfterEvent : DoAfterEvent
     /// <summary>Chance in [0,1] of success, resolved once at DoAfter-start time from tool/table stats.</summary>
     public readonly float SuccessRate;
 
-    public SurgeryStepDoAfterEvent(ProtoId<SurgeryPrototype> surgery, ProtoId<SurgeryStepPrototype> step, float successRate)
+    /// <summary>
+    /// The surgery's step cursor at the moment this DoAfter started. Someone else may have advanced (or
+    /// otherwise changed) it by the time this DoAfter finishes - e.g. a second surgeon completing the same
+    /// step concurrently - so the step-completion handler re-checks this against the live cursor before
+    /// applying any effect, instead of trusting that finishing always means "the current step".
+    /// </summary>
+    public readonly int Cursor;
+
+    public SurgeryStepDoAfterEvent(ProtoId<SurgeryPrototype> surgery, ProtoId<SurgeryStepPrototype> step, float successRate, int cursor)
     {
         Surgery = surgery;
         Step = step;
         SuccessRate = successRate;
+        Cursor = cursor;
     }
 
     public override DoAfterEvent Clone() => this;
