@@ -186,6 +186,7 @@
   components:
   - type: Organ
     category: LegLeft
+  - type: LegOrgan
   - type: Sprite
     state: l_leg
   - type: VisualOrgan
@@ -205,6 +206,7 @@
   components:
   - type: Organ
     category: LegRight
+  - type: LegOrgan
   - type: Sprite
     state: r_leg
   - type: VisualOrgan
@@ -296,6 +298,7 @@
   - type: GibbableOrgan
   - type: Organ
     category: Eyes
+  - type: EyeOrgan
   - type: Sprite
     layers:
     - state: eyeball-l
@@ -319,6 +322,7 @@
   - type: GibbableOrgan
   - type: Organ
     category: Tongue
+  - type: TongueOrgan
   - type: Sprite
     layers:
     - state: tongue
@@ -391,6 +395,7 @@
   - type: GibbableOrgan
   - type: Organ
     category: Heart
+  - type: HeartOrgan
   - type: Sprite
     layers:
     - state: heart-on

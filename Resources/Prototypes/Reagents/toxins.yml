@@ -72,6 +72,14 @@
         effectProto: StatusEffectDrowsiness
         time: 4
         type: Update
+      - !type:ModifyStatusEffect
+        conditions:
+        - !type:ReagentCondition
+          reagent: ChloralHydrate
+          min: 15
+        effectProto: StatusEffectForcedSleeping
+        time: 20
+        delay: 3
       - !type:HealthChange
         conditions:
         - !type:ReagentCondition

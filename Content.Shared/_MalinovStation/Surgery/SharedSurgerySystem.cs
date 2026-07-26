@@ -1,11 +1,13 @@
 using System.Linq;
 using Content.Shared._MalinovStation.Surgery.Components;
+using Content.Shared.Bed.Sleep;
 using Content.Shared.Body;
 using Content.Shared.Buckle.Components;
 using Content.Shared.Hands.Components;
 using Content.Shared.Hands.EntitySystems;
 using Content.Shared.Humanoid;
 using Content.Shared.Standing;
+using Content.Shared.StatusEffectNew;
 using Robust.Shared.Containers;
 using Robust.Shared.Prototypes;
 
@@ -21,6 +23,7 @@ public abstract partial class SharedSurgerySystem : EntitySystem
     [Dependency] protected IPrototypeManager Proto = default!;
     [Dependency] private SharedContainerSystem _container = default!;
     [Dependency] private SharedHandsSystem _hands = default!;
+    [Dependency] private StatusEffectsSystem _statusEffects = default!;
 
     public override void Initialize()
     {
@@ -30,6 +33,17 @@ public abstract partial class SharedSurgerySystem : EntitySystem
     public bool IsLyingDown(EntityUid target)
     {
         return TryComp<StandingStateComponent>(target, out var standing) && !standing.Standing;
+    }
+
+    /// <summary>
+    /// Whether the patient is properly sedated for painless surgery - chemically forced asleep (e.g. via
+    /// a surgical anesthetic), as opposed to merely lying down or naturally napping in a bed. A naturally
+    /// sleeping patient still wakes up (and feels everything) the instant surgery deals it any damage -
+    /// see <c>SleepingSystem.OnDamageChanged</c>, which is blocked only by <see cref="ForcedSleepingStatusEffectComponent"/>.
+    /// </summary>
+    public bool IsAnesthetized(EntityUid patient)
+    {
+        return HasComp<SleepingComponent>(patient) && _statusEffects.HasEffectComp<ForcedSleepingStatusEffectComponent>(patient);
     }
 
     /// <summary>

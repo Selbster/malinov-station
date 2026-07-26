@@ -1,3 +1,10 @@
+# Regions
+
+surgery-region-head-name = Head
+surgery-region-torso-name = Torso
+surgery-region-arms-name = Arms
+surgery-region-legs-name = Legs
+
 # Steps
 
 surgery-step-incision-name = Make Incision
@@ -7,6 +14,14 @@ surgery-step-incision-popup = { CAPITALIZE(THE($user)) } makes an incision in { 
 surgery-step-sternotomy-name = Saw Through Ribcage
 surgery-step-sternotomy-desc = Cut through the ribcage with a saw to reach the chest cavity.
 surgery-step-sternotomy-popup = { CAPITALIZE(THE($user)) } saws through { THE($target) }'s ribcage.
+
+surgery-step-trepanation-name = Drill Through Skull
+surgery-step-trepanation-desc = Drill through the skull to reach the brain case.
+surgery-step-trepanation-popup = { CAPITALIZE(THE($user)) } drills through { THE($target) }'s skull.
+
+surgery-step-saw-limb-name = Saw Through Limb
+surgery-step-saw-limb-desc = Saw all the way through the bone to sever the limb.
+surgery-step-saw-limb-popup = { CAPITALIZE(THE($user)) } saws through { THE($target) }'s limb.
 
 surgery-step-retraction-name = Retract Incision
 surgery-step-retraction-desc = Hold the incision open with a retractor.
@@ -25,6 +40,13 @@ surgery-step-insert-organ-popup = { CAPITALIZE(THE($user)) } places an organ int
 surgery-step-cauterize-name = Cauterize Incision
 surgery-step-cauterize-desc = Seal the incision shut with a cautery.
 surgery-step-cauterize-popup = { CAPITALIZE(THE($user)) } cauterizes the incision.
+
+# Brain
+
+surgery-brain-extraction-name = Brain — Extraction
+surgery-brain-extraction-desc = Removes the patient's brain through their skull. Their mind stays with the extracted brain, not the now-empty body.
+surgery-brain-installation-name = Brain — Installation
+surgery-brain-installation-desc = Installs a brain into the patient's skull.
 
 # Heart
 
@@ -88,3 +110,59 @@ surgery-tongue-extraction-name = Tongue — Extraction
 surgery-tongue-extraction-desc = Removes the patient's tongue.
 surgery-tongue-installation-name = Tongue — Installation
 surgery-tongue-installation-desc = Installs a tongue into the patient's mouth.
+
+# Left Arm
+
+surgery-arm-left-extraction-name = Left Arm — Amputation
+surgery-arm-left-extraction-desc = Amputates the patient's left arm at the shoulder, taking the hand with it.
+surgery-arm-left-installation-name = Left Arm — Reattachment
+surgery-arm-left-installation-desc = Reattaches a left arm to the patient's shoulder.
+
+# Right Arm
+
+surgery-arm-right-extraction-name = Right Arm — Amputation
+surgery-arm-right-extraction-desc = Amputates the patient's right arm at the shoulder, taking the hand with it.
+surgery-arm-right-installation-name = Right Arm — Reattachment
+surgery-arm-right-installation-desc = Reattaches a right arm to the patient's shoulder.
+
+# Left Hand
+
+surgery-hand-left-extraction-name = Left Hand — Amputation
+surgery-hand-left-extraction-desc = Amputates the patient's left hand at the wrist.
+surgery-hand-left-installation-name = Left Hand — Reattachment
+surgery-hand-left-installation-desc = Reattaches a left hand to the patient's wrist.
+
+# Right Hand
+
+surgery-hand-right-extraction-name = Right Hand — Amputation
+surgery-hand-right-extraction-desc = Amputates the patient's right hand at the wrist.
+surgery-hand-right-installation-name = Right Hand — Reattachment
+surgery-hand-right-installation-desc = Reattaches a right hand to the patient's wrist.
+
+# Left Leg
+
+surgery-leg-left-extraction-name = Left Leg — Amputation
+surgery-leg-left-extraction-desc = Amputates the patient's left leg at the hip, taking the foot with it.
+surgery-leg-left-installation-name = Left Leg — Reattachment
+surgery-leg-left-installation-desc = Reattaches a left leg to the patient's hip.
+
+# Right Leg
+
+surgery-leg-right-extraction-name = Right Leg — Amputation
+surgery-leg-right-extraction-desc = Amputates the patient's right leg at the hip, taking the foot with it.
+surgery-leg-right-installation-name = Right Leg — Reattachment
+surgery-leg-right-installation-desc = Reattaches a right leg to the patient's hip.
+
+# Left Foot
+
+surgery-foot-left-extraction-name = Left Foot — Amputation
+surgery-foot-left-extraction-desc = Amputates the patient's left foot at the ankle.
+surgery-foot-left-installation-name = Left Foot — Reattachment
+surgery-foot-left-installation-desc = Reattaches a left foot to the patient's ankle.
+
+# Right Foot
+
+surgery-foot-right-extraction-name = Right Foot — Amputation
+surgery-foot-right-extraction-desc = Amputates the patient's right foot at the ankle.
+surgery-foot-right-installation-name = Right Foot — Reattachment
+surgery-foot-right-installation-desc = Reattaches a right foot to the patient's ankle.

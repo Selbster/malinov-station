@@ -1,3 +1,4 @@
+using Content.Shared.Damage;
 using Robust.Shared.Audio;
 using Robust.Shared.Prototypes;
 
@@ -41,6 +42,14 @@ public sealed partial class SurgeryStepPrototype : IPrototype
     /// </summary>
     [DataField]
     public float BleedDelta { get; private set; }
+
+    /// <summary>Direct damage dealt to the patient when this step succeeds (e.g. the cut itself).</summary>
+    [DataField]
+    public DamageSpecifier? Damage { get; private set; }
+
+    /// <summary>Extra damage dealt to the patient if this step fails and has to be retried (a slip).</summary>
+    [DataField]
+    public DamageSpecifier? MishapDamage { get; private set; }
 
     /// <summary>Shown to everyone near the patient when this step completes.</summary>
     [DataField]

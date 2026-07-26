@@ -8,6 +8,12 @@
   kind: Incision
   requiredTool: Scalpel
   bleedDelta: 3
+  damage:
+    types:
+      Slash: 2
+  mishapDamage:
+    types:
+      Slash: 4
   popup: surgery-step-incision-popup
 
 - type: surgeryStep
@@ -18,7 +24,49 @@
   kind: Generic
   requiredTool: Saw
   bleedDelta: 2
+  damage:
+    types:
+      Piercing: 4
+  mishapDamage:
+    types:
+      Piercing: 8
+      Slash: 3
   popup: surgery-step-sternotomy-popup
+
+- type: surgeryStep
+  id: SurgeryStepTrepanation
+  name: surgery-step-trepanation-name
+  description: surgery-step-trepanation-desc
+  duration: 4
+  kind: Generic
+  requiredTool: Drill
+  bleedDelta: 2
+  damage:
+    types:
+      Piercing: 4
+  mishapDamage:
+    types:
+      Piercing: 8
+      Blunt: 3
+  popup: surgery-step-trepanation-popup
+
+- type: surgeryStep
+  id: SurgeryStepSawLimb
+  name: surgery-step-saw-limb-name
+  description: surgery-step-saw-limb-desc
+  duration: 5
+  kind: Generic
+  requiredTool: Saw
+  bleedDelta: 4
+  damage:
+    types:
+      Piercing: 6
+      Slash: 2
+  mishapDamage:
+    types:
+      Piercing: 10
+      Slash: 6
+  popup: surgery-step-saw-limb-popup
 
 - type: surgeryStep
   id: SurgeryStepRetraction
@@ -61,4 +109,7 @@
   kind: Cauterize
   requiredTool: Cautery
   bleedDelta: -1
+  mishapDamage:
+    types:
+      Heat: 3
   popup: surgery-step-cauterize-popup

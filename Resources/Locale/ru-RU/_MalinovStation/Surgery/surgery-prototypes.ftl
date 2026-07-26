@@ -1,3 +1,10 @@
+# Части тела
+
+surgery-region-head-name = Голова
+surgery-region-torso-name = Торс
+surgery-region-arms-name = Руки
+surgery-region-legs-name = Ноги
+
 # Этапы
 
 surgery-step-incision-name = Сделать надрез
@@ -7,6 +14,14 @@ surgery-step-incision-popup = { CAPITALIZE($user) } делает надрез.
 surgery-step-sternotomy-name = Распилить грудную клетку
 surgery-step-sternotomy-desc = Распилить грудную клетку пилой, чтобы добраться до грудной полости.
 surgery-step-sternotomy-popup = { CAPITALIZE($user) } распиливает грудную клетку { OBJECT($target) }.
+
+surgery-step-trepanation-name = Просверлить череп
+surgery-step-trepanation-desc = Просверлить череп дрелью, чтобы добраться до полости черепа.
+surgery-step-trepanation-popup = { CAPITALIZE($user) } просверливает череп { OBJECT($target) }.
+
+surgery-step-saw-limb-name = Отпилить конечность
+surgery-step-saw-limb-desc = Полностью распилить кость, чтобы отделить конечность.
+surgery-step-saw-limb-popup = { CAPITALIZE($user) } отпиливает конечность { OBJECT($target) }.
 
 surgery-step-retraction-name = Развести края раны
 surgery-step-retraction-desc = Удержать надрез открытым с помощью ретрактора.
@@ -25,6 +40,13 @@ surgery-step-insert-organ-popup = { CAPITALIZE($user) } помещает орг�
 surgery-step-cauterize-name = Прижечь рану
 surgery-step-cauterize-desc = Запечатать надрез каутером.
 surgery-step-cauterize-popup = { CAPITALIZE($user) } прижигает рану.
+
+# Мозг
+
+surgery-brain-extraction-name = Мозг — Извлечение
+surgery-brain-extraction-desc = Извлекает мозг пациента через трепанацию черепа. Сознание пациента остаётся с извлечённым мозгом, а не с опустевшим телом.
+surgery-brain-installation-name = Мозг — Установка
+surgery-brain-installation-desc = Устанавливает мозг в черепную коробку пациента.
 
 # Сердце
 
@@ -88,3 +110,59 @@ surgery-tongue-extraction-name = Язык — Извлечение
 surgery-tongue-extraction-desc = Извлекает язык пациента.
 surgery-tongue-installation-name = Язык — Установка
 surgery-tongue-installation-desc = Устанавливает язык в рот пациента.
+
+# Левая рука
+
+surgery-arm-left-extraction-name = Левая рука — Ампутация
+surgery-arm-left-extraction-desc = Ампутирует левую руку пациента по плечо, вместе с кистью.
+surgery-arm-left-installation-name = Левая рука — Пришивание
+surgery-arm-left-installation-desc = Пришивает левую руку пациенту.
+
+# Правая рука
+
+surgery-arm-right-extraction-name = Правая рука — Ампутация
+surgery-arm-right-extraction-desc = Ампутирует правую руку пациента по плечо, вместе с кистью.
+surgery-arm-right-installation-name = Правая рука — Пришивание
+surgery-arm-right-installation-desc = Пришивает правую руку пациенту.
+
+# Левая кисть
+
+surgery-hand-left-extraction-name = Левая кисть — Ампутация
+surgery-hand-left-extraction-desc = Ампутирует левую кисть пациента по запястье.
+surgery-hand-left-installation-name = Левая кисть — Пришивание
+surgery-hand-left-installation-desc = Пришивает левую кисть пациенту.
+
+# Правая кисть
+
+surgery-hand-right-extraction-name = Правая кисть — Ампутация
+surgery-hand-right-extraction-desc = Ампутирует правую кисть пациента по запястье.
+surgery-hand-right-installation-name = Правая кисть — Пришивание
+surgery-hand-right-installation-desc = Пришивает правую кисть пациенту.
+
+# Левая нога
+
+surgery-leg-left-extraction-name = Левая нога — Ампутация
+surgery-leg-left-extraction-desc = Ампутирует левую ногу пациента по бедро, вместе со стопой.
+surgery-leg-left-installation-name = Левая нога — Пришивание
+surgery-leg-left-installation-desc = Пришивает левую ногу пациенту.
+
+# Правая нога
+
+surgery-leg-right-extraction-name = Правая нога — Ампутация
+surgery-leg-right-extraction-desc = Ампутирует правую ногу пациента по бедро, вместе со стопой.
+surgery-leg-right-installation-name = Правая нога — Пришивание
+surgery-leg-right-installation-desc = Пришивает правую ногу пациенту.
+
+# Левая стопа
+
+surgery-foot-left-extraction-name = Левая стопа — Ампутация
+surgery-foot-left-extraction-desc = Ампутирует левую стопу пациента по щиколотку.
+surgery-foot-left-installation-name = Левая стопа — Пришивание
+surgery-foot-left-installation-desc = Пришивает левую стопу пациенту.
+
+# Правая стопа
+
+surgery-foot-right-extraction-name = Правая стопа — Ампутация
+surgery-foot-right-extraction-desc = Ампутирует правую стопу пациента по щиколотку.
+surgery-foot-right-installation-name = Правая стопа — Пришивание
+surgery-foot-right-installation-desc = Пришивает правую стопу пациенту.

@@ -1,12 +1,45 @@
 # Organ extraction/installation surgeries. Availability of each is derived from whether the patient
 # currently has (or lacks) targetOrgan - see SharedSurgerySystem.GetAvailableSurgeries.
 
+# Brain (cranial)
+
+- type: surgery
+  id: SurgeryBrainExtraction
+  name: surgery-brain-extraction-name
+  description: surgery-brain-extraction-desc
+  region: SurgeryRegionHead
+  targetOrgan: Brain
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepTrepanation
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryBrainInstallation
+  name: surgery-brain-installation-name
+  description: surgery-brain-installation-desc
+  region: SurgeryRegionHead
+  targetOrgan: Brain
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepTrepanation
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
 # Heart (thoracic)
 
 - type: surgery
   id: SurgeryHeartExtraction
   name: surgery-heart-extraction-name
   description: surgery-heart-extraction-desc
+  region: SurgeryRegionTorso
   targetOrgan: Heart
   requireOrganPresent: true
   steps:
@@ -21,6 +54,7 @@
   id: SurgeryHeartInstallation
   name: surgery-heart-installation-name
   description: surgery-heart-installation-desc
+  region: SurgeryRegionTorso
   targetOrgan: Heart
   requireOrganPresent: false
   steps:
@@ -37,6 +71,7 @@
   id: SurgeryLungsExtraction
   name: surgery-lungs-extraction-name
   description: surgery-lungs-extraction-desc
+  region: SurgeryRegionTorso
   targetOrgan: Lungs
   requireOrganPresent: true
   steps:
@@ -51,6 +86,7 @@
   id: SurgeryLungsInstallation
   name: surgery-lungs-installation-name
   description: surgery-lungs-installation-desc
+  region: SurgeryRegionTorso
   targetOrgan: Lungs
   requireOrganPresent: false
   steps:
@@ -67,6 +103,7 @@
   id: SurgeryStomachExtraction
   name: surgery-stomach-extraction-name
   description: surgery-stomach-extraction-desc
+  region: SurgeryRegionTorso
   targetOrgan: Stomach
   requireOrganPresent: true
   steps:
@@ -80,6 +117,7 @@
   id: SurgeryStomachInstallation
   name: surgery-stomach-installation-name
   description: surgery-stomach-installation-desc
+  region: SurgeryRegionTorso
   targetOrgan: Stomach
   requireOrganPresent: false
   steps:
@@ -95,6 +133,7 @@
   id: SurgeryLiverExtraction
   name: surgery-liver-extraction-name
   description: surgery-liver-extraction-desc
+  region: SurgeryRegionTorso
   targetOrgan: Liver
   requireOrganPresent: true
   steps:
@@ -108,6 +147,7 @@
   id: SurgeryLiverInstallation
   name: surgery-liver-installation-name
   description: surgery-liver-installation-desc
+  region: SurgeryRegionTorso
   targetOrgan: Liver
   requireOrganPresent: false
   steps:
@@ -123,6 +163,7 @@
   id: SurgeryKidneysExtraction
   name: surgery-kidneys-extraction-name
   description: surgery-kidneys-extraction-desc
+  region: SurgeryRegionTorso
   targetOrgan: Kidneys
   requireOrganPresent: true
   steps:
@@ -136,6 +177,7 @@
   id: SurgeryKidneysInstallation
   name: surgery-kidneys-installation-name
   description: surgery-kidneys-installation-desc
+  region: SurgeryRegionTorso
   targetOrgan: Kidneys
   requireOrganPresent: false
   steps:
@@ -151,6 +193,7 @@
   id: SurgeryAppendixExtraction
   name: surgery-appendix-extraction-name
   description: surgery-appendix-extraction-desc
+  region: SurgeryRegionTorso
   targetOrgan: Appendix
   requireOrganPresent: true
   steps:
@@ -164,6 +207,7 @@
   id: SurgeryAppendixInstallation
   name: surgery-appendix-installation-name
   description: surgery-appendix-installation-desc
+  region: SurgeryRegionTorso
   targetOrgan: Appendix
   requireOrganPresent: false
   steps:
@@ -179,6 +223,7 @@
   id: SurgeryEyesExtraction
   name: surgery-eyes-extraction-name
   description: surgery-eyes-extraction-desc
+  region: SurgeryRegionHead
   targetOrgan: Eyes
   requireOrganPresent: true
   steps:
@@ -192,6 +237,7 @@
   id: SurgeryEyesInstallation
   name: surgery-eyes-installation-name
   description: surgery-eyes-installation-desc
+  region: SurgeryRegionHead
   targetOrgan: Eyes
   requireOrganPresent: false
   steps:
@@ -207,6 +253,7 @@
   id: SurgeryEarsExtraction
   name: surgery-ears-extraction-name
   description: surgery-ears-extraction-desc
+  region: SurgeryRegionHead
   targetOrgan: Ears
   requireOrganPresent: true
   steps:
@@ -220,6 +267,7 @@
   id: SurgeryEarsInstallation
   name: surgery-ears-installation-name
   description: surgery-ears-installation-desc
+  region: SurgeryRegionHead
   targetOrgan: Ears
   requireOrganPresent: false
   steps:
@@ -235,6 +283,7 @@
   id: SurgeryTongueExtraction
   name: surgery-tongue-extraction-name
   description: surgery-tongue-extraction-desc
+  region: SurgeryRegionHead
   targetOrgan: Tongue
   requireOrganPresent: true
   steps:
@@ -248,7 +297,256 @@
   id: SurgeryTongueInstallation
   name: surgery-tongue-installation-name
   description: surgery-tongue-installation-desc
+  region: SurgeryRegionHead
   targetOrgan: Tongue
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Left Arm (amputation - takes the hand with it, see SurgerySystem.Steps.cs LimbExtractionCascade)
+
+- type: surgery
+  id: SurgeryArmLeftExtraction
+  name: surgery-arm-left-extraction-name
+  description: surgery-arm-left-extraction-desc
+  region: SurgeryRegionArms
+  targetOrgan: ArmLeft
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSawLimb
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryArmLeftInstallation
+  name: surgery-arm-left-installation-name
+  description: surgery-arm-left-installation-desc
+  region: SurgeryRegionArms
+  targetOrgan: ArmLeft
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSawLimb
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Right Arm
+
+- type: surgery
+  id: SurgeryArmRightExtraction
+  name: surgery-arm-right-extraction-name
+  description: surgery-arm-right-extraction-desc
+  region: SurgeryRegionArms
+  targetOrgan: ArmRight
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSawLimb
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryArmRightInstallation
+  name: surgery-arm-right-installation-name
+  description: surgery-arm-right-installation-desc
+  region: SurgeryRegionArms
+  targetOrgan: ArmRight
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSawLimb
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Left Hand
+
+- type: surgery
+  id: SurgeryHandLeftExtraction
+  name: surgery-hand-left-extraction-name
+  description: surgery-hand-left-extraction-desc
+  region: SurgeryRegionArms
+  targetOrgan: HandLeft
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryHandLeftInstallation
+  name: surgery-hand-left-installation-name
+  description: surgery-hand-left-installation-desc
+  region: SurgeryRegionArms
+  targetOrgan: HandLeft
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Right Hand
+
+- type: surgery
+  id: SurgeryHandRightExtraction
+  name: surgery-hand-right-extraction-name
+  description: surgery-hand-right-extraction-desc
+  region: SurgeryRegionArms
+  targetOrgan: HandRight
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryHandRightInstallation
+  name: surgery-hand-right-installation-name
+  description: surgery-hand-right-installation-desc
+  region: SurgeryRegionArms
+  targetOrgan: HandRight
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Left Leg (amputation - takes the foot with it, see SurgerySystem.Steps.cs LimbExtractionCascade)
+
+- type: surgery
+  id: SurgeryLegLeftExtraction
+  name: surgery-leg-left-extraction-name
+  description: surgery-leg-left-extraction-desc
+  region: SurgeryRegionLegs
+  targetOrgan: LegLeft
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSawLimb
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryLegLeftInstallation
+  name: surgery-leg-left-installation-name
+  description: surgery-leg-left-installation-desc
+  region: SurgeryRegionLegs
+  targetOrgan: LegLeft
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSawLimb
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Right Leg
+
+- type: surgery
+  id: SurgeryLegRightExtraction
+  name: surgery-leg-right-extraction-name
+  description: surgery-leg-right-extraction-desc
+  region: SurgeryRegionLegs
+  targetOrgan: LegRight
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSawLimb
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryLegRightInstallation
+  name: surgery-leg-right-installation-name
+  description: surgery-leg-right-installation-desc
+  region: SurgeryRegionLegs
+  targetOrgan: LegRight
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepSawLimb
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Left Foot
+
+- type: surgery
+  id: SurgeryFootLeftExtraction
+  name: surgery-foot-left-extraction-name
+  description: surgery-foot-left-extraction-desc
+  region: SurgeryRegionLegs
+  targetOrgan: FootLeft
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryFootLeftInstallation
+  name: surgery-foot-left-installation-name
+  description: surgery-foot-left-installation-desc
+  region: SurgeryRegionLegs
+  targetOrgan: FootLeft
+  requireOrganPresent: false
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepInsertOrgan
+  - SurgeryStepCauterize
+
+# Right Foot
+
+- type: surgery
+  id: SurgeryFootRightExtraction
+  name: surgery-foot-right-extraction-name
+  description: surgery-foot-right-extraction-desc
+  region: SurgeryRegionLegs
+  targetOrgan: FootRight
+  requireOrganPresent: true
+  steps:
+  - SurgeryStepIncision
+  - SurgeryStepRetraction
+  - SurgeryStepClampBleeders
+  - SurgeryStepExtractOrgan
+  - SurgeryStepCauterize
+
+- type: surgery
+  id: SurgeryFootRightInstallation
+  name: surgery-foot-right-installation-name
+  description: surgery-foot-right-installation-desc
+  region: SurgeryRegionLegs
+  targetOrgan: FootRight
   requireOrganPresent: false
   steps:
   - SurgeryStepIncision

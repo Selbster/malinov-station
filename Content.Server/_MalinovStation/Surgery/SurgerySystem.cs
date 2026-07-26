@@ -1,9 +1,13 @@
 using Content.Shared._MalinovStation.Surgery;
 using Content.Shared._MalinovStation.Surgery.Components;
 using Content.Shared.Body;
+using Content.Shared.Chat;
+using Content.Shared.Damage.Systems;
 using Content.Shared.DoAfter;
 using Content.Shared.Hands.EntitySystems;
 using Content.Shared.Interaction;
+using Content.Shared.Mobs.Components;
+using Content.Shared.Mobs.Systems;
 using Content.Shared.Popups;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Containers;
@@ -16,12 +20,21 @@ namespace Content.Server._MalinovStation.Surgery;
 /// </summary>
 public sealed partial class SurgerySystem : SharedSurgerySystem
 {
+    /// <summary>Duration/success multipliers applied to every step performed on an unanesthetized patient.</summary>
+    private const float PainDurationMultiplier = 1.3f;
+    private const float PainSuccessMultiplier = 0.75f;
+    private const float PainStaminaDamage = 15f;
+
     [Dependency] private SharedAudioSystem _audio = default!;
+    [Dependency] private SharedChatSystem _chat = default!;
     [Dependency] private SharedContainerSystem _container = default!;
+    [Dependency] private DamageableSystem _damageable = default!;
     [Dependency] private SharedDoAfterSystem _doAfter = default!;
     [Dependency] private SharedHandsSystem _hands = default!;
+    [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private SharedPopupSystem _popup = default!;
     [Dependency] private IRobustRandom _random = default!;
+    [Dependency] private SharedStaminaSystem _stamina = default!;
     [Dependency] private SharedUserInterfaceSystem _ui = default!;
 
     public override void Initialize()
@@ -99,6 +112,19 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
             successRate = MathF.Min(1f, successRate + table.Comp.SuccessRateBonus);
         }
 
+        // Without proper sedation, every step is a fight against a patient in agony: slower, less
+        // reliable, and not exactly quiet about it. A naturally sleeping (not chemically anesthetized)
+        // patient still counts as "in pain" here - see SharedSurgerySystem.IsAnesthetized's remarks.
+        // No pain at all without a brain to feel it with, or without a pulse to feel anything with.
+        if (!IsAnesthetized(body) && FeelsPain(body))
+        {
+            duration *= PainDurationMultiplier;
+            successRate *= PainSuccessMultiplier;
+            _stamina.TakeStaminaDamage(body, PainStaminaDamage);
+            _chat.TryEmoteWithChat(body, "Scream", forceEmote: true);
+            _popup.PopupEntity(Loc.GetString("surgery-no-anesthesia"), body, PopupType.LargeCaution);
+        }
+
         var doAfterArgs = new DoAfterArgs(EntityManager, user, duration,
             new SurgeryStepDoAfterEvent(args.Surgery, args.Step, successRate), body.Owner, body.Owner, used)
         {
@@ -109,6 +135,15 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
         };
 
         _doAfter.TryStartDoAfter(doAfterArgs);
+    }
+
+    /// <summary>Whether this patient is even capable of feeling the pain of an unanesthetized surgery.</summary>
+    private bool FeelsPain(EntityUid body)
+    {
+        if (!HasOrgan(body, "Brain"))
+            return false;
+
+        return !TryComp<MobStateComponent>(body, out var mobState) || !_mobState.IsDead(body, mobState);
     }
 
     private void OnStepAttempt(Entity<SurgeryProgressComponent> body, ref DoAfterAttemptEvent<SurgeryStepDoAfterEvent> args)
@@ -140,6 +175,10 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
         if (!_random.Prob(args.SuccessRate))
         {
             _popup.PopupEntity(Loc.GetString("surgery-step-failed"), body, user, PopupType.SmallCaution);
+
+            if (step.MishapDamage != null)
+                _damageable.TryChangeDamage(body.Owner, step.MishapDamage, true);
+
             RefreshUi(body);
             return;
         }

@@ -1,0 +1,21 @@
+# Coarse anatomical groupings for the surgery window's first navigation pane.
+
+- type: surgeryRegion
+  id: SurgeryRegionHead
+  name: surgery-region-head-name
+  sortOrder: 0
+
+- type: surgeryRegion
+  id: SurgeryRegionTorso
+  name: surgery-region-torso-name
+  sortOrder: 1
+
+- type: surgeryRegion
+  id: SurgeryRegionArms
+  name: surgery-region-arms-name
+  sortOrder: 2
+
+- type: surgeryRegion
+  id: SurgeryRegionLegs
+  name: surgery-region-legs-name
+  sortOrder: 3
