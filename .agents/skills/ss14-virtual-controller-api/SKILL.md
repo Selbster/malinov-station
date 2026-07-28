@@ -19,7 +19,7 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 1. You need a controller for the physics step: inherit from `VirtualController` and implement `UpdateBeforeSolve`/`UpdateAfterSolve`.
 2. You need order between controllers: add `UpdatesBefore`/`UpdatesAfter` to `base.Initialize()`.
 3. You need control over velocity/impulse: use `SetLinearVelocity`, `ApplyLinearImpulse`, `SetBodyStatus`, damping setters.
-4. You need an entity management relay: use `SetRelay`/`RemoveRelay`.
+4. You need an entity management relay: use `SetRelay` to create it, and `RemComp<RelayInputMoverComponent>(uid)` to remove it safely (the system handles cleanup via `ComponentShutdown`).
 5. You need manual mobility mathematics: `Friction`, `Accelerate`, `GetWishDir`/`SetWishDir`.
 6. You need a container/movement link through “climbing out”: `ForciblySetClimbing`.
 7. We need a safe climb pipeline: `CanVault` -> `TryClimb`.
@@ -51,7 +51,7 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 ### 4) Relay API
 
 1. `SetRelay(uid, relayEntity)` — create/update a relay link.
-2. `RemoveRelay(uid)` — remove the relay and bring the prediction state to a consistent state.
+2. To remove a movement relay, call `RemComp<RelayInputMoverComponent>(uid)` (or `RemCompDeferred`). The `SharedMoverController` subscribes to `ComponentShutdown` and will automatically clean up the target component and prediction state.
 3. Client prediction hooks (`UpdateIsPredictedEvent`) must take into account the relay chain.
 
 ### 5) Movement helper API
@@ -83,7 +83,7 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 1. Set up the controller order (`UpdatesBefore/After`) to `base.Initialize()`.
 2. In `UpdateBeforeSolve` filter unsuitable bodies (`prediction`, `body.Predict`, static/sleeping cases).
 3. For `KinematicController` use helper friction + explicit setting of speeds.
-4. For relay scripts, use only `SetRelay`/`RemoveRelay`.
+4. For relay scripts, use `SetRelay` to create the link and `RemComp<RelayInputMoverComponent>(uid)` (or `RemCompDeferred`) to tear it down safely.
 5. For gravity/space pull scenarios, take into account the pair impulse if required by the mechanics.
 6. For climb-flow, always do `CanVault` before `TryClimb`.
 7. For ejection from a container/cryo/scanner, use `ForciblySetClimbing` as a post-action step.
@@ -97,7 +97,7 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 
 1. Add order dependencies after `base.Initialize()`.
 2. Pull `SetBodyStatus(InAir)` as a universal “patch”.
-3. Change relay manually through direct `RemComp/EnsureComp` without lifecycle methods.
+3. Bypass `SetRelay` and manually wire `RelayInputMoverComponent` / `MovementRelayTargetComponent` fields.
 4. In the predicted controller, use nondeterministic logic without protections.
 5. Copy TODO-heavy pieces from pull/contact/solver as “best practice”.
 6. Rely on the empty client conveyor class as the source of behavior.
@@ -146,8 +146,9 @@ public override void Initialize()
 // We connect the pilot control to the proxy entity.
 _mover.SetRelay(pilotUid, proxyUid);
 
-// We remove the relay correctly, updating the prediction state.
-_mover.RemoveRelay(pilotUid);
+// We remove the relay correctly; SharedMoverController cleans up the target
+// component and prediction state automatically on ComponentShutdown.
+RemComp<RelayInputMoverComponent>(pilotUid);
 ```
 
 ### 4) Movement math helper: friction + accelerate

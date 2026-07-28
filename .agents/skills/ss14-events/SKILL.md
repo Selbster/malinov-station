@@ -58,7 +58,7 @@ private void OnDoorOpened(Entity<DoorComponent> ent, ref DoorOpenedEvent args) {
 }
 ```
 
-### 2. Broadcast Subscription (`SubscribeEvent`) 📢
+### 2. Broadcast Subscription (`SubscribeLocalEvent<T>`) 📢
 Use for global events that are not tied to a specific entity.
 
 ```csharp

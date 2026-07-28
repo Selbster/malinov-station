@@ -5,17 +5,17 @@ description: Architectural guide to EventBus in Space Station 14 - strict event 
 
 # 🚌 EventBus architecture in SS14
 
-EventBus is the central nervous system of the Space Station 14 (RobustToolbox) engine. It orchestrates communication between systems and entities, implementing a highly optimized dispatch mechanism without unnecessary allocations. 🧠
+The event bus (`EntityEventBus`) is the central nervous system of the Space Station 14 (RobustToolbox) engine. It orchestrates communication between systems and entities, implementing a highly optimized dispatch mechanism without unnecessary allocations. 🧠
 
 ## 🏗️ Basic Architecture
 
-EventBus is implemented through the `IEventBus` interface and combines two different event paradigms:
+The bus is implemented through the `IEventBus` interface (backed by the internal `EntityEventBus` class) and combines two different event paradigms:
 1. **Broadcast Events**: Global events sent to all subscribers of a certain type. 🌍
 2. **Directed Events**: Events targeting a specific entity are sent only to components on that entity. 🎯
 
 ### 💾 Internal Storage
 
-To achieve high performance, EventBus supports several specialized data structures:
+To achieve high performance, `EntityEventBus` supports several specialized data structures:
 
 *   **Broadcast Subscriptions (`_eventData`)**:
     * Dictionary `Type` -> `EventData`.
@@ -72,13 +72,13 @@ Subscriptions are usually registered during `EntitySystem.Initialize()`:
 
 ###Ordering 🔢
 Events/Subscriptions support explicit ordering using the `before` and `after` types.
-* EventBus topologically sorts handlers based on these constraints.
+* `EntityEventBus` topologically sorts handlers based on these constraints.
 * This ensures a deterministic order of execution (e.g. the armor system handles damage *before* the health system).
 * **⚠️ Warning**: Circular dependencies in order will throw an exception on initialization.
 
 ## 🛠️ Optimization Techniques
 
-EventBus uses aggressive optimization to support thousands of events per tick:
+`EntityEventBus` uses aggressive optimization to support thousands of events per tick:
 
 * **Ref Events (`ByRefEventAttribute`)**: Events can be marked for passing by reference. This avoids copying large structures. 📦➡️
 * **Unit Structs**: Internally, the bus uses the `ref Unit` and `Unsafe.As` pointers to erase event argument types without boxing them into `object`. 🧙‍♂️
@@ -89,4 +89,4 @@ EventBus uses aggressive optimization to support thousands of events per tick:
 
 1. **Lock Subscriptions**: You cannot subscribe/unsubscribe while dispatching events (unless you use options with `Queue`). The bus is blocked during iteration. 🔒
 2. **Overhead of Generics**: The bus minimizes the use of generics in hot paths to avoid JIT overhead for each event type.
-3. **Thread Safety**: EventBus **is not** thread safe. All events must be raised on the main thread. 🧵
+3. **Thread Safety**: `EntityEventBus` **is not** thread safe. All events must be raised on the main thread. 🧵

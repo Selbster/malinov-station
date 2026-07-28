@@ -9,13 +9,13 @@ This skill describes the standards and patterns adopted in the Malinov Station f
 14 for working with code inherited from the upstream, using project-folder isolation (`_MalinovStation`).
 **Main goal:** Maintain the ability to easily receive updates from the upstream (merge), minimizing manual edits in case of conflicts.
 
-Before making changes, confirm you are in the Malinov Station codebase using the
-`ss14-codebase-prefix-detection` rule: prefix `Malinov`, project folder `_MalinovStation`, single-line
-marker `Malinov-Edit`.
+Before making changes, confirm you are in the Malinov Station codebase by checking for:
+- Prefix `Malinov` in custom identifiers
+- Project folder `_MalinovStation`
+- Single-line marker `Malinov-Edit` in modified vanilla files
 
-Keep all new fork-owned code under `_MalinovStation`. Do not scatter it into ad-hoc top-level folders
-because the touched behavior is vanilla or "doesn't feel fork-specific" — new code, prototypes and
-assets go under `_MalinovStation` even when the hook or parent prototype lives in vanilla.
+New code, prototypes and assets go under `_MalinovStation` even when the hook or parent prototype lives in vanilla.
+Currently the fork is small: most custom content lives in `_MalinovStation` helpers called via minimal hooks from vanilla files. As the fork grows, migrate toward partial classes in `_MalinovStation`.
 
 ## ⚠️ Golden rule
 
@@ -40,19 +40,55 @@ The project folder is always `_MalinovStation`, regardless of subsystem. Do not 
 differently-named folder just because the original code or inspiration came from another SS14 fork.
 
 > [!TIP]
-> **Isolation principle:**
-> Try to keep 99% of your unique code inside the `_MalinovStation` folder.
-> Only **minimal** edits (hooks, events) that connect vanilla code to yours should remain in vanilla folders.
+> **Current pattern (recommended now):**
+> Use minimal vanilla hooks that call into `_MalinovStation` helpers. This keeps merge conflicts tiny
+> while still isolating custom logic.
 >
 > The existing `Content.Shared/_MalinovStation/Audio/MalinovSoundCollectionHelper.cs` +
-> `MalinovSoundCollections.cs` pair is a good reference: vanilla `ContentAudioSystem`/`NukeSystem` gain
+> `MalinovSoundCollections.cs` pair is the reference: vanilla `ContentAudioSystem`/`NukeSystem` gain
 > a two-line hook that calls into `_MalinovStation` code, instead of vanilla logic being rewritten in place.
+>
+> **Target pattern (use when the feature needs new fields/methods on a vanilla class):**
+> Partial classes in `_MalinovStation` (see below). Not needed for simple helper calls.
 
 ## 🛠️ Modification of C# code
 
 When modifying existing vanilla code (outside the project folder), use the following patterns.
 
-### 1. Pattern `Edit Start` / `Edit End`
+### 1. Pattern: Minimal hook + `_MalinovStation` helper (RECOMMENDED)
+
+Use this when a vanilla system needs to call custom logic, but the feature does **not**
+require adding new fields or methods to the vanilla class.
+
+**Example (from real codebase):**
+
+*Vanilla file (`Content.Server/Audio/ContentAudioSystem.cs`):*
+```csharp
+// Malinov added start - mix custom lobby music with vanilla playlist
+using Content.Shared._MalinovStation.Audio;
+var merged = MalinovSoundCollectionHelper.GetMergedFiles(vanillaPlaylist, "LobbyMusicMalinov");
+// Malinov added end
+```
+
+*Custom helper (`Content.Shared/_MalinovStation/Audio/MalinovSoundCollectionHelper.cs`):*
+```csharp
+namespace Content.Shared._MalinovStation.Audio;
+
+public static class MalinovSoundCollectionHelper
+{
+    public static List<string> GetMergedFiles(List<string> vanilla, string customCollection)
+    {
+        // ... custom logic ...
+    }
+}
+```
+
+**Why this is the default:**
+- Only 2 lines touch the vanilla file → tiny merge conflict surface.
+- All complex logic lives in `_MalinovStation` → easy to find and expand.
+- No need to change vanilla class signatures or make them `partial`.
+
+### 2. Pattern `Edit Start` / `Edit End`
 
 Used when you need to change existing logic inside a method or property.
 Makes it easy to see your changes against the background of vanilla code.
@@ -84,7 +120,7 @@ if (TryComp<AirlockComponent>(uid, out var airlock))
 // Malinov edit end
 ```
 
-### 2. Pattern `Added Start` / `Added End`
+### 3. Pattern `Added Start` / `Added End`
 
 Used when you add a **new** block of code (eg calling an event, checking) that was not in the original.
 
@@ -104,7 +140,7 @@ _eventBus.RaiseLocalEvent(uid, new ProjectileHitEvent(projectile, entity));
 // Malinov added end
 ```
 
-### 3. Partial Classes
+### 4. Partial Classes (TARGET PATTERN)
 
 If you need to add a **new field, property or method** to an existing class or system, **DO NOT** write it in a vanilla file.
 Instead, create a `partial` class in `_MalinovStation`.
@@ -140,6 +176,16 @@ public abstract partial class SharedAirlockSystem
     public void MyNewMethod() { ... }
 }
 ```
+
+## 📋 When to use what
+
+| Situation | Use |
+|-----------|-----|
+| Need to inject custom logic into a vanilla method (call helper, modify args, side effect) | **Pattern 1** — Hook + Helper |
+| Need to change an existing vanilla value or logic block | **Pattern 2** — `Edit Start` / `Edit End` |
+| Need to add a new code block (event call, extra check) to vanilla | **Pattern 3** — `Added Start` / `Added End` |
+| Need to add a **new field, property or method** to an existing vanilla class | **Pattern 4** — Partial Class in `_MalinovStation` |
+| Completely new subsystem (new components, systems, entities) | **Full isolation** — everything in `_MalinovStation` |
 
 ## 🧬 Modifying Prototypes (YAML)
 
