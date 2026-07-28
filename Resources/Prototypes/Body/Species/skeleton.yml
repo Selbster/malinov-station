@@ -58,12 +58,17 @@
       Head: OrganSkeletonPersonHead
       ArmLeft: OrganSkeletonPersonArmLeft
       ArmRight: OrganSkeletonPersonArmRight
-      HandRight: OrganSkeletonPersonHandRight
-      HandLeft: OrganSkeletonPersonHandLeft
       LegLeft: OrganSkeletonPersonLegLeft
       LegRight: OrganSkeletonPersonLegRight
-      FootLeft: OrganSkeletonPersonFootLeft
-      FootRight: OrganSkeletonPersonFootRight
+    partOrgans:
+      ArmLeft:
+        HandLeft: OrganSkeletonPersonHandLeft
+      ArmRight:
+        HandRight: OrganSkeletonPersonHandRight
+      LegLeft:
+        FootLeft: OrganSkeletonPersonFootLeft
+      LegRight:
+        FootRight: OrganSkeletonPersonFootRight
   - type: HumanoidProfile
     species: Skeleton
 

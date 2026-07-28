@@ -1,3 +1,4 @@
+using Content.Shared.Body;
 using Content.Shared.DoAfter;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Prototypes;
@@ -53,19 +54,46 @@ public sealed class SurgeryStepDisplay
 [Serializable, NetSerializable]
 public sealed class SurgeryDisplay
 {
+    /// <summary>
+    /// The structural part category (Head/Torso/ArmLeft/...) this surgery is filed under in the first
+    /// navigation pane - always resolvable from the surgery's target organ regardless of whether the
+    /// patient currently has that part (e.g. an installation surgery exists precisely because they don't).
+    /// </summary>
+    public readonly ProtoId<OrganCategoryPrototype> Part;
+
     public readonly ProtoId<SurgeryPrototype> Surgery;
     public readonly List<SurgeryStepDisplay> Steps;
 
-    public SurgeryDisplay(ProtoId<SurgeryPrototype> surgery, List<SurgeryStepDisplay> steps)
+    public SurgeryDisplay(ProtoId<OrganCategoryPrototype> part, ProtoId<SurgeryPrototype> surgery, List<SurgeryStepDisplay> steps)
     {
+        Part = part;
         Surgery = surgery;
         Steps = steps;
+    }
+}
+
+/// <summary>
+/// Client-facing display state for a single entry in the first ("parts") navigation pane.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class PartDisplay
+{
+    public readonly ProtoId<OrganCategoryPrototype> Category;
+
+    /// <summary>The patient's actual live part entity of this category, if they currently have one.</summary>
+    public readonly NetEntity? Entity;
+
+    public PartDisplay(ProtoId<OrganCategoryPrototype> category, NetEntity? entity)
+    {
+        Category = category;
+        Entity = entity;
     }
 }
 
 [Serializable, NetSerializable]
 public sealed class SurgeryBuiState : BoundUserInterfaceState
 {
+    public required List<PartDisplay> Parts { get; init; }
     public required List<SurgeryDisplay> Surgeries { get; init; }
 }
 

@@ -32,7 +32,7 @@ public sealed partial class InitialBodySystem : EntitySystem
         var xform = Transform(ent);
         var coords = new EntityCoordinates(ent, Vector2.Zero);
 
-        foreach (var proto in ent.Comp.Organs.Values)
+        foreach (var (category, proto) in ent.Comp.Organs)
         {
             // TODO: When e#6192 is merged replace this all with TrySpawnInContainer...
             var spawn = Spawn(proto, coords);
@@ -41,6 +41,29 @@ public sealed partial class InitialBodySystem : EntitySystem
             {
                 Log.Error($"Entity {ToPrettyString(ent)} with a {nameof(InitialBodyComponent)} failed to insert an entity: {ToPrettyString(spawn)}.\n");
                 Del(spawn);
+                continue;
+            }
+
+            if (!ent.Comp.PartOrgans.TryGetValue(category, out var childOrgans) || childOrgans.Count == 0)
+                continue;
+
+            if (!TryComp<BodyPartComponent>(spawn, out var part) || part.Organs is not { } partContainer)
+            {
+                Log.Error($"Entity {ToPrettyString(ent)} with a {nameof(InitialBodyComponent)} has partOrgans for category '{category}', but the spawned '{proto}' isn't a body part.");
+                continue;
+            }
+
+            foreach (var childProto in childOrgans.Values)
+            {
+                var childSpawn = Spawn(childProto, coords);
+
+                // No cached TransformComponent for the just-spawned part entity (unlike `xform`, which is
+                // the body's) - let Insert resolve the part's own transform instead of reusing the body's.
+                if (!_container.Insert(childSpawn, partContainer))
+                {
+                    Log.Error($"Entity {ToPrettyString(ent)} with a {nameof(InitialBodyComponent)} failed to insert a part-organ entity: {ToPrettyString(childSpawn)}.\n");
+                    Del(childSpawn);
+                }
             }
         }
     }

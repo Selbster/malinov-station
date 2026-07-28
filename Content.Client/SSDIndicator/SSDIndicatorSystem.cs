@@ -1,4 +1,5 @@
-﻿using Content.Shared.CCVar;
+﻿using Content.Shared.Body.Components;
+using Content.Shared.CCVar;
 using Content.Shared.Mind.Components;
 using Content.Shared.Mobs.Systems;
 using Content.Shared.NPC;
@@ -32,6 +33,7 @@ public sealed partial class SSDIndicatorSystem : EntitySystem
             _cfg.GetCVar(CCVars.ICShowSSDIndicator) &&
             !_mobState.IsDead(uid) &&
             !HasComp<ActiveNPCComponent>(uid) &&
+            !HasComp<NoBrainComponent>(uid) &&
             HasComp<MindExaminableComponent>(uid))
         {
             args.StatusIcons.Add(_prototype.Index(component.Icon));

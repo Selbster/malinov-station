@@ -7,7 +7,7 @@
                MinSize="300 340">
     <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
         <BoxContainer Orientation="Horizontal" HorizontalExpand="True" Margin="0 0 0 6">
-            <Button Name="RegionsButton" Text="{Loc surgery-window-tab-regions}"
+            <Button Name="PartsButton" Text="{Loc surgery-window-tab-parts}"
                     HorizontalExpand="True" StyleClasses="OpenBoth" />
             <Button Name="SurgeriesButton" Text="{Loc surgery-window-tab-surgeries}"
                     HorizontalExpand="True" StyleClasses="OpenBoth" />
@@ -16,7 +16,7 @@
         </BoxContainer>
         <cc:HSeparator />
         <ScrollContainer HorizontalExpand="True" VerticalExpand="True">
-            <BoxContainer Name="RegionList" Orientation="Vertical" HorizontalExpand="True"
+            <BoxContainer Name="PartList" Orientation="Vertical" HorizontalExpand="True"
                           Margin="4 6 4 6" Visible="False">
                 <!-- Filled by code -->
             </BoxContainer>

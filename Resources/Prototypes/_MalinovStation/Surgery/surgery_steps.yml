@@ -56,6 +56,20 @@
   popup: surgery-step-saw-limb-popup
 
 - type: surgeryStep
+  id: SurgeryStepSawNeck
+  name: surgery-step-saw-neck-name
+  description: surgery-step-saw-neck-desc
+  duration: 5
+  kind: Generic
+  requiredTool: Saw
+  bleedDelta: 6
+  mishapDamage:
+    types:
+      Piercing: 10
+      Slash: 6
+  popup: surgery-step-saw-neck-popup
+
+- type: surgeryStep
   id: SurgeryStepSetBone
   name: surgery-step-set-bone-name
   description: surgery-step-set-bone-desc

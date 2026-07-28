@@ -8,7 +8,18 @@ namespace Content.Shared._MalinovStation.Surgery;
 /// </summary>
 public static class OrganCategoryIds
 {
+    public const string Head = "Head";
+    public const string Torso = "Torso";
     public const string Brain = "Brain";
+    public const string Eyes = "Eyes";
+    public const string Tongue = "Tongue";
+    public const string Ears = "Ears";
+    public const string Heart = "Heart";
+    public const string Lungs = "Lungs";
+    public const string Stomach = "Stomach";
+    public const string Liver = "Liver";
+    public const string Kidneys = "Kidneys";
+    public const string Appendix = "Appendix";
     public const string ArmLeft = "ArmLeft";
     public const string ArmRight = "ArmRight";
     public const string HandLeft = "HandLeft";

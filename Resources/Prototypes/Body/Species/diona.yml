@@ -52,16 +52,23 @@
       Head: OrganDionaHead
       ArmLeft: OrganDionaArmLeft
       ArmRight: OrganDionaArmRight
-      HandRight: OrganDionaHandRight
-      HandLeft: OrganDionaHandLeft
       LegLeft: OrganDionaLegLeft
       LegRight: OrganDionaLegRight
-      FootLeft: OrganDionaFootLeft
-      FootRight: OrganDionaFootRight
-      Brain: OrganDionaBrainNymphing
-      Eyes: OrganDionaEyes
-      Lungs: OrganDionaLungsNymphing
-      Stomach: OrganDionaStomachNymphing
+    partOrgans:
+      Torso:
+        Lungs: OrganDionaLungsNymphing
+        Stomach: OrganDionaStomachNymphing
+      Head:
+        Brain: OrganDionaBrainNymphing
+        Eyes: OrganDionaEyes
+      ArmLeft:
+        HandLeft: OrganDionaHandLeft
+      ArmRight:
+        HandRight: OrganDionaHandRight
+      LegLeft:
+        FootLeft: OrganDionaFootLeft
+      LegRight:
+        FootRight: OrganDionaFootRight
   - type: HumanoidProfile
     species: Diona
 

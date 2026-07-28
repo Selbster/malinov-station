@@ -7,7 +7,6 @@ using Content.Shared.Humanoid.Markings;
 using Content.Shared.Preferences;
 using Content.Shared.Verbs;
 using JetBrains.Annotations;
-using Robust.Shared.Containers;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Utility;
 
@@ -59,9 +58,7 @@ public abstract partial class SharedVisualBodySystem
         if (!Resolve(source, ref source.Comp) || !Resolve(target, ref target.Comp))
             return;
 
-        var sourceOrgans = _container.EnsureContainer<Container>(source, BodyComponent.ContainerID);
-
-        foreach (var sourceOrgan in sourceOrgans.ContainedEntities)
+        foreach (var sourceOrgan in _body.EnumerateOrgans(source))
         {
             var evt = new OrganCopyAppearanceEvent(sourceOrgan);
             RaiseLocalEvent(target, ref evt);
@@ -94,9 +91,7 @@ public abstract partial class SharedVisualBodySystem
         markings = new();
         applied = new();
 
-        var organContainer = _container.EnsureContainer<Container>(ent, BodyComponent.ContainerID);
-
-        foreach (var organ in organContainer.ContainedEntities)
+        foreach (var organ in _body.EnumerateOrgans(ent.Owner))
         {
             if (!TryComp<OrganComponent>(organ, out var organComp) || organComp.Category is not { } category)
                 continue;

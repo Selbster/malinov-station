@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Content.Shared._MalinovStation.Surgery.Components;
 using Content.Shared.Bed.Sleep;
@@ -21,9 +22,30 @@ namespace Content.Shared._MalinovStation.Surgery;
 public abstract partial class SharedSurgerySystem : EntitySystem
 {
     [Dependency] protected IPrototypeManager Proto = default!;
+    [Dependency] private BodySystem _body = default!;
     [Dependency] private SharedContainerSystem _container = default!;
     [Dependency] private SharedHandsSystem _hands = default!;
     [Dependency] private StatusEffectsSystem _statusEffects = default!;
+
+    /// <summary>Which structural part category an organ category physically lives inside. Categories not
+    /// present here (Torso/Head/ArmLeft/ArmRight/LegLeft/LegRight) own themselves.</summary>
+    private static readonly Dictionary<string, string> OwningPartCategory = new()
+    {
+        [OrganCategoryIds.Heart] = OrganCategoryIds.Torso,
+        [OrganCategoryIds.Lungs] = OrganCategoryIds.Torso,
+        [OrganCategoryIds.Stomach] = OrganCategoryIds.Torso,
+        [OrganCategoryIds.Liver] = OrganCategoryIds.Torso,
+        [OrganCategoryIds.Kidneys] = OrganCategoryIds.Torso,
+        [OrganCategoryIds.Appendix] = OrganCategoryIds.Torso,
+        [OrganCategoryIds.Brain] = OrganCategoryIds.Head,
+        [OrganCategoryIds.Eyes] = OrganCategoryIds.Head,
+        [OrganCategoryIds.Tongue] = OrganCategoryIds.Head,
+        [OrganCategoryIds.Ears] = OrganCategoryIds.Head,
+        [OrganCategoryIds.HandLeft] = OrganCategoryIds.ArmLeft,
+        [OrganCategoryIds.HandRight] = OrganCategoryIds.ArmRight,
+        [OrganCategoryIds.FootLeft] = OrganCategoryIds.LegLeft,
+        [OrganCategoryIds.FootRight] = OrganCategoryIds.LegRight,
+    };
 
     public override void Initialize()
     {
@@ -67,10 +89,7 @@ public abstract partial class SharedSurgerySystem : EntitySystem
     {
         organ = default;
 
-        if (!_container.TryGetContainer(body, BodyComponent.ContainerID, out var container))
-            return false;
-
-        foreach (var candidate in container.ContainedEntities)
+        foreach (var candidate in _body.EnumerateOrgans(body))
         {
             if (!TryComp<OrganComponent>(candidate, out var organComp) || organComp.Category != category)
                 continue;
@@ -85,6 +104,42 @@ public abstract partial class SharedSurgerySystem : EntitySystem
     public bool HasOrgan(EntityUid body, ProtoId<OrganCategoryPrototype> category)
     {
         return TryFindOrgan(body, category, out _);
+    }
+
+    /// <summary>The structural part category an organ category physically lives inside (itself, if it already is one).</summary>
+    public ProtoId<OrganCategoryPrototype> GetOwningPartCategory(ProtoId<OrganCategoryPrototype> target)
+        => OwningPartCategory.GetValueOrDefault(target.Id, target.Id);
+
+    /// <summary>Finds the patient's current, live part entity of the given structural category, if attached.</summary>
+    public bool TryFindPart(EntityUid body, ProtoId<OrganCategoryPrototype> category, out EntityUid part)
+    {
+        part = default;
+
+        foreach (var candidate in _body.EnumerateParts(body))
+        {
+            if (!TryComp<OrganComponent>(candidate, out var organ) || organ.Category != category)
+                continue;
+
+            part = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Where an InsertOrgan step should place its organ: the body's own container if the target category IS
+    /// a structural part, otherwise the owning part's own container (e.g. a heart goes inside the torso).
+    /// </summary>
+    public bool TryGetInstallContainer(EntityUid body, ProtoId<OrganCategoryPrototype> targetCategory, [NotNullWhen(true)] out BaseContainer? container)
+    {
+        container = null;
+        var owner = GetOwningPartCategory(targetCategory);
+
+        if (owner == targetCategory)
+            return _container.TryGetContainer(body, BodyComponent.ContainerID, out container);
+
+        return TryFindPart(body, owner, out var part) && _container.TryGetContainer(part, BodyPartComponent.ContainerID, out container);
     }
 
     /// <summary>
@@ -104,9 +159,17 @@ public abstract partial class SharedSurgerySystem : EntitySystem
     /// <summary>Whether <paramref name="body"/> currently meets every precondition to start <paramref name="surgery"/>.</summary>
     public bool IsEligiblePatient(EntityUid body, SurgeryPrototype surgery)
     {
-        if (HasOrgan(body, surgery.TargetOrgan) != surgery.RequireOrganPresent)
-            return false;
+        return HasOrgan(body, surgery.TargetOrgan) == surgery.RequireOrganPresent && MeetsSurgeryPrerequisites(body, surgery);
+    }
 
+    /// <summary>
+    /// The subset of <see cref="IsEligiblePatient"/>'s checks that hold for a surgery's entire duration,
+    /// unlike <see cref="SurgeryPrototype.TargetOrgan"/> presence (which an ExtractOrgan/InsertOrgan step
+    /// deliberately changes partway through) - safe to re-check on every tick of an already-running step,
+    /// not just once when the surgery is started.
+    /// </summary>
+    public bool MeetsSurgeryPrerequisites(EntityUid body, SurgeryPrototype surgery)
+    {
         if (surgery.RequiresOrgan is { } required && !HasOrgan(body, required))
             return false;
 
@@ -200,6 +263,17 @@ public abstract partial class SharedSurgerySystem : EntitySystem
                     blockedReason = "surgery-blocked-missing-organ";
                     return false;
                 }
+
+                // Holding the organ isn't enough - there also has to be somewhere to put it (e.g. no Head
+                // means no container to install Eyes/Tongue/Ears/Brain into). Without this check, a step
+                // could run its full DoAfter, show a success popup, and advance the surgery's cursor while
+                // silently leaving the organ in the surgeon's hand - see ApplyStepEffect's own matching check.
+                if (!TryGetInstallContainer(body, surgery.TargetOrgan, out _))
+                {
+                    blockedReason = "surgery-blocked-no-part";
+                    return false;
+                }
+
                 used = organToInsert;
                 return true;
 

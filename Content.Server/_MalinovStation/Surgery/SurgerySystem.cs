@@ -11,6 +11,7 @@ using Content.Shared.Mobs.Systems;
 using Content.Shared.Popups;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Containers;
+using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
 
 namespace Content.Server._MalinovStation.Surgery;
@@ -158,6 +159,25 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
             return;
         }
 
+        // Someone else already moved the cursor past this step (e.g. completed it concurrently) - cancel
+        // now instead of letting the surgeon sit through the full duration for a no-op (OnStepFinished
+        // would silently drop it anyway once it sees the same mismatch).
+        if (GetStepIndex(body, ev.Surgery) != ev.Cursor)
+        {
+            args.Cancel();
+            return;
+        }
+
+        // Unlike TargetOrgan (which an ExtractOrgan/InsertOrgan step deliberately changes partway through -
+        // see IsEligiblePatient's remarks), a prerequisite organ or species requirement is expected to hold
+        // for the whole surgery, so it's safe - and necessary - to keep re-checking it every tick, not just
+        // when the surgery started. E.g. someone amputating the arm mid-"Hand Installation" now cancels it.
+        if (!MeetsSurgeryPrerequisites(body, surgery))
+        {
+            args.Cancel();
+            return;
+        }
+
         if (!TryValidateStep(args.DoAfter.Args.User, body, surgery, step, out _, out _))
             args.Cancel();
     }
@@ -185,7 +205,7 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
             _popup.PopupEntity(Loc.GetString("surgery-step-failed"), body, user, PopupType.SmallCaution);
 
             if (step.MishapDamage != null)
-                _damageable.TryChangeDamage(body.Owner, step.MishapDamage, ignoreResistances: true, interruptsDoAfters: false);
+                ApplyPartDamage(body, surgery, step.MishapDamage);
 
             RefreshUi(body);
             return;
@@ -206,8 +226,21 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
         RefreshUi(body);
     }
 
+    /// <summary>The 6 structural part categories, always shown in the UI's first pane regardless of whether
+    /// the patient currently has each one (an installation surgery exists precisely because they don't).</summary>
+    private static readonly ProtoId<OrganCategoryPrototype>[] PartCategories =
+    {
+        OrganCategoryIds.Head, OrganCategoryIds.Torso,
+        OrganCategoryIds.ArmLeft, OrganCategoryIds.ArmRight,
+        OrganCategoryIds.LegLeft, OrganCategoryIds.LegRight,
+    };
+
     private void RefreshUi(EntityUid body)
     {
+        var parts = new List<PartDisplay>(PartCategories.Length);
+        foreach (var category in PartCategories)
+            parts.Add(new PartDisplay(category, TryFindPart(body, category, out var part) ? GetNetEntity(part) : null));
+
         var surgeries = new List<SurgeryDisplay>();
 
         foreach (var surgery in GetSurgeriesToShow(body))
@@ -224,10 +257,10 @@ public sealed partial class SurgerySystem : SharedSurgerySystem
                 steps.Add(new SurgeryStepDisplay(surgery.Steps[i], status, null));
             }
 
-            surgeries.Add(new SurgeryDisplay(surgery, steps));
+            surgeries.Add(new SurgeryDisplay(GetOwningPartCategory(surgery.TargetOrgan), surgery, steps));
         }
 
-        _ui.SetUiState(body, SurgeryUiKey.Key, new SurgeryBuiState { Surgeries = surgeries });
+        _ui.SetUiState(body, SurgeryUiKey.Key, new SurgeryBuiState { Parts = parts, Surgeries = surgeries });
     }
 
     /// <summary>

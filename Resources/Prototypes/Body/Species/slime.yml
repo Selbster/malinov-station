@@ -62,14 +62,21 @@
       Head: OrganSlimePersonHead
       ArmLeft: OrganSlimePersonArmLeft
       ArmRight: OrganSlimePersonArmRight
-      HandRight: OrganSlimePersonHandRight
-      HandLeft: OrganSlimePersonHandLeft
       LegLeft: OrganSlimePersonLegLeft
       LegRight: OrganSlimePersonLegRight
-      FootLeft: OrganSlimePersonFootLeft
-      FootRight: OrganSlimePersonFootRight
-      Brain: OrganSlimePersonCore
-      Lungs: OrganSlimePersonLungs
+    partOrgans:
+      Torso:
+        Lungs: OrganSlimePersonLungs
+      Head:
+        Brain: OrganSlimePersonCore
+      ArmLeft:
+        HandLeft: OrganSlimePersonHandLeft
+      ArmRight:
+        HandRight: OrganSlimePersonHandRight
+      LegLeft:
+        FootLeft: OrganSlimePersonFootLeft
+      LegRight:
+        FootRight: OrganSlimePersonFootRight
   - type: HumanoidProfile
     species: SlimePerson
 

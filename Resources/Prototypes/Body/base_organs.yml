@@ -43,12 +43,14 @@
     - Meat
 
 - type: entity
-  parent: OrganBaseOrganic
+  parent: OrganBase
   id: OrganBaseTorso
   name: torso
   abstract: true
   components:
   - type: Organ
+    category: Torso
+  - type: BodyPart
     category: Torso
   - type: Sprite
     state: torso
@@ -75,6 +77,14 @@
   components:
   - type: Organ
     category: Head
+  - type: BodyPart
+    category: Head
+  - type: Damageable
+  - type: Injurable
+    damageContainer: Biological
+  - type: BodyPartThresholds
+    amputationThreshold: 80
+    amputationBleedAmount: 10
   - type: Sprite
     state: head
   - type: VisualOrgan
@@ -102,6 +112,14 @@
   components:
   - type: Organ
     category: ArmLeft
+  - type: BodyPart
+    category: ArmLeft
+  - type: Damageable
+  - type: Injurable
+    damageContainer: Biological
+  - type: BodyPartThresholds
+    amputationThreshold: 60
+    amputationBleedAmount: 8
   - type: Sprite
     state: l_arm
   - type: VisualOrgan
@@ -121,6 +139,14 @@
   components:
   - type: Organ
     category: ArmRight
+  - type: BodyPart
+    category: ArmRight
+  - type: Damageable
+  - type: Injurable
+    damageContainer: Biological
+  - type: BodyPartThresholds
+    amputationThreshold: 60
+    amputationBleedAmount: 8
   - type: Sprite
     state: r_arm
   - type: VisualOrgan
@@ -186,6 +212,14 @@
   components:
   - type: Organ
     category: LegLeft
+  - type: BodyPart
+    category: LegLeft
+  - type: Damageable
+  - type: Injurable
+    damageContainer: Biological
+  - type: BodyPartThresholds
+    amputationThreshold: 60
+    amputationBleedAmount: 8
   - type: LegOrgan
   - type: Sprite
     state: l_leg
@@ -206,6 +240,14 @@
   components:
   - type: Organ
     category: LegRight
+  - type: BodyPart
+    category: LegRight
+  - type: Damageable
+  - type: Injurable
+    damageContainer: Biological
+  - type: BodyPartThresholds
+    amputationThreshold: 60
+    amputationBleedAmount: 8
   - type: LegOrgan
   - type: Sprite
     state: r_leg
@@ -257,7 +299,7 @@
       - RFoot
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseBrain
   name: brain
   abstract: true
@@ -290,7 +332,7 @@
       Taco: Brain
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseEyes
   name: eyes
   abstract: true
@@ -314,7 +356,7 @@
       - Eyes
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseTongue
   name: tongue
   abstract: true
@@ -328,7 +370,7 @@
     - state: tongue
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseAppendix
   name: appendix
   abstract: true
@@ -341,7 +383,7 @@
     - state: appendix
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseEars
   name: ears
   abstract: true
@@ -354,7 +396,7 @@
     - state: ears
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseLungs
   name: lungs
   abstract: true
@@ -387,7 +429,7 @@
       canReact: false
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseHeart
   name: heart
   abstract: true
@@ -404,7 +446,7 @@
     stages: [ Bloodstream ]
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseStomach
   name: stomach
   abstract: true
@@ -436,7 +478,7 @@
       maxVol: 150 # 1.25 liters which is average for a human
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseLiver
   name: liver
   abstract: true
@@ -454,7 +496,7 @@
     stages: [ Metabolites ]
 
 - type: entity
-  parent: OrganBase
+  parent: OrganBaseOrganic
   id: OrganBaseKidneys
   name: kidneys
   abstract: true

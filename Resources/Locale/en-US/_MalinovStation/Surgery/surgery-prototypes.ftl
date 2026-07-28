@@ -1,9 +1,11 @@
-# Regions
+# Parts (fallback names shown when the patient currently has no such part)
 
-surgery-region-head-name = Head
-surgery-region-torso-name = Torso
-surgery-region-arms-name = Arms
-surgery-region-legs-name = Legs
+surgery-part-head-name = Head
+surgery-part-torso-name = Torso
+surgery-part-arm-left-name = Left Arm
+surgery-part-arm-right-name = Right Arm
+surgery-part-leg-left-name = Left Leg
+surgery-part-leg-right-name = Right Leg
 
 # Steps
 
@@ -22,6 +24,10 @@ surgery-step-trepanation-popup = { CAPITALIZE(THE($user)) } drills through { THE
 surgery-step-saw-limb-name = Saw Through Limb
 surgery-step-saw-limb-desc = Saw all the way through the bone to sever the limb.
 surgery-step-saw-limb-popup = { CAPITALIZE(THE($user)) } saws through { THE($target) }'s limb.
+
+surgery-step-saw-neck-name = Sever Neck
+surgery-step-saw-neck-desc = Saw all the way through the neck to sever the head.
+surgery-step-saw-neck-popup = { CAPITALIZE(THE($user)) } saws through { THE($target) }'s neck.
 
 surgery-step-set-bone-name = Set Bone
 surgery-step-set-bone-desc = Fix the bone in place with a bone setter so the limb can be reattached.
@@ -114,6 +120,13 @@ surgery-tongue-extraction-name = Tongue — Extraction
 surgery-tongue-extraction-desc = Removes the patient's tongue.
 surgery-tongue-installation-name = Tongue — Installation
 surgery-tongue-installation-desc = Installs a tongue into the patient's mouth.
+
+# Head
+
+surgery-head-extraction-name = Head — Decapitation
+surgery-head-extraction-desc = Severs the patient's head at the neck, taking the brain (and their mind), eyes, ears and tongue with it.
+surgery-head-installation-name = Head — Reattachment
+surgery-head-installation-desc = Reattaches a head to the patient's neck.
 
 # Left Arm
 

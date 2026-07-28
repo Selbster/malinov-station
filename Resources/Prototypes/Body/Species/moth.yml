@@ -114,22 +114,29 @@
       Head: OrganMothHead
       ArmLeft: OrganMothArmLeft
       ArmRight: OrganMothArmRight
-      HandRight: OrganMothHandRight
-      HandLeft: OrganMothHandLeft
       LegLeft: OrganMothLegLeft
       LegRight: OrganMothLegRight
-      FootLeft: OrganMothFootLeft
-      FootRight: OrganMothFootRight
-      Brain: OrganMothBrain
-      Eyes: OrganMothEyes
-      Tongue: OrganMothTongue
-      Appendix: OrganMothAppendix
-      Ears: OrganMothEars
-      Lungs: OrganMothLungs
-      Heart: OrganMothHeart
-      Stomach: OrganMothStomach
-      Liver: OrganMothLiver
-      Kidneys: OrganMothKidneys
+    partOrgans:
+      Torso:
+        Lungs: OrganMothLungs
+        Heart: OrganMothHeart
+        Stomach: OrganMothStomach
+        Liver: OrganMothLiver
+        Kidneys: OrganMothKidneys
+        Appendix: OrganMothAppendix
+      Head:
+        Brain: OrganMothBrain
+        Eyes: OrganMothEyes
+        Tongue: OrganMothTongue
+        Ears: OrganMothEars
+      ArmLeft:
+        HandLeft: OrganMothHandLeft
+      ArmRight:
+        HandRight: OrganMothHandRight
+      LegLeft:
+        FootLeft: OrganMothFootLeft
+      LegRight:
+        FootRight: OrganMothFootRight
   - type: HumanoidProfile
     species: Moth
 

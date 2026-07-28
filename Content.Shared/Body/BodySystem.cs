@@ -34,6 +34,7 @@ public sealed partial class BodySystem : EntitySystem
         SubscribeLocalEvent<BodyComponent, EntRemovedFromContainerMessage>(OnBodyEntRemoved);
 
         InitializeRelay();
+        InitializeParts();
     }
 
     private void OnBodyInit(Entity<BodyComponent> ent, ref ComponentInit args)
@@ -53,20 +54,33 @@ public sealed partial class BodySystem : EntitySystem
         if (args.Container.ID != BodyComponent.ContainerID)
             return;
 
+        // The inserted entity may be a part (e.g. an arm, possibly already carrying its own hand) as well
+        // as an organ in its own right - both branches can fire for the same entity, not exclusively.
+        if (_partQuery.TryComp(args.Entity, out var part))
+        {
+            if (part.Body != ent.Owner)
+            {
+                part.Body = ent.Owner;
+                Dirty(args.Entity, part);
+            }
+
+            var partIntoEv = new PartInsertedIntoEvent(args.Entity);
+            RaiseLocalEvent(ent.Owner, ref partIntoEv);
+
+            var partGotEv = new PartGotInsertedEvent(ent.Owner);
+            RaiseLocalEvent(args.Entity, ref partGotEv);
+
+            foreach (var nested in part.Organs?.ContainedEntities ?? [])
+            {
+                if (_organQuery.TryComp(nested, out var nestedOrgan))
+                    FireOrganInserted(ent, nested, nestedOrgan);
+            }
+        }
+
         if (!_organQuery.TryComp(args.Entity, out var organ))
             return;
 
-        var body = new OrganInsertedIntoEvent(args.Entity);
-        RaiseLocalEvent(ent, ref body);
-
-        var ev = new OrganGotInsertedEvent(ent);
-        RaiseLocalEvent(args.Entity, ref ev);
-
-        if (organ.Body != ent)
-        {
-            organ.Body = ent;
-            Dirty(args.Entity, organ);
-        }
+        FireOrganInserted(ent, args.Entity, organ);
     }
 
     private void OnBodyEntRemoved(Entity<BodyComponent> ent, ref EntRemovedFromContainerMessage args)
@@ -74,20 +88,65 @@ public sealed partial class BodySystem : EntitySystem
         if (args.Container.ID != BodyComponent.ContainerID)
             return;
 
+        if (_partQuery.TryComp(args.Entity, out var part))
+        {
+            if (part.Body != null)
+            {
+                part.Body = null;
+                Dirty(args.Entity, part);
+            }
+
+            var partFromEv = new PartRemovedFromEvent(args.Entity);
+            RaiseLocalEvent(ent.Owner, ref partFromEv);
+
+            var partGotEv = new PartGotRemovedEvent(ent.Owner);
+            RaiseLocalEvent(args.Entity, ref partGotEv);
+
+            foreach (var nested in part.Organs?.ContainedEntities ?? [])
+            {
+                if (_organQuery.TryComp(nested, out var nestedOrgan))
+                    FireOrganRemoved(ent, nested, nestedOrgan);
+            }
+        }
+
         if (!_organQuery.TryComp(args.Entity, out var organ))
             return;
 
-        var body = new OrganRemovedFromEvent(args.Entity);
-        RaiseLocalEvent(ent, ref body);
+        FireOrganRemoved(ent, args.Entity, organ);
+    }
 
-        var ev = new OrganGotRemovedEvent(ent);
-        RaiseLocalEvent(args.Entity, ref ev);
+    /// <summary>Raises the organ-inserted events and updates <see cref="OrganComponent.Body"/>. Shared by
+    /// organs inserted directly into a body and organs inserted into a part that's already part of a body.</summary>
+    private void FireOrganInserted(Entity<BodyComponent> body, EntityUid organEntity, OrganComponent organ)
+    {
+        var bodyEv = new OrganInsertedIntoEvent(organEntity);
+        RaiseLocalEvent(body.Owner, ref bodyEv);
+
+        var organEv = new OrganGotInsertedEvent(body.Owner);
+        RaiseLocalEvent(organEntity, ref organEv);
+
+        if (organ.Body != body.Owner)
+        {
+            organ.Body = body.Owner;
+            Dirty(organEntity, organ);
+        }
+    }
+
+    /// <summary>Raises the organ-removed events and clears <see cref="OrganComponent.Body"/>. Shared by
+    /// organs removed directly from a body and organs removed from a part that's already part of a body.</summary>
+    private void FireOrganRemoved(Entity<BodyComponent> body, EntityUid organEntity, OrganComponent organ)
+    {
+        var bodyEv = new OrganRemovedFromEvent(organEntity);
+        RaiseLocalEvent(body.Owner, ref bodyEv);
+
+        var organEv = new OrganGotRemovedEvent(body.Owner);
+        RaiseLocalEvent(organEntity, ref organEv);
 
         if (organ.Body == null)
             return;
 
         organ.Body = null;
-        Dirty(args.Entity, organ);
+        Dirty(organEntity, organ);
     }
 
     private void OnCanDrag(Entity<BodyComponent> ent, ref CanDragEvent args)

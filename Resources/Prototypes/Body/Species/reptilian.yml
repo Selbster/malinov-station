@@ -92,22 +92,29 @@
       Head: OrganReptilianHead
       ArmLeft: OrganReptilianArmLeft
       ArmRight: OrganReptilianArmRight
-      HandRight: OrganReptilianHandRight
-      HandLeft: OrganReptilianHandLeft
       LegLeft: OrganReptilianLegLeft
       LegRight: OrganReptilianLegRight
-      FootLeft: OrganReptilianFootLeft
-      FootRight: OrganReptilianFootRight
-      Brain: OrganReptilianBrain
-      Eyes: OrganReptilianEyes
-      Tongue: OrganReptilianTongue
-      Appendix: OrganReptilianAppendix
-      Ears: OrganReptilianEars
-      Lungs: OrganReptilianLungs
-      Heart: OrganReptilianHeart
-      Stomach: OrganReptilianStomach
-      Liver: OrganReptilianLiver
-      Kidneys: OrganReptilianKidneys
+    partOrgans:
+      Torso:
+        Lungs: OrganReptilianLungs
+        Heart: OrganReptilianHeart
+        Stomach: OrganReptilianStomach
+        Liver: OrganReptilianLiver
+        Kidneys: OrganReptilianKidneys
+        Appendix: OrganReptilianAppendix
+      Head:
+        Brain: OrganReptilianBrain
+        Eyes: OrganReptilianEyes
+        Tongue: OrganReptilianTongue
+        Ears: OrganReptilianEars
+      ArmLeft:
+        HandLeft: OrganReptilianHandLeft
+      ArmRight:
+        HandRight: OrganReptilianHandRight
+      LegLeft:
+        FootLeft: OrganReptilianFootLeft
+      LegRight:
+        FootRight: OrganReptilianFootRight
   - type: HumanoidProfile
     species: Reptilian
 

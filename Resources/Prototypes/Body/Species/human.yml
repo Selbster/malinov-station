@@ -67,22 +67,29 @@
       Head: OrganHumanHead
       ArmLeft: OrganHumanArmLeft
       ArmRight: OrganHumanArmRight
-      HandRight: OrganHumanHandRight
-      HandLeft: OrganHumanHandLeft
       LegLeft: OrganHumanLegLeft
       LegRight: OrganHumanLegRight
-      FootLeft: OrganHumanFootLeft
-      FootRight: OrganHumanFootRight
-      Brain: OrganHumanBrain
-      Eyes: OrganHumanEyes
-      Tongue: OrganHumanTongue
-      Appendix: OrganHumanAppendix
-      Ears: OrganHumanEars
-      Lungs: OrganHumanLungs
-      Heart: OrganHumanHeart
-      Stomach: OrganHumanStomach
-      Liver: OrganHumanLiver
-      Kidneys: OrganHumanKidneys
+    partOrgans:
+      Torso:
+        Lungs: OrganHumanLungs
+        Heart: OrganHumanHeart
+        Stomach: OrganHumanStomach
+        Liver: OrganHumanLiver
+        Kidneys: OrganHumanKidneys
+        Appendix: OrganHumanAppendix
+      Head:
+        Brain: OrganHumanBrain
+        Eyes: OrganHumanEyes
+        Tongue: OrganHumanTongue
+        Ears: OrganHumanEars
+      ArmLeft:
+        HandLeft: OrganHumanHandLeft
+      ArmRight:
+        HandRight: OrganHumanHandRight
+      LegLeft:
+        FootLeft: OrganHumanFootLeft
+      LegRight:
+        FootRight: OrganHumanFootRight
   - type: HumanoidProfile
     species: Human
 

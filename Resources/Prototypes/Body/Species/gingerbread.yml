@@ -17,22 +17,29 @@
       Head: OrganGingerbreadHead
       ArmLeft: OrganGingerbreadArmLeft
       ArmRight: OrganGingerbreadArmRight
-      HandRight: OrganGingerbreadHandRight
-      HandLeft: OrganGingerbreadHandLeft
       LegLeft: OrganGingerbreadLegLeft
       LegRight: OrganGingerbreadLegRight
-      FootLeft: OrganGingerbreadFootLeft
-      FootRight: OrganGingerbreadFootRight
-      Brain: OrganHumanBrain
-      Eyes: OrganHumanEyes
-      Tongue: OrganHumanTongue
-      Appendix: OrganHumanAppendix
-      Ears: OrganHumanEars
-      Lungs: OrganHumanLungs
-      Heart: OrganHumanHeart
-      Stomach: OrganHumanStomach
-      Liver: OrganHumanLiver
-      Kidneys: OrganHumanKidneys
+    partOrgans:
+      Torso:
+        Lungs: OrganHumanLungs
+        Heart: OrganHumanHeart
+        Stomach: OrganHumanStomach
+        Liver: OrganHumanLiver
+        Kidneys: OrganHumanKidneys
+        Appendix: OrganHumanAppendix
+      Head:
+        Brain: OrganHumanBrain
+        Eyes: OrganHumanEyes
+        Tongue: OrganHumanTongue
+        Ears: OrganHumanEars
+      ArmLeft:
+        HandLeft: OrganGingerbreadHandLeft
+      ArmRight:
+        HandRight: OrganGingerbreadHandRight
+      LegLeft:
+        FootLeft: OrganGingerbreadFootLeft
+      LegRight:
+        FootRight: OrganGingerbreadFootRight
   - type: HumanoidProfile
     species: Gingerbread
 

@@ -1,7 +1,6 @@
 using System.Linq;
 using Content.Shared.Humanoid.Markings;
 using Content.Shared.Humanoid;
-using Robust.Shared.Containers;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Utility;
 
@@ -12,9 +11,9 @@ namespace Content.Shared.Body;
 /// </summary>
 public abstract partial class SharedVisualBodySystem : EntitySystem
 {
+    [Dependency] private BodySystem _body = default!;
     [Dependency] private IPrototypeManager _prototype = default!;
     [Dependency] private MarkingManager _marking = default!;
-    [Dependency] private SharedContainerSystem _container = default!;
 
     public override void Initialize()
     {

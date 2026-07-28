@@ -1,9 +1,11 @@
-# Части тела
+# Части тела (запасные названия, показываются, когда у пациента сейчас нет такой части)
 
-surgery-region-head-name = Голова
-surgery-region-torso-name = Торс
-surgery-region-arms-name = Руки
-surgery-region-legs-name = Ноги
+surgery-part-head-name = Голова
+surgery-part-torso-name = Торс
+surgery-part-arm-left-name = Левая рука
+surgery-part-arm-right-name = Правая рука
+surgery-part-leg-left-name = Левая нога
+surgery-part-leg-right-name = Правая нога
 
 # Этапы
 
@@ -22,6 +24,10 @@ surgery-step-trepanation-popup = { CAPITALIZE($user) } просверливае�
 surgery-step-saw-limb-name = Отпилить конечность
 surgery-step-saw-limb-desc = Полностью распилить кость, чтобы отделить конечность.
 surgery-step-saw-limb-popup = { CAPITALIZE($user) } отпиливает конечность { OBJECT($target) }.
+
+surgery-step-saw-neck-name = Перепилить шею
+surgery-step-saw-neck-desc = Полностью перепилить шею, чтобы отделить голову.
+surgery-step-saw-neck-popup = { CAPITALIZE($user) } перепиливает шею { OBJECT($target) }.
 
 surgery-step-set-bone-name = Зафиксировать кость
 surgery-step-set-bone-desc = Зафиксировать кость костным фиксатором, чтобы можно было пришить конечность.
@@ -114,6 +120,13 @@ surgery-tongue-extraction-name = Язык — Извлечение
 surgery-tongue-extraction-desc = Извлекает язык пациента.
 surgery-tongue-installation-name = Язык — Установка
 surgery-tongue-installation-desc = Устанавливает язык в рот пациента.
+
+# Голова
+
+surgery-head-extraction-name = Голова — Отсечение
+surgery-head-extraction-desc = Отделяет голову пациента по шее, забирая с собой мозг (а с ним и сознание), глаза, уши и язык.
+surgery-head-installation-name = Голова — Пришивание
+surgery-head-installation-desc = Пришивает голову пациенту.
 
 # Левая рука
 

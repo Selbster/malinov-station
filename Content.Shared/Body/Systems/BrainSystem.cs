@@ -15,8 +15,8 @@ public sealed partial class BrainSystem : EntitySystem
     {
         base.Initialize();
 
-        SubscribeLocalEvent<BrainComponent, OrganGotInsertedEvent>((uid, _, args) => HandleMind(args.Target, uid));
-        SubscribeLocalEvent<BrainComponent, OrganGotRemovedEvent>((uid, _, args) => HandleMind(uid, args.Target));
+        SubscribeLocalEvent<BrainComponent, OrganGotInsertedEvent>(OnBrainOrganInserted);
+        SubscribeLocalEvent<BrainComponent, OrganGotRemovedEvent>(OnBrainOrganRemoved);
         SubscribeLocalEvent<BrainComponent, PointAttemptEvent>(OnPointAttempt);
     }
 
@@ -40,5 +40,19 @@ public sealed partial class BrainSystem : EntitySystem
     private void OnPointAttempt(Entity<BrainComponent> ent, ref PointAttemptEvent args)
     {
         args.Cancel();
+    }
+
+    private void OnBrainOrganInserted(Entity<BrainComponent> ent, ref OrganGotInsertedEvent args)
+    {
+        HandleMind(args.Target, ent.Owner);
+        RemComp<NoBrainComponent>(args.Target);
+    }
+
+    private void OnBrainOrganRemoved(Entity<BrainComponent> ent, ref OrganGotRemovedEvent args)
+    {
+        HandleMind(ent.Owner, args.Target);
+
+        if (!TerminatingOrDeleted(args.Target))
+            EnsureComp<NoBrainComponent>(args.Target);
     }
 }

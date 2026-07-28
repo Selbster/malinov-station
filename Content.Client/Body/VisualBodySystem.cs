@@ -7,6 +7,7 @@ using Content.Shared.Humanoid;
 using Robust.Client.GameObjects;
 using Robust.Client.Graphics;
 using Robust.Shared.Configuration;
+using Robust.Shared.Containers;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Utility;
 
@@ -18,6 +19,7 @@ public sealed partial class VisualBodySystem : SharedVisualBodySystem
     [Dependency] private IPrototypeManager _prototype = default!;
     [Dependency] private DisplacementMapSystem _displacement = default!;
     [Dependency] private MarkingManager _marking = default!;
+    [Dependency] private SharedContainerSystem _container = default!;
     [Dependency] private SpriteSystem _sprite = default!;
 
     public override void Initialize()
@@ -27,6 +29,12 @@ public sealed partial class VisualBodySystem : SharedVisualBodySystem
         SubscribeLocalEvent<VisualOrganComponent, OrganGotInsertedEvent>(OnOrganGotInserted);
         SubscribeLocalEvent<VisualOrganComponent, OrganGotRemovedEvent>(OnOrganGotRemoved);
         SubscribeLocalEvent<VisualOrganComponent, AfterAutoHandleStateEvent>(OnOrganState);
+
+        // A detached part (e.g. a severed leg) renders its own SpriteComponent directly, unlike an attached
+        // one (hidden while it sits inside the body's container) - so an organ nested inside it (e.g. the
+        // foot) needs its sprite composited onto the part itself, not just onto the body it's attached to.
+        SubscribeLocalEvent<BodyPartComponent, PartGotRemovedEvent>(OnPartGotRemoved);
+        SubscribeLocalEvent<BodyPartComponent, PartGotInsertedEvent>(OnPartGotInserted);
 
         SubscribeLocalEvent<VisualOrganMarkingsComponent, OrganGotInsertedEvent>(OnMarkingsGotInserted);
         SubscribeLocalEvent<VisualOrganMarkingsComponent, OrganGotRemovedEvent>(OnMarkingsGotRemoved);
@@ -83,6 +91,38 @@ public sealed partial class VisualBodySystem : SharedVisualBodySystem
             return;
 
         _sprite.LayerSetRsiState(target, index, RSI.StateId.Invalid);
+    }
+
+    /// <summary>Once a part leaves a body, its own sprite is what's actually shown (a contained entity's
+    /// sprite is otherwise hidden) - so anything nested inside it (e.g. a foot inside a severed leg) needs
+    /// to be composited onto the part's own sprite, unlike <see cref="ApplyVisual"/>'s normal body target.</summary>
+    private void OnPartGotRemoved(Entity<BodyPartComponent> ent, ref PartGotRemovedEvent args)
+    {
+        if (!_container.TryGetContainer(ent.Owner, BodyPartComponent.ContainerID, out var container))
+            return;
+
+        foreach (var nested in container.ContainedEntities)
+        {
+            if (!TryComp<VisualOrganComponent>(nested, out var visual))
+                continue;
+
+            var index = _sprite.LayerMapReserve(ent.Owner, visual.Layer);
+            _sprite.LayerSetData(ent.Owner, index, visual.Data);
+        }
+    }
+
+    /// <summary>Reattached - the part's own sprite is hidden again while contained, but clear the layer
+    /// anyway so a stray reference to it doesn't linger.</summary>
+    private void OnPartGotInserted(Entity<BodyPartComponent> ent, ref PartGotInsertedEvent args)
+    {
+        if (!_container.TryGetContainer(ent.Owner, BodyPartComponent.ContainerID, out var container))
+            return;
+
+        foreach (var nested in container.ContainedEntities)
+        {
+            if (TryComp<VisualOrganComponent>(nested, out var visual))
+                RemoveVisual((nested, visual), ent.Owner);
+        }
     }
 
     private void OnMarkingsGotInserted(Entity<VisualOrganMarkingsComponent> ent, ref OrganGotInsertedEvent args)

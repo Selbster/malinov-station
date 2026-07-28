@@ -137,22 +137,29 @@
       Head: OrganVoxHead
       ArmLeft: OrganVoxArmLeft
       ArmRight: OrganVoxArmRight
-      HandRight: OrganVoxHandRight
-      HandLeft: OrganVoxHandLeft
       LegLeft: OrganVoxLegLeft
       LegRight: OrganVoxLegRight
-      FootLeft: OrganVoxFootLeft
-      FootRight: OrganVoxFootRight
-      Brain: OrganVoxBrain
-      Eyes: OrganVoxEyes
-      Tongue: OrganVoxTongue
-      Appendix: OrganVoxAppendix
-      Ears: OrganVoxEars
-      Lungs: OrganVoxLungs
-      Heart: OrganVoxHeart
-      Stomach: OrganVoxStomach
-      Liver: OrganVoxLiver
-      Kidneys: OrganVoxKidneys
+    partOrgans:
+      Torso:
+        Lungs: OrganVoxLungs
+        Heart: OrganVoxHeart
+        Stomach: OrganVoxStomach
+        Liver: OrganVoxLiver
+        Kidneys: OrganVoxKidneys
+        Appendix: OrganVoxAppendix
+      Head:
+        Brain: OrganVoxBrain
+        Eyes: OrganVoxEyes
+        Tongue: OrganVoxTongue
+        Ears: OrganVoxEars
+      ArmLeft:
+        HandLeft: OrganVoxHandLeft
+      ArmRight:
+        HandRight: OrganVoxHandRight
+      LegLeft:
+        FootLeft: OrganVoxFootLeft
+      LegRight:
+        FootRight: OrganVoxFootRight
   - type: HumanoidProfile
     species: Vox
 

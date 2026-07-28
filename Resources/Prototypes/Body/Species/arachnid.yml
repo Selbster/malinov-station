@@ -48,22 +48,29 @@
       Head: OrganArachnidHead
       ArmLeft: OrganArachnidArmLeft
       ArmRight: OrganArachnidArmRight
-      HandRight: OrganArachnidHandRight
-      HandLeft: OrganArachnidHandLeft
       LegLeft: OrganArachnidLegLeft
       LegRight: OrganArachnidLegRight
-      FootLeft: OrganArachnidFootLeft
-      FootRight: OrganArachnidFootRight
-      Brain: OrganArachnidBrain
-      Eyes: OrganArachnidEyes
-      Tongue: OrganArachnidTongue
-      Appendix: OrganArachnidAppendix
-      Ears: OrganArachnidEars
-      Lungs: OrganArachnidLungs
-      Heart: OrganArachnidHeart
-      Stomach: OrganArachnidStomach
-      Liver: OrganArachnidLiver
-      Kidneys: OrganArachnidKidneys
+    partOrgans:
+      Torso:
+        Lungs: OrganArachnidLungs
+        Heart: OrganArachnidHeart
+        Stomach: OrganArachnidStomach
+        Liver: OrganArachnidLiver
+        Kidneys: OrganArachnidKidneys
+        Appendix: OrganArachnidAppendix
+      Head:
+        Brain: OrganArachnidBrain
+        Eyes: OrganArachnidEyes
+        Tongue: OrganArachnidTongue
+        Ears: OrganArachnidEars
+      ArmLeft:
+        HandLeft: OrganArachnidHandLeft
+      ArmRight:
+        HandRight: OrganArachnidHandRight
+      LegLeft:
+        FootLeft: OrganArachnidFootLeft
+      LegRight:
+        FootRight: OrganArachnidFootRight
   - type: HumanoidProfile
     species: Arachnid
 
