@@ -42,7 +42,7 @@ my-system-popup-error =
 
 ### Strings for prototypes (Entities)
 
-For entities (`EntityPrototype`), the engine automatically searches for rows by entity ID with the prefix `ent-`.
+For entities (`EntityPrototype`) in the ru-RU locale, the engine automatically searches for rows by entity ID with the prefix `ent-`.
 Use **Fluent** attributes (beginning with a dot) for descriptions and suffixes.
 
 * **Name:** `ent-{PrototypeID} = item name`

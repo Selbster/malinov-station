@@ -13,7 +13,7 @@
 | `SharedPhysicsSystem.Components.SetLinearDamping` | Runtime adjustment of linear attenuation | Slip/damping control | Engine | 2024-03-18 | Use |
 | `SharedPhysicsSystem.Components.SetAngularDamping` | Runtime adjustment of corner attenuation | Stabilizes rotation | Engine | 2024-03-18 | Use |
 | `SharedMoverController.SetRelay` | Installing relay + prediction sync | Consistent relay lifecycle | Shared | 2025-04-05 | Use |
-| `SharedMoverController.RemoveRelay` | Explicit teardown of relay bundles | Does not leave hanging relay-states | Shared | 2025-08-04 | Use |
+| `RemComp<RelayInputMoverComponent>` | Safe teardown of relay (system handles cleanup on `ComponentShutdown`) | Does not leave hanging relay-states | Shared | 2025-08-04 | Use |
 | `SharedMoverController.GetWishDir/SetWishDir` | Working with the desired motion vector | Base point for mover/conveyor integration | Shared | 2025-03-28 | Use |
 | `SharedMoverController.Friction` | Built-in speed decay API | Unified mathematics of motion | Shared | 2025-03-28 | Use |
 | `SharedMoverController.Accelerate` | Limited acceleration to target vector | Predictable acceleration without jumps | Shared | 2025-03-28 | Use |

@@ -328,12 +328,14 @@ if (_proto.TryIndex<MyPrototype>("protoId", out var proto))
 
 ### Localization system via FTL
 
-Names and descriptions are specified **not** in YAML, but through localization files (`.ftl`):
+Names and descriptions are specified **not** in YAML, but through localization files (`.ftl`).
+For Russian, entity prototype localization lives under:
 
 ```text
-Resources/Locale/en-US/_prototypes/.../myentity.ftl
 Resources/Locale/ru-RU/_prototypes/.../myentity.ftl
 ```
+
+> **Note:** The `en-US` locale does **not** maintain per-prototype `.ftl` files with `ent-` keys. English names fall back to the `name` / `description` fields in the YAML prototype itself.
 
 FTL format:
 ```ftl
