@@ -25,7 +25,7 @@ ServerDbContext              — abstract EF Core context (DbSets, OnModelCreati
 ### Key supporting classes
 
 - **`DbGuard`** — nested `abstract class` inside `ServerDbBase`, implements `IAsyncDisposable`. Contains `abstract ServerDbContext DbContext`. Engine-specific subclasses (`DbGuardImpl`) add strongly-typed `SqliteDbContext` or `PgDbContext` properties. Acts as a RAII wrapper for controlled dispose + semaphore release.
-- **`EFCoreExtensions.ApplyIncludes`** — extension method for chaining `.Include()`. Accepts `IEnumerable<Expression<Func<TEntity, object>>>`. Used across all ban queries.
+- **`EFCoreExtensions.ApplyIncludes`** — extension method for chaining `.Include()`. Accepts `IEnumerable<Expression<Func<TEntity, object>>>`. Used across all ban queries. Has a second overload `ApplyIncludes<TDerived>(..., Expression<Func<TEntity, TDerived>> getDerived)` for `ThenInclude` chains on navigation properties.
 - **`SnakeCaseExtension`** — `IDbContextOptionsExtension` that enables snake_case naming convention for table and column names in both DbContexts.
 - **`BanMatcher`** — static class for in-memory ban matching against a player. Used by SQLite (Postgres does the same server-side in SQL).
 
@@ -117,6 +117,17 @@ Used in: `Player.LastSeenHWId`, `ConnectionLog.HWId`, `BanHwid.HWId`.
 - `AdminLogPlayer` — triple key: `(RoundId, LogId, PlayerUserId)`.
 - Postgres has a GIN index on `Message` with `IsTsVectorExpressionIndex("english")` for full-text search.
 
+### Additional notable properties
+
+| Entity | Property | Type | Description |
+|--------|----------|------|-------------|
+| `ConnectionLog` | `Trust` | `float` | Trust factor for the connection (from IP reputation checks) |
+| `Admin` | `Suspended` | `bool` | If true, the admin is suspended by a `PERMISSIONS` admin and loses in-game permissions |
+| `BanTemplate` | `AutoDelete` | `bool` | Ban will be automatically deleted from DB once expired (via cron) |
+| `BanTemplate` | `Hidden` | `bool` | Ban is not visible to players in the admin remarks panel |
+| `ConnectionDenyReason` | `IPChecks` | enum value (5) | Connection rejected by external IP checking tools |
+| `ConnectionDenyReason` | `NoHwid` | enum value (6) | Authenticated connection but missing modern HWID |
+
 ## DbGuard: how GetDb and GetDbImpl work
 
 `ServerDbBase.GetDb()` is `protected abstract`, returns `DbGuard`. Engine-specific classes override it, returning `DbGuardImpl`.
@@ -132,10 +143,15 @@ var result = await db.DbContext.Preference
 
 **Engine-specific logic** (ServerDbSqlite / ServerDbPostgres):
 ```csharp
-private async Task<DbGuardImpl> GetDbImpl(CancellationToken cancel = default)
+private async Task<DbGuardImpl> GetDbImpl(
+    CancellationToken cancel = default,
+    [CallerMemberName] string? name = null)
 {
+    LogDbOp(name);                             // log caller name for debugging
     await _dbReadyTask;
-    await _prefsSemaphore.WaitAsync(cancel);
+    if (_msDelay > 0)                          // artificial delay (for testing)
+        await Task.Delay(_msDelay, cancel);
+    await _prefsSemaphore.WaitAsync(cancel);   // SQLite: ConcurrencySemaphore
     return new DbGuardImpl(this, new SqliteServerDbContext(_options()));
 }
 // inside DbGuardImpl:
@@ -153,6 +169,28 @@ Abstract method in `ServerDbBase`, overridden per engine:
 
 Used when converting EF entities → records/DTOs to guarantee UTC.
 
+## Utility methods
+
+### MarkMessageAsSeen
+
+Defined in `ServerDbBase`, exposed via `IServerDbManager`. Marks an admin message as seen by the target player. Optional `dismissedToo` flag marks it as permanently dismissed:
+
+```csharp
+public async Task MarkMessageAsSeen(int id, bool dismissedToo)
+```
+
+SQL: `UPDATE admin_message SET seen = true [, dismissed = true] WHERE id = @id`.
+
+### HasPendingModelChanges
+
+Checks if the current EF Core model has pending migrations. Used during startup validation:
+
+```csharp
+public async Task<bool> HasPendingModelChanges()
+```
+
+Delegates to `db.DbContext.Database.HasPendingModelChanges()`.
+
 ## Database Notifications (Postgres only)
 
 `DatabaseNotification` is a `struct` with `Channel` (string) and `Payload` (string?).
@@ -163,9 +201,58 @@ Used when converting EF entities → records/DTOs to guarantee UTC.
 3. Loops calling `WaitAsync`, blocking until a new notification arrives.
 4. On `NpgsqlNotificationEventArgs`, dispatches via `NotificationReceived`.
 
-**SQLite**: `SendNotification` is a no-op, `SubscribeToNotifications` has no effect.
+**SQLite**: `SendNotification` is a no-op (returns `Task.CompletedTask`). Subscribing via `SubscribeToNotifications` works at the manager level — handlers are added — but are never triggered by actual DB events.
 
 **Extension**: `ServerDbManagerExt.SubscribeToJsonNotification<TData>` deserializes `Payload` as JSON, filters, and runs the action on the main thread via `ITaskManager.RunOnMainThread`.
+
+## Custom Vote Logging
+
+Introduced by migration `20260126003831_CustomVoteLog` (Jan 2026, after BanRefactor). Logs admin-initiated custom votes in the database.
+
+### Model
+
+```
+CustomVoteLog
+├── Id              int (PK)
+├── RoundId         int (FK → Round)
+├── TimeCreated     DateTime
+├── Title           string
+├── InitiatorId     Guid? (FK → Player.UserId)
+├── State           CustomVoteState
+├── Options: List<CustomVoteLogOption>
+└── Initiator       Player?
+```
+
+`CustomVoteLogOption` has composite key `(VoteId, OptionIdx)`:
+```
+CustomVoteLogOption
+├── VoteId          int (FK → CustomVoteLog)
+├── OptionIdx       short
+├── Text            string
+├── VoteCount       int (only populated on Finished)
+└── Vote            CustomVoteLog?
+```
+
+`CustomVoteState` lifecycle:
+- `Active` → vote created, awaiting completion
+- `Finished` → vote ended, `VoteCount` populated
+- `Cancelled` → vote canceled, no counts written
+
+### API in ServerDbBase
+
+```csharp
+public async Task<int> CustomVoteLogAdd(
+    string title, int roundId, Guid? initiator, ImmutableArray<string> options)
+// Creates an Active vote with options, returns vote ID
+
+public async Task CustomVoteLogFinish(int voteId, ImmutableArray<int> voteCounts)
+// Sets state to Finished, writes vote counts per option
+
+public async Task CustomVoteLogCancel(int voteId)
+// Sets state to Cancelled, no vote counts written
+```
+
+Shared logic: all three methods use `GetDb()` (no engine-specific implementation needed — model is simple value types without IP/JSON conversion).
 
 ## Patterns
 
@@ -209,7 +296,7 @@ Used when converting EF entities → records/DTOs to guarantee UTC.
 
 5. **Forgetting the `prefsSemaphore` in SQLite**. SQLite does not support concurrent writes. `ServerDbSqlite` uses `ConcurrencySemaphore` to control the number of simultaneous connections. In synchronous mode (tests), `maxCount` must be 1.
 
-6. **Trying to subscribe to DatabaseNotification on SQLite**. `SendNotification` is a no-op, `SubscribeToNotifications` has no effect. This is a Postgres-only mechanism.
+6. **Trying to subscribe to DatabaseNotification on SQLite**. `SendNotification` is a no-op (returns `Task.CompletedTask`). Subscribing via `SubscribeToNotifications` works — handlers are registered in `ServerDbManager`, but they will never be triggered by actual DB events. This is a Postgres-only delivery mechanism.
 
 7. **Doing `select *` and filtering in memory**. SQLite's `GetBanQueryAsync` is forced to pull all bans into memory (due to lack of `ContainsOrEqual` for IP). In all other cases, filter in SQL.
 
