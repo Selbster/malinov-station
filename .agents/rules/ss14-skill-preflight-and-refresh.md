@@ -22,7 +22,7 @@ Use these paths directly instead of searching the repository:
 
 1. Rules source of truth: `.agents/rules`.
 2. Skills source of truth: `.agents/skills`.
-3. Compatibility bridge trees: `.agent`, `.claude`, `.cursor`, `.github`.
+3. Compatibility bridge tree: `.claude`.
 
 When a bridge file points to a source file under `.agents`, load the `.agents` source file and treat it as authoritative.
 
