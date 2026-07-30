@@ -108,7 +108,7 @@ InvalidateVisuals(ent, tile);
 
 ```csharp
 // The pressure calculation is performed in batches in parallel-job.
-var job = new DeltaPressureParallelJob(this, atmosphere, atmosphere.DeltaPressureCursor, DeltaPressureParallelBatchSize);
+var job = new DeltaPressureParallelBulkJob(this, atmosphere, atmosphere.DeltaPressureCursor, DeltaPressureParallelBatchSize);
 _parallel.ProcessNow(job, toProcess);
 
 // The damage itself is applied in a separate pass from the results queue.
