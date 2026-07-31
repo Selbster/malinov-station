@@ -12,7 +12,8 @@ Goal: leave only useful documentation that speeds up reviews and reduces the ris
 
 1. Read `references/fresh-pattern-catalog.md` first.
 2. Then read `references/rejected-snippets.md`.
-3. At the end, check the context in `references/docs-context.md`.
+3. Then read `references/verification-commands.md` to know how to mechanically check the rules.
+4. At the end, check the context in `references/docs-context.md`.
 
 ## Source of truth
 
@@ -48,8 +49,8 @@ Goal: leave only useful documentation that speeds up reviews and reduces the ris
 ### FTL
 
 1. Use comments in FTL only for rare divisions into groups.
-2. Always put a space between `##` and the group name: `## Group Name`.
-3. Do not use broken headers like `##bombs`.
+2. `#` and `##` are both valid in FTL. Prefer `## Group Name` (with a space) as the group separator; single `# Group` is acceptable for short sections.
+3. Do not use broken headers like `##bombs` (missing space after `##`).
 4. Don't spam headers before every few keys.
 
 ## Workflow for documenting the subsystem
@@ -73,14 +74,26 @@ Goal: leave only useful documentation that speeds up reviews and reduces the ris
 5. Is this a YAML/FTL grouping?
    Give a short separator, without a long description.
 
+## Skip-list (when NOT to write docs)
+
+Don't document code that documents itself. If you're tempted to comment one of these, don't:
+
+1. Trivial property/field wrappers and obvious getters (name already states the contract).
+2. POCO/DataField-only containers where the field name is self-explanatory.
+3. `out` parameters whose names already explain their meaning (`out EntityUid? id`).
+4. Self-documenting `if` checks that duplicate their own condition.
+5. Generated code (`obj/`, `bin/`, `*.AssemblyInfo.cs`).
+
+These belong in the "obvious local code" branch of the Decision Tree: no `summary`, no inline comment.
+
 ## Patterns ✅
 
 1. `ClickableSystem` and `CheckClick(...)` use `summary` for the contract and point comments in places with complex coordinate transformations.
 2. `MimePowersSystem.OnInvisibleWall(...)` is documented by `summary`, and comments are left only on critical checks.
 3. In `AccessOverriderSystem` public methods combine `summary` and `remarks` when you need to capture a behavior invariant.
-4. `BaseContainer` and `SharedContainerSystem.Remove(...)` show a stable API documentation style: `summary` + `remarks` + described parameters.
-5. A system split into `partial` files by responsibility (target-handling, ability-handling, dependencies, ...) gets a short header comment above each part naming that part's role.
-6. Call sites that pass non-default optional flags (for example `TryDoSomething(..., force: true, quiet: true)`) get a short comment explaining why the caller deviates from the default path, not just the default-path callers.
+4. `SharedContainerSystem.Insert(...)` shows a stable API documentation style: `summary` + `remarks` + described parameters. Do not copy the broken remarks of `Remove(...)` (copy-paste from `Insert`) — see `rejected-snippets.md`.
+5. A system split into `partial` files by responsibility (target-handling, ability-handling, dependencies, ...) gets a short header comment above **each** part naming that part's role. Every partial file of a split system must carry this header — an unmarked partial is an anti-pattern.
+6. Call sites that pass non-default optional flags (for example `TryDoSomething(..., force: true, quiet: true)`) get a short comment explaining why the caller deviates from the default path, not just the default-path callers. This is an aspirational standard: many existing callsites still lack it, so treat it as a review target rather than a widely confirmed pattern.
 7. In YAML directories, level separators `# Rank 2` / `# Rank 3` make large lists readable without overload.
 8. In FTL, the correct group separator is `## Strings for the battery ...` and does not break parsing.
 
@@ -194,26 +207,32 @@ Comment: A short delimiter speeds up reading and does not turn into an additiona
 ## Strings for the battery (SMES/substation) menu
 battery-menu-out = OUT
 
+# Tools (short section, single `#` is also fine)
+uplink-toolbox-name = Toolbox
+
 ##bombs
 uplink-pizza-bomb-name = Nefarious Pizza bomb
 ```
 
-Comment: the first header is correct, the second is broken due to the lack of a space after `##`.
+Comment: the first header is correct (`## Group Name`). The second is acceptable for a short section. The third is broken due to the lack of a space after `##`.
 
 ## Checklist before PR
 
 1. All new doc comments in the code are in English.
 2. Added `summary` for public and intersystem contracts.
-3. In partial systems there is a brief description of the role of the part.
+3. In partial systems every partial file has a brief description of the role of the part.
 4. Complex blocks received a short explanation "why".
 5. In YAML, comments are short and only to the point.
-6. In FTL, group comments are rare and only in the format `## Group Name`.
+6. In FTL, group comments are rare and only in the format `## Group Name` (single `#` allowed for short sections).
 7. There are no invalid XML tags or broken FTL headers.
+8. Ran the checks from `references/verification-commands.md` and reviewed every hit.
 
 ## Extension rule
 
 1. Add new rules only after confirmation with fresh code and viewing callsite.
-2. First fix controversial or legacy examples as anti-patterns.
-3. If the topic grows (for example, only guidebook XML or only UI localization), move it to a separate specialized skill.
+2. Before citing a file as an example in this skill, verify its documentation is actually correct (a broken example gets moved to `rejected-snippets.md` first).
+3. Entries without a verifiable example get the status `Aspirational`, not `Use`.
+4. First fix controversial or legacy examples as anti-patterns.
+5. If the topic grows (for example, only guidebook XML or only UI localization), move it to a separate specialized skill.
 
 Document so that the next developer understands the contract without archeology of the code :)
