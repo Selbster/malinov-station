@@ -3,7 +3,7 @@ name: ss14-localization-strings
 description: A guide to working with localization files (.ftl) and strings in Space Station 14. Use this skill when adding or changing game text, item descriptions and interface.
 ---
 
-# SS14 Localization Strings (Russian)
+# SS14 Localization Strings
 
 This skill describes the rules and standards for working with localization strings in Space Station 14 (Fluent Translation Lists - FTL).
 
@@ -21,10 +21,10 @@ The `.ftl` files are located in `Resources/Locale/{CultureCode}/...`. For Russia
 
 * **Entity Prototypes:**
     * They are located in folders corresponding to the prototype structure, often with the prefix `_prototypes`.
-    * Example: `Resources/Locale/ru-RU/_prototypes/entities/objects/weapons/guns.ftl`
+    * Example: `Resources/Locale/ru-RU/_prototypes/entities/objects/weapons/guns/flare_gun.ftl`
 * **Interface and messages:**
     * They are located in thematic folders (for example, `interaction`, `ui`, `chat`).
-    * Example: `Resources/Locale/ru-RU/ui/main-menu.ftl`
+    * Example: `Resources/Locale/ru-RU/ui/actionmenu.ftl`
 
 ## 2. String format and FTL syntax
 
@@ -106,6 +106,20 @@ SS14 supports special FTL functions for declension and grammar.
 * `GENDER($ent)`: Returns the gender of the entity (`male`, `female`, `epicene`, `neuter`) for selectors.
 * `CAPITALIZE($text)`: Capitalizes the first letter.
 
+This list is not exhaustive: the full set of functions is registered by the engine (`LocalizationManager.AddBuiltInFunctions`). The gender functions rely on `GrammarComponent` attributes and the internal `zzzz-*` keys.
+
+Additional functions available in FTL:
+
+* `INDEFINITE($text)`: Indefinite article a/an (English only).
+* `PROPER($ent)`: Returns `true`/`false` — whether the entity's name is a proper noun.
+* `POSS-ADJ($ent)` / `POSS-PRONOUN($ent)`: Possessive adjective/pronoun (his/her/their/its).
+* `GENITIVE($ent)` / `DAT-OBJ($ent)`: Genitive/dative case (for languages with cases, e.g. ru-RU).
+* `REFLEXIVE($ent)`: Reflexive pronoun (himself/herself/themselves/itself).
+* `COUNTER($ent)`: Counter/measure word (for East Asian languages).
+* `CONJUGATE-BE($ent)` / `CONJUGATE-HAVE($ent)`: Conjugates "to be"/"to have" by the entity's gender.
+* `CONJUGATE-BASIC($ent, $verb, $verbThird)`: Conjugates an arbitrary verb (is for he/she/it).
+* `ATTRIB($ent, $name)`: Returns the value of an entity's grammatical attribute, or `other` if the attribute is missing.
+
 ### 🔀 Selectors
 
 Used to change text based on gender or number.
@@ -152,7 +166,7 @@ Follow these rules strictly. They set a unified visual style for the game.
 
 1. **Visuals only.**
     * The description should talk about what the character *sees* or *feels*.
-    * Avoid dry technical data if it is not visible on the item (for example, “Deals 10 damage”).
+    * Avoid dry technical data if it is not visible on the item (for example, "Deals 10 damage").
 
 2. **OOC is only allowed as an explicit OOC block.**
     * OOC phrases must begin with the prefix `OOC:`.
@@ -188,7 +202,7 @@ interaction-popup-blocked = The door is closed. # No context for who is trying t
 
 ## 6. Text formatting tags (Rich Text)
 
-List of available formatting tags.
+List of available formatting tags. The list matches the current implementation: engine tags are registered in `MarkupTagManager` (Robust.Client). The `IMarkupTagHandler` interface is declared in the engine (`Robust.Client/UserInterface/RichText/IMarkupTag.cs`); content tags are its implementations in Content.Client (`Content.Client/UserInterface/RichText`, `Content.Client/Guidebook/Richtext`).
 
 | Tag | Options | Description | Type |
 | :--- | :--- | :--- | :--- |
@@ -199,11 +213,13 @@ List of available formatting tags.
 | `bolditalic` | - | ***Bold italics*** | Double |
 | `head` | `1`-`3` | Title. `[head=1]Title[/head]` | Double |
 | `bullet` | - | List marker ` · ` | Any |
-| `cmdlink` | `command` | Executes a command when clicked | Double |
-| `textlink` | `link` | Link to process in code (not URL!) | Double |
-| `emoji` | `id` | Prototype Emoji | Single |
+| `cmdlink` | `command` | Executes a command when clicked. `[cmdlink="text" command="say ..."]` | Double |
+| `textlink` | `link` | Link to process in code (not URL!). `[textlink="text" link="..."]` | Double |
 | `mono` | - | Monospace font (for code) | Double |
-| `center` | - | Center alignment | Double |
-| `keybind` | `name` | Shows the bind key. `[keybind="MoveUp"]` | Single |
-| `scramble` | `rate`, `length`, `chars` | "Encrypted" changing text | Single |
-| `protodata` | `text`, `comp`, `member` | Data from prototype (for Guidebook) | Single |
+| `scramble` | `rate`, `length`, `chars` | "Encrypted" changing text. `[scramble rate="500" length="8" chars="abc"]` | Single |
+| `keybind` | - | Shows the bind key. Bind name is the tag value: `[keybind="MoveUp"]` | Single |
+| `protodata` | `comp`, `member`, `format` | Data from prototype (for Guidebook). Prototype ID is the tag value: `[protodata="Crowbar" comp="..." member="..."]` | Single |
+
+Notes:
+* `emoji` and `center` tags do **not** exist in the current code — do not use them.
+* "Options" for `protodata`/`keybind`/`cmdlink`/`textlink`: the tag value is a separate parameter (prototype id / bind name / text), the attributes are listed in the column.
