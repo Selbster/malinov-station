@@ -21,7 +21,7 @@ change in `.claude/rules` in the same pull request.
 Each Claude bridge rule file must contain:
 
 - `trigger`: synchronized copy of canonical trigger from `.agents/rules/<rule-name>.md`.
-- A reference in the markdown body to `../../../.agents/rules/<rule-name>.md`.
+- A reference in the markdown body to `../../.agents/rules/<rule-name>.md`.
 
 ## PR Checklist Gate
 

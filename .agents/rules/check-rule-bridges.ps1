@@ -58,7 +58,7 @@ foreach ($source in $sourceRules) {
     $sourceData = Get-RuleData -RulePath $sourceRuleMd
     $claudeData = Get-RuleData -RulePath $claudeBridgeRuleMd
 
-    $expectedSourceRule = "../../../.agents/rules/$name"
+    $expectedSourceRule = "../../.agents/rules/$name"
 
     if ($claudeData.trigger -ne $sourceData.trigger) {
         $errors.Add("Claude bridge trigger mismatch for '$name'.")
