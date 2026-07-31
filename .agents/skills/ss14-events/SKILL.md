@@ -11,28 +11,40 @@ Events are the primary way of communication between systems and entities in Spac
 
 ### Local Events 🏠
 For local events (within a single client or server), use a simple `struct` or `class` structure.
-* **Structs**: Preferred for high frequency events (e.g. `MoveEvent`, `DamageEvent`) to avoid GC load. 🏎️
-* **Classes**: Use for complex data or events that require inheritance (e.g. `ExamineEvent`). 📚
+* **Structs**: Preferred for high frequency events (e.g. `MoveEvent`, damage-related attempt events) to avoid GC load. 🏎️
+* **Classes**: Use for complex data or events that require inheritance (e.g. `ExaminedEvent`). 📚
 * **Naming**: The `Event` suffix is ​​required (for example, `DoorOpenedEvent`).
 
 ```csharp
-// Simple event structure
+// Simple event structure (illustrative example — verify the event name exists before referencing it in guides)
 public readonly record struct DoorOpenedEvent(EntityUid User);
 
-// Event class with output data
-public sealed class ExamineEvent : EntityEventArgs {
-    public readonly EntityUid Examined;
-    public FormattedMessage Message = new();
+// Event class with output data (actual implementation)
+public sealed class ExaminedEvent : EntityEventArgs {
+    public FormattedMessage Message { get; }
+    public EntityUid Examined { get; }
+    public EntityUid Examiner { get; }
+
+    public ExaminedEvent(FormattedMessage message, EntityUid examined, EntityUid examiner, bool isInDetailsRange, bool hasDescription) { ... }
 }
 ```
 
 ### Network Events 🌐
 Events transmitted over the network **MUST** inherit `EntityEventArgs` and be marked with `[Serializable, NetSerializable]` attributes.
 
+**Note:** Net-identity is transmitted via `NetEntity` (not raw `EntityUid`), which survives serialization across the wire.
+
 ```csharp
+// Content.Shared/CrewManifest/SharedCrewManifestSystem.cs
 [Serializable, NetSerializable]
-public sealed class RequestStationNameEvent : EntityEventArgs {
-    public string NewName;
+public sealed class RequestCrewManifestMessage : EntityEventArgs
+{
+    public NetEntity Id { get; }
+
+    public RequestCrewManifestMessage(NetEntity id)
+    {
+        Id = id;
+    }
 }
 ```
 
@@ -69,7 +81,7 @@ SubscribeLocalEvent<RoundRestartCleanupEvent>(OnRoundRestart);
 Use to process events sent from the other side (Client -> Server or Server -> Client).
 
 ```csharp
-SubscribeNetworkEvent<RequestStationNameEvent>(OnNameRequest);
+SubscribeNetworkEvent<RequestCrewManifestMessage>(OnRequestCrewManifest);
 ```
 
 ## 🧩 Specific Patterns
@@ -77,28 +89,46 @@ SubscribeNetworkEvent<RequestStationNameEvent>(OnNameRequest);
 ### 1. Cancellable Events 🚫
 Used to check whether an action can be performed ("Attempt" events). Any subscriber can cancel the action.
 
-* **Classes**: Inherit from `CancellableEntityEventArgs`.
-* **Structures**: Add the `public bool Cancelled;` field.
+* **Classes**: Inherit from `CancellableEntityEventArgs` (e.g. `BeforeDoorOpenedEvent` in `Content.Shared/Doors/DoorEvents.cs`).
+* **Structures**: Add the `public bool Cancelled;` field (e.g. `DisarmAttemptEvent` in `Content.Shared/Actions/Events/DisarmAttemptEvent.cs`).
 * **Important**: Always pass such events through `ref` so that changes to `Cancelled` are visible to the calling code.
 
-**Usage:**
+**Usage (struct variant — actual implementation):**
 ```csharp
-// Definition
-public sealed class DisarmAttemptEvent : CancellableEntityEventArgs { }
-```
+// Definition — Content.Shared/Actions/Events/DisarmAttemptEvent.cs
+[ByRefEvent]
+public record struct DisarmAttemptEvent
+{
+    public readonly EntityUid TargetUid;
+    public readonly EntityUid DisarmerUid;
+    public readonly EntityUid? TargetItemInHandUid;
 
-```csharp
-// Subscription (Lock action)
-private void OnDisarmAttempt(Entity<DisarmRestrictionComponent> ent, ref DisarmAttemptEvent args) {
-    if (!ent.Comp.CanBeDisarmed)
-        args.Cancel(); // Or args.Cancelled = true;
+    public bool Cancelled;
+
+    public DisarmAttemptEvent(EntityUid targetUid, EntityUid disarmerUid, EntityUid? targetItemInHandUid = null) { ... }
 }
 ```
 
 ```csharp
-// Call (Permission check)
-var attempt = new DisarmAttemptEvent();
-RaiseLocalEvent(target, attempt);
+// Class variant — Content.Shared/Doors/DoorEvents.cs
+public sealed class BeforeDoorOpenedEvent : CancellableEntityEventArgs
+{
+    public EntityUid? User = null;
+}
+```
+
+```csharp
+// Subscription (Lock action) — struct variant uses `args.Cancelled = true`
+private void OnDisarmAttempt(Entity<DisarmRestrictionComponent> ent, ref DisarmAttemptEvent args) {
+    if (!ent.Comp.CanBeDisarmed)
+        args.Cancelled = true; // For CancellableEntityEventArgs classes: args.Cancel();
+}
+```
+
+```csharp
+// Call (Permission check) — struct must be passed by ref
+var attempt = new DisarmAttemptEvent(target, user, inTargetHand);
+RaiseLocalEvent(target, ref attempt);
 
 if (attempt.Cancelled)
     return; // Action interrupted
@@ -107,20 +137,22 @@ if (attempt.Cancelled)
 ### 2. Handled Events ✅
 Used when an event must be processed by only one system (for example, interaction with an object). If one system has "handled" an event, the others do not need to execute their logic.
 
-* **Implementation**: Add field `public bool Handled;` (or inherit `HandledEntityEventArgs` for classes).
+* **Implementation**: Add field `public bool Handled;` to a struct (e.g. `CanDropDraggedEvent` in `Content.Shared/DragDrop/DraggableEvents.cs`) or inherit `HandledEntityEventArgs` for classes (e.g. `InteractEvent` in `Content.Shared/Interaction/AfterInteract.cs`).
 
-**Usage:**
+**Usage (struct variant — actual implementation):**
 ```csharp
-// Definition
+// Definition — Content.Shared/DragDrop/DraggableEvents.cs
 [ByRefEvent]
-public struct InteractEvent {
-    public bool Handled;
+public record struct CanDropDraggedEvent(EntityUid User, EntityUid Target)
+{
+    public bool Handled = false;
+    public bool CanDrop = false;
 }
 ```
 
 ```csharp
 // Subscription
-private void OnInteract(Entity<MyComponent> ent, ref InteractEvent args) {
+private void OnDropDragged(Entity<MyComponent> ent, ref CanDropDraggedEvent args) {
     if (args.Handled) return; // Already processed by someone
 
     // Executing the logic
@@ -134,13 +166,20 @@ private void OnInteract(Entity<MyComponent> ent, ref InteractEvent args) {
 For high-load code, especially frequently triggered events (physics, motion), use **By-Ref** (reference) events. This avoids copying large structures.
 
 ### Definition of By-Ref Events
-Mark the structure with the `[ByRefEvent]` attribute.
+Mark the structure with the `[ByRefEvent]` attribute. Real-world example — engine `MoveEvent` in `RobustToolbox/Robust.Shared/GameObjects/Components/Transform/TransformComponent.cs`:
 
 ```csharp
 [ByRefEvent]
-public struct MoveEvent {
-    public EntityCoordinates OldPosition;
-    public EntityCoordinates NewPosition;
+public readonly struct MoveEvent(
+    Entity<TransformComponent, MetaDataComponent> entity,
+    EntityCoordinates oldPos,
+    EntityCoordinates newPos,
+    Angle oldRotation,
+    Angle newRotation)
+{
+    public readonly EntityCoordinates OldPosition = oldPos;
+    public readonly EntityCoordinates NewPosition = newPos;
+    // ...
 }
 ```
 
@@ -168,24 +207,25 @@ RaiseLocalEvent(uid, new DoorOpenedEvent(user));
 ```
 
 ```csharp
-// By reference (By Ref) - automatically for those marked [ByRefEvent]
-var moveEv = new MoveEvent(oldPos, newPos);
+// By reference (By Ref). NOTE: `[ByRefEvent]` only enables the `ref` passing —
+// you still must write `ref` at the call site explicitly.
+var moveEv = new MoveEvent(entity, oldPos, newPos, oldRot, newRot);
 RaiseLocalEvent(uid, ref moveEv);
 ```
 
 ## ❌ Antipatterns and Frequent Errors
 
-### 1. 🚫 Deprecated handler signature
-**Error**: Use expanded signature `(EntityUid uid, Component comp, args)`.
-**Why**: This is an outdated style. The new style with `Entity<T>` is cleaner and more convenient.
-**Right**:
+### 1. ⚠️ Legacy handler signature
+**Legacy**: The expanded signature `(EntityUid uid, Component comp, args)`.
+**Status**: Still valid and compiles — widely used in the codebase, especially for value-passed (non-`[ByRefEvent]`) events. Do not mix styles inside one system; default to `Entity<T>` for new code.
+**Preferred (new code)**:
 ```csharp
-// ✅ GOOD
+// ✅ PREFERRED
 private void OnEvent(Entity<MyComponent> ent, ref MyEvent args) { ... }
 ```
 
 ```csharp
-// ❌ BAD
+// ⚠️ LEGACY (valid, avoid in new code)
 private void OnEvent(EntityUid uid, MyComponent component, MyEvent args) { ... }
 ```
 
