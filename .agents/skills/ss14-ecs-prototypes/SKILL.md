@@ -11,13 +11,17 @@ This skill covers prototype mechanics: YAML structure, inheritance, `DataField` 
 Strict naming standards (prototype ID, fork prefixes, English fallback fields, `ent-*` and `kebab-case` keys) are maintained in `ss14-naming-conventions`.
 If the naming example differs from `ss14-naming-conventions`, use `ss14-naming-conventions`.
 
+## Scope of applicability
+
+The rules below are **mandatory for new prototypes in `_MalinovStation`**. Existing vanilla prototypes and components are a source of reference, **not** a target for refactoring: their `[DataField]` names and IDs are part of the map-save / serialization contract and must not be renamed for style reasons. Do not "fix" vanilla prototypes; the rules apply to new fork content.
+
 ## What is Prototype
 
 A prototype is a YAML data definition that the engine loads upon initialization. Prototypes describe entities, recipes, reagents, and other game objects. Entity prototypes determine what components and with what values ​​the entity will have when created.
 
 ## ID format - quick reminder (see ss14-naming-conventions)
 
-All prototype identifiers are **mandatory** recorded in CamelCase:
+**Entity prototype** identifiers are **mandatory** recorded in CamelCase:
 
 ```yaml
 # Right
@@ -41,7 +45,7 @@ All prototype identifiers are **mandatory** recorded in CamelCase:
 ```
 
 ```yml
-# Wrong
+# Wrong (entity prototypes)
 - type: entity
   id: mob_hostile_carp   # underscores
 
@@ -54,6 +58,12 @@ All prototype identifiers are **mandatory** recorded in CamelCase:
 - type: entity
   id: mobhostilecarp     # all lowercase
 ```
+
+> **Note on non-entity prototypes** (jukebox, soundCollection, lobbyBackground and other
+> catalog/data prototypes): the upstream vanilla keeps `snake_case`/lowercase IDs there, and the
+> fork's own `_MalinovStation/Catalog` follows the same convention. CamelCase is required for
+> **entity prototypes**; for other prototype types keep the established convention of that
+> prototype family and do not mix styles inside one file.
 
 ## Entity prototype - basic structure
 
@@ -237,6 +247,22 @@ public float SomeCSharpName;
   customYamlName: 5.0    # Custom name is used
 ```
 
+> **⚠️ Do not rename existing `[DataField]` names**
+>
+> The YAML name of a field is a **persistent serialization contract**: saved maps, entity
+> overrides and other prototypes reference it. Renaming a `[DataField]` string name or the YAML
+> field in an existing component silently breaks loading of already-saved maps. In particular,
+> do not "correct" legacy/typo'd names such as `decayhreshold`
+> (`Content.Shared/Anomaly/Components/AnomalyComponent.cs`). Keep existing names as-is; only new
+> fields follow the modern rules.
+
+> **⚠️ Fork content location and naming**
+>
+> New MalinovStation prototypes live under `Resources/Prototypes/_MalinovStation/` (mirrored by
+> `Resources/Locale/ru-RU/_prototypes/_MalinovStation` and the `ent-*` localization). Fork-only
+> entity IDs and copied vanilla entities get the `Malinov` prefix (`MalinovXxx`) to keep the
+> namespace separate and avoid merge collisions with the upstream — see `ss14-upstream-maintenance`.
+
 ## Creating your own prototype type
 
 ### Interfaces
@@ -368,7 +394,8 @@ ent-MyEntityId = entity name
 
 ## Content.YAMLLinter
 
-A separate project `Content.YAMLLinter` is a tool for validating all YAML prototypes.
+A separate project `Content.YAMLLinter` is a tool for validating all YAML prototypes. It is present
+in this repository (`Content.YAMLLinter/`) and validates the fork prototypes too.
 
 ### What it checks
 
@@ -389,6 +416,11 @@ A separate project `Content.YAMLLinter` is a tool for validating all YAML protot
 YAMLLinter runs automatically in CI/CD. Errors block the merge. Error output format:
 ```text
 ::error in Prototypes/file.yml(42,5)  Unknown field 'nonExistentField' for component 'MyComponent'
+```
+
+To run it locally before pushing:
+```bash
+dotnet run --project Content.YAMLLinter
 ```
 
 ## Special YAML constructs

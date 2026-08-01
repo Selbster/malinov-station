@@ -5,6 +5,10 @@ description: Working with entities in Space Station 14 — EntityUid, Entity<T>,
 
 # Entity - entities in ECS
 
+## Scope of applicability
+
+The rules below are **mandatory for new code in `_MalinovStation`**. The existing vanilla upstream code is a source of reference patterns, **not** a target for refactoring. Do not "fix" vanilla entity code to match these rules; if a rule conflicts with an existing vanilla example, the vanilla example wins for that place, while the rule still applies to new fork code.
+
 ## What is Entity
 
 An Entity is a **unique identifier** (`EntityUid`) to which components are attached. The entity itself contains no data or logic - it is simply a numeric ID. Components define the properties of an entity, systems define its behavior.
@@ -86,6 +90,20 @@ public void SetSpeed(Entity<MyComponent?> ent, float speed)
 SetSpeed((uid, myComp), 5f);    // with component
 SetSpeed((uid, null), 5f);       // Resolve itself will receive
 ```
+
+> **⚠️ `Resolve` and deleted entities**
+>
+> `Resolve` fetches the component on the spot. If the entity was deleted or is in the middle of
+> being deleted (e.g. a delayed `QueueDel` reached the entity while an event is being processed),
+> `Resolve` can throw or return `false` depending on the overload. When the uid can be stale:
+>
+> ```csharp
+> if (Deleted(ent) || !Resolve(ent, ref ent.Comp))
+>     return;
+> ```
+>
+> Inside event handlers prefer receiving the component as the first `Entity<T>` parameter of the
+> handler instead of re-resolving it — the engine already guarantees it exists there.
 
 ### AsNullable
 
@@ -384,6 +402,17 @@ public bool HasTagFast(EntityUid uid, ProtoId<TagPrototype> tag)
 ```
 
 This reduces overhead compared to multiple common checks.
+
+In the vanilla upstream the cached query is often injected directly via `[Dependency]`
+instead of being assigned in `Initialize()` (e.g.
+`Content.Shared/Damage/Systems/SharedStaminaSystem.cs`):
+
+```csharp
+[Dependency] private readonly EntityQuery<StaminaComponent> _stamQuery = default!;
+```
+
+Both forms are equivalent; `[Dependency]` injection is more concise and does not need
+an assignment in `Initialize()`. See `ss14-ecs-systems` for details.
 
 ### 2) Remove unnecessary temporary components immediately after completing the role
 

@@ -11,6 +11,10 @@ This skill covers systems design, lifecycle, events, query and prediction.
 Strict naming standards (suffix `System`, name pairing `Component/System`, style of dependency aliases, file naming conventions) are maintained in `ss14-naming-conventions`.
 If the example here conflicts with `ss14-naming-conventions`, use `ss14-naming-conventions`.
 
+## Scope of applicability
+
+The rules below are **mandatory for new code in `_MalinovStation`**. The existing vanilla upstream code is a source of reference patterns, **not** a target for refactoring. Do not "fix" vanilla systems (protected dependencies without `_`, legacy event ordering, historical aliases) to match these rules. If a rule conflicts with an existing vanilla example, the vanilla example wins for that place, while the rule still applies to new fork code. Fork logic must not be placed inside vanilla files — see `ss14-upstream-maintenance`.
+
 ## What is EntitySystem
 
 EntitySystem is a singleton class that contains **all the logic and behavior** for entities. In the ECS architecture, components store only data, and systems operate on this data. Systems are automatically created and managed by the engine - no need to manually register them.
@@ -60,6 +64,25 @@ public sealed class MySystem : EntitySystem
 ```
 
 Dependencies are resolved automatically before `Initialize()` is called. Always use `= default!` to suppress compiler warnings.
+
+> **Protected dependencies in shared systems**
+>
+> In shared abstract systems (`SharedXxxSystem`) the dependencies that must be reachable from
+> server/client partial implementations are often declared `protected` and — following the vanilla
+> convention — **without** the `_` prefix:
+>
+> ```csharp
+> public abstract partial class SharedMySystem : EntitySystem
+> {
+>     [Dependency] protected IGameTiming Timing = default!;
+>     [Dependency] protected SharedAudioSystem Audio = default!;
+>     [Dependency] private SharedTransformSystem _transform = default!; // private - with _
+> }
+> ```
+>
+> See `Content.Shared/Anomaly/SharedAnomalySystem.cs` for a real example. Rule: `private` deps use
+> the `_` prefix, `protected` deps keep the bare canonical name. Do not "unify" existing vanilla
+> `protected` fields to add `_` — this only creates noisy diffs against the upstream.
 
 ## Order of system members (mandatory)
 
@@ -222,6 +245,18 @@ public override void Initialize()
     _physicsQuery = GetEntityQuery<PhysicsComponent>();
 }
 ```
+
+### Injection via [Dependency]
+
+In the vanilla upstream a cached query is often injected directly instead of being assigned in
+`Initialize()` — e.g. `Content.Shared/Damage/Systems/SharedStaminaSystem.cs`:
+
+```csharp
+[Dependency] private readonly EntityQuery<StaminaComponent> _stamQuery = default!;
+```
+
+This is equivalent to caching in `Initialize()` but is more concise and keeps the query in the
+dependencies block. Both forms are valid; prefer `[Dependency]` injection for new code.
 
 ### Usage
 
