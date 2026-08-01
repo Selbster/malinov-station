@@ -52,6 +52,7 @@ Use it as a guideline: if new code/content doesn't follow the rules below, it's 
 3. MUST: `TransformSystem` -> `_transform`, `IPlayerManager` -> `_player`.
 4. MUST: adhere to the canonical short forms: `IGameTiming` -> `_timing`, `IRobustRandom` -> `_random`, `EntityWhitelistSystem` -> `_whitelist`.
 5. SHOULD: avoid noisy options like `_transformSystem`/`_playerManager` if there is an established short alias.
+6. MUST: `protected` dependencies in shared systems (`SharedXxxSystem`) keep the bare canonical name **without** `_` (vanilla convention): `IGameTiming` -> `Timing`, `SharedAudioSystem` -> `Audio`. Example: `Content.Shared/Anomaly/SharedAnomalySystem.cs`. Do not add `_` to existing vanilla `protected` fields.
 
 ### 4) Prototype ID
 
@@ -60,6 +61,8 @@ Use it as a guideline: if new code/content doesn't follow the rules below, it's 
 3. MUST: when developing the inheritance chain, increase suffixes on the right (`Meat` -> `MeatCat`).
 4. MUST: if the entity is unique to `_MalinovStation` and especially if it is a forked copy of the vanilla entity, add the `Malinov` prefix (`MalinovXxx`).
 5. MUST NOT: use snake_case, kebab-case or lowercase ID for new production code.
+6. MUST: for non-entity data prototypes (`jukebox`, `soundCollection`, `lobbyBackground`, catalog files) keep the established convention of that prototype family — vanilla uses `snake_case`/lowercase there, and the fork's `_MalinovStation/Catalog` follows it. Do not mix `CamelCase` and `snake_case` inside one file.
+7. MUST: the `Malinov` marker is a **prefix** in IDs (`MalinovXxx`). Legacy fork entries with the marker as a suffix (`NukeMusicMalinov`, `LobbyMusicMalinov`) are accepted as-is for compatibility, but new IDs use the prefix form.
 
 ### 5) Name/Description in prototypes and localization
 
@@ -108,7 +111,7 @@ Use it as a guideline: if new code/content doesn't follow the rules below, it's 
 4. Selecting a dependency alias?
    Remove `System/Manager` -> reduce to canonical form (`_timing`, `_random`, `_transform`, `_player`, `_whitelist`).
 5. Are you creating a fork-only or fork copy of vanilla?
-   Add the `Malinov` prefix to the ID (`Malinov*`).
+   Add the `Malinov` prefix to the ID (`Malinov*`); the marker is a prefix, legacy suffix entries are accepted as-is.
 6. Are you creating a localization key?
    Entity: `ent-MyEntity`; regular string: `kebab-case`.
 
@@ -126,6 +129,7 @@ Use it as a guideline: if new code/content doesn't follow the rules below, it's 
 10. `ent-BasePart = body part` as a short external name of the entity.
 11. `armable-examine-armed` is like a regular `kebab-case` non-entity string key.
 12. Private component field `malinovRage` according to the basic part of the type.
+13. Protected dependency `Timing` (without `_`) in a `SharedXxxSystem` exposing it to server/client partials.
 
 ## Anti-patterns ❌
 
@@ -141,6 +145,9 @@ Use it as a guideline: if new code/content doesn't follow the rules below, it's 
 10. OOC hint in `.desc` without the `OOC:` marker.
 11. Description longer than 3 sentences or name longer than 3 words.
 12. Private fields without `_` (except constants).
+13. Adding `_` to existing vanilla `protected` dependencies in shared systems.
+14. Renaming a legacy/typo'd `[DataField]` name (e.g. `decayhreshold`) in an existing component without migrating saved maps.
+15. Mixing `CamelCase` and `snake_case` IDs inside one non-entity prototype file.
 
 ## Code examples
 

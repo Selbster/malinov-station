@@ -13,9 +13,16 @@
 | Files | `snake_case` 3+ word YAML/FTL names for no good reason | Blurs the structure and makes navigation difficult | Overcomplicated names |
 | Examples quality | Fragments from TODO/HACK/FIXME on the topic | Risk of consolidating a controversial or temporary style | Explicit markers of technical debt |
 | Freshness | Examples older than cutoff without modern confirmation | Possibly outdated practices | Old modification date |
+| DataField names | Redundant explicit `[DataField("name")]` in new components when the name matches the field | Clutters the component and duplicates the auto-derived name | Redundant attribute name |
+| DataField names | "Fixing" legacy/typo'd explicit names (e.g. `decayhreshold`) | Breaks map-save and serialization compatibility; the name is a persistence contract | Saved-map compatibility |
 
 ## How to work with deviations
 
 1. If a fragment is included in this list, do not copy it as a reference into the new code.
 2. For legacy places, allow point compatibility, but do not extend the style further.
 3. In the review, mark such places as “legacy exception” and return the code to the standard at the next safe refactoring.
+4. The two `DataField names` rows are intentionally different in nature:
+   - the **redundant** `[DataField("name")]` is rejected for new code;
+   - the **required/legacy** explicit name (the YAML name differs from the field name, or is a
+     preserved typo such as `decayhreshold`) is NOT rejected — it is a compatibility contract.
+     Only change it if you can migrate the saved data and run YAMLLinter afterwards.
