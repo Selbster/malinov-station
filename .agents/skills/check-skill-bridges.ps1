@@ -63,6 +63,9 @@ foreach ($source in $sourceSkills) {
 
     $expectedSourceSkill = "../../../.agents/skills/$name/SKILL.md"
 
+    if ($sourceData.name -ne $name) {
+        $errors.Add("Source skill name mismatch for '$name': '$($sourceData.name)'. Expected the folder name in hyphen-case.")
+    }
     if ($claudeData.name -ne $name) {
         $errors.Add("Claude bridge name mismatch for '$name': '$($claudeData.name)'")
     }
