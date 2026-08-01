@@ -1,6 +1,6 @@
 ---
 name: ss14-prediction
-description: Architecture guide for client-side prediction in Space Station 14 — prediction loop, timing properties, predicted entities, state reconciliation, randomness, and common pitfalls
+description: Client-side prediction in Space Station 14 — prediction loop, timing flags (InPrediction / IsFirstTimePredicted / ApplyingState), rollback via ResetPredictedEntities, predicted spawn/audio/popups, and deterministic predicted random. Use it to debug mispredictions, add predicted gameplay, or design client-side side effects.
 ---
 
 # Claude Bridge
