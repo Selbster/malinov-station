@@ -63,6 +63,10 @@ Use it as a guideline: if new code/content doesn't follow the rules below, it's 
 5. MUST NOT: use snake_case, kebab-case or lowercase ID for new production code.
 6. MUST: for non-entity data prototypes (`jukebox`, `soundCollection`, `lobbyBackground`, catalog files) keep the established convention of that prototype family — vanilla uses `snake_case`/lowercase there, and the fork's `_MalinovStation/Catalog` follows it. Do not mix `CamelCase` and `snake_case` inside one file.
 7. MUST: the `Malinov` marker is a **prefix** in IDs (`MalinovXxx`). Legacy fork entries with the marker as a suffix (`NukeMusicMalinov`, `LobbyMusicMalinov`) are accepted as-is for compatibility, but new IDs use the prefix form.
+8. MUST: the `Malinov` prefix is reserved for prototypes/identifiers owned by the parent
+   `_MalinovStation`. This repository is a fork parent; a child fork must use its own prefix for
+   new unique content and must not reuse `Malinov` for child-owned IDs, so parent and child
+   content stay distinguishable.
 
 ### 5) Name/Description in prototypes and localization
 

@@ -23,6 +23,22 @@ Currently the fork is small: most custom content lives in `_MalinovStation` help
 > **Minimizing changes to vanilla files is MORE IMPORTANT than "pretty" architecture.**
 > It's better to leave the "dirty" hack in one line of the vanilla file than to rewrite half the system, creating hell when merging.
 
+## ⚠️ Parent contract
+
+This repository is a fork parent: downstream projects fork it and inherit vanilla plus `_MalinovStation`
+as-is. Because of that, `_MalinovStation` is a public API surface for child forks:
+
+1. Prototype IDs and `[DataField]` names inside `_MalinovStation` are a stable contract. Renaming or
+   removing them for style reasons breaks saved maps and inherited child content — always rename
+   through `Resources/migration.yml` and treat it as a visible change.
+2. Prefer extending over rewriting: a child that needs a different variant inherits the parent
+   prototype (`parent: <MalinovId>`) instead of editing the shared `_MalinovStation` file in place.
+3. Full rewrites of `_MalinovStation` files are the same anti-pattern as full rewrites of vanilla
+   files — they break the parent/child merge flow.
+4. Child fork logic lives in the child's own `_<Child>` folder, never inside the shared
+   `_MalinovStation` folder.
+
+
 ## 📁 Folder structure and Project Folder
 
 To clearly separate vanilla code from our modifications, a special project folder is used, starting with the symbol `_`: `_MalinovStation`.

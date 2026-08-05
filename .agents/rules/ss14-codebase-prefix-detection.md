@@ -31,13 +31,28 @@ Collect the concrete signals before touching vanilla files:
 If none of these signals match — for example the working tree is a different SS14 fork entirely —
 stop and re-run the detection instead of assuming `Malinov`/`_MalinovStation` apply.
 
-## 3. Prefix, folder and marker
+## 3. Forking this repository (template rule)
+
+This repository is a fork parent: downstream projects fork it and inherit vanilla + `_MalinovStation`
+as-is. When a child fork is created from this repository, do not rework this file for the child.
+
+Instead, in the child fork:
+
+1. Keep the `Malinov` row and all detection sections unchanged — inherited content stays `Malinov`.
+2. Add one new row to the table with the child's own prefix, project folder (`_<Child>`), and markers.
+3. Apply the detection logic per row: the child's own fork folder (`_<Child>`) and markers take
+   priority over inherited `Malinov` content, but never mix the two families in one task.
+
+In this repository (malinov-station) only the `Malinov` row applies. Never assume another fork's
+markers or prefix apply here, even if the working tree contains inherited fork content.
+
+## 4. Prefix, folder and marker
 
 | Prefix | Project folder | Single-line marker | Block markers |
 | --- | --- | --- | --- |
 | `Malinov` | `_MalinovStation` | `Malinov-Edit` | `Malinov edit start/end`, `Malinov added start/end` |
 
-## 4. How to apply a marker in a specific file
+## 5. How to apply a marker in a specific file
 
 1. Use the `Malinov` prefix, the `_MalinovStation` project folder and the markers above.
 2. Do not change the marker text, just adapt the comment syntax to the file language.
@@ -50,7 +65,7 @@ Select the comment syntax to match the file language:
 - YAML, FTL, Python, Shell: `# Malinov-Edit`, `# Malinov edit start - reason`
 - XML, HTML: `<!-- Malinov-Edit -->`, only if comments in this format are allowed and really needed
 
-## 5. How does this affect the structure of edits?
+## 6. How does this affect the structure of edits?
 
 1. Place new forked files under `_MalinovStation` (for example `Content.Shared/_MalinovStation/...`,
    `Resources/Prototypes/_MalinovStation/...`, `Resources/Locale/ru-RU/_MalinovStation/...`).
