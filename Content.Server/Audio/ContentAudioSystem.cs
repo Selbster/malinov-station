@@ -101,7 +101,7 @@ public sealed partial class ContentAudioSystem : SharedContentAudioSystem
             return [];
         }
 
-        var playlist = MalinovSoundCollectionHelper.GetMergedFiles(_prototypeManager, _lobbyMusicCollection, MalinovSoundCollections.LobbyMusic)
+        var playlist = MalinovSoundCollectionHelper.GetMergedFiles(ProtoMan, _lobbyMusicCollection, MalinovSoundCollections.LobbyMusic)
                                             .Select(x => x.ToString())
                                             .ToArray();
         _robustRandom.Shuffle(playlist);
