@@ -52,6 +52,11 @@ namespace Content.Server.Database
         public DbSet<CustomVoteLog> CustomVoteLog { get; set; } = null!;
         public DbSet<CustomVoteLogOption> CustomVoteLogOption { get; set; } = null!;
 
+        // Malinov added start - AI Players persistence (see _MalinovStation/Model.AiPlayerPersistence.cs)
+        public DbSet<AiPlayerPersonality> AiPlayerPersonality { get; set; } = null!;
+        public DbSet<AiPlayerMemoryRecord> AiPlayerMemoryRecord { get; set; } = null!;
+        // Malinov added end
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Preference>()
@@ -299,6 +304,8 @@ namespace Content.Server.Database
 
             ModelBan.OnModelCreating(modelBuilder);
             ModelCustomVoteLog.OnModelCreating(modelBuilder);
+            // Malinov-Edit: AI Players persistence
+            ModelAiPlayerPersistence.OnModelCreating(modelBuilder);
         }
 
         public virtual IQueryable<AdminLog> SearchLogs(IQueryable<AdminLog> query, string searchText)

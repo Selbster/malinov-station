@@ -1,0 +1,136 @@
+# Root behaviour for AI players.
+# Priority order: immediate self-preservation (Flee) first, then survival (Food/Thirst, reusing the vanilla
+# FoodCompound gated on the mob's own SatiationComponent), then an explicit ForcedMoveCompound (Milestone
+# 5's MoveTo action), then altruism (HelpInjured), then professional work (RepairMachine, Milestone 11 - a
+# professional AI attempts a real repair before flopping down to rest, unless Fatigue is already past
+# RestCompound's own 0.75 threshold), then self-care (Rest, driven by NeedsComponent.Fatigue), falling back
+# to wandering (IdleCompound) when nothing is urgent.
+- type: htnCompound
+  id: AIPlayerRootCompound
+  branches:
+    - tasks:
+        - !type:HTNCompoundTask
+          task: FleeCompound
+    - tasks:
+        - !type:HTNCompoundTask
+          task: FoodCompound
+    - tasks:
+        - !type:HTNCompoundTask
+          task: ForcedMoveCompound
+    - tasks:
+        - !type:HTNCompoundTask
+          task: HelpInjuredCompound
+    - tasks:
+        - !type:HTNCompoundTask
+          task: RepairMachineCompound
+    - tasks:
+        - !type:HTNCompoundTask
+          task: RestCompound
+    - tasks:
+        - !type:HTNCompoundTask
+          task: IdleCompound
+
+# Milestone 7: reacts to being attacked (DangerComponent.ThreatSource, set by DangerSystem on
+# DamageChangedEvent). Picks a point away from the threat and walks there; HTN's constant replanning keeps
+# re-picking a fresh point away from the threat's current position for as long as it stays active.
+- type: htnCompound
+  id: FleeCompound
+  branches:
+    - tasks:
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:DangerPrecondition
+          operator: !type:PickFleeDestinationOperator
+            fleeDistance: 8
+
+        - !type:HTNPrimitiveTask
+          operator: !type:MoveToOperator
+            pathfindInPlanning: false
+
+# Milestone 7: reacts to seeing another character incapacitated nearby (DangerComponent.NearbyInjured, set
+# by DangerSystem's perception scan). Walks over and says a concerned line (Milestone 5's Talk action).
+- type: htnCompound
+  id: HelpInjuredCompound
+  branches:
+    - tasks:
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:HelpInjuredPrecondition
+          operator: !type:PickInjuredTargetOperator
+
+        - !type:HTNPrimitiveTask
+          operator: !type:MoveToOperator
+            pathfindInPlanning: false
+            rangeKey: InteractRange
+
+        - !type:HTNPrimitiveTask
+          operator: !type:ComfortInjuredOperator
+
+# Milestone 5's MoveTo action writes ForcedDestination onto the blackboard; this branch reacts to it and
+# walks there. MoveToOperator removes the key on arrival by default, so this branch naturally stops being
+# selected once the AI player arrives - no cleanup code needed here.
+- type: htnCompound
+  id: ForcedMoveCompound
+  branches:
+    - tasks:
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:KeyExistsPrecondition
+              key: ForcedDestination
+          operator: !type:MoveToOperator
+            targetKey: ForcedDestination
+            rangeKey: MovementRange
+
+# Moves somewhere out of the way and rests until Fatigue drops back down.
+- type: htnCompound
+  id: RestCompound
+  branches:
+    - tasks:
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:FatiguePrecondition
+              above: 0.75
+          operator: !type:PickAccessibleOperator
+            rangeKey: IdleRange
+
+        - !type:HTNPrimitiveTask
+          operator: !type:MoveToOperator
+            pathfindInPlanning: false
+
+        - !type:HTNPrimitiveTask
+          operator: !type:RestOperator
+            recoveryPerSecond: 0.05
+            stopBelow: 0.3
+
+# Milestone 11's first professional/job-specific goal: walk to a nearby damaged machine spotted by
+# RepairOpportunitySystem and fix it with a welding tool. Both preconditions must hold: an eligible machine
+# is in sight AND the AI's job may pursue this goal (RepairOpportunityPrecondition), and a Welding-quality
+# tool is reachable somewhere - a hand, an equipped slot, or inside a storage item (backpack/belt/pocket)
+# equipped in one of those slots (HasToolQualityPrecondition). ActivateHeldToolOperator does the matching
+# fetch (if it wasn't already in a hand) + switches to whichever hand ends up holding it + lights it if
+# needed (a freshly-held welder starts unlit, same as for a real player). The last step reuses vanilla
+# InteractWithOperator, which drives the same InteractUsingEvent -> RepairableSystem pipeline a real player's
+# click would.
+- type: htnCompound
+  id: RepairMachineCompound
+  branches:
+    - tasks:
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:RepairOpportunityPrecondition
+            - !type:HasToolQualityPrecondition
+              quality: Welding
+          operator: !type:PickRepairTargetOperator
+
+        - !type:HTNPrimitiveTask
+          operator: !type:MoveToOperator
+            pathfindInPlanning: false
+            rangeKey: InteractRange
+
+        - !type:HTNPrimitiveTask
+          operator: !type:ActivateHeldToolOperator
+            quality: Welding
+
+        - !type:HTNPrimitiveTask
+          operator: !type:InteractWithOperator
+            targetKey: RepairTarget

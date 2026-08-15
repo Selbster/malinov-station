@@ -436,6 +436,120 @@ namespace Content.Server.Database.Migrations.Sqlite
                     b.ToTable("admin_watchlists", (string)null);
                 });
 
+            modelBuilder.Entity("Content.Server.Database.AiPlayerMemoryRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("ai_player_memory_record_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("content");
+
+                    b.Property<float>("EmotionalWeight")
+                        .HasColumnType("REAL")
+                        .HasColumnName("emotional_weight");
+
+                    b.Property<float>("Importance")
+                        .HasColumnType("REAL")
+                        .HasColumnName("importance");
+
+                    b.Property<string>("PersistentId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("persistent_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("source");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("timestamp");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ai_player_memory_record");
+
+                    b.HasIndex("PersistentId");
+
+                    b.ToTable("ai_player_memory_record", (string)null);
+                });
+
+            modelBuilder.Entity("Content.Server.Database.AiPlayerPersonality", b =>
+                {
+                    b.Property<string>("PersistentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("persistent_id");
+
+                    b.Property<float>("Aggression")
+                        .HasColumnType("REAL")
+                        .HasColumnName("aggression");
+
+                    b.Property<float>("AuthorityRespect")
+                        .HasColumnType("REAL")
+                        .HasColumnName("authority_respect");
+
+                    b.Property<float>("Courage")
+                        .HasColumnType("REAL")
+                        .HasColumnName("courage");
+
+                    b.Property<float>("Curiosity")
+                        .HasColumnType("REAL")
+                        .HasColumnName("curiosity");
+
+                    b.Property<float>("Empathy")
+                        .HasColumnType("REAL")
+                        .HasColumnName("empathy");
+
+                    b.Property<float>("Greed")
+                        .HasColumnType("REAL")
+                        .HasColumnName("greed");
+
+                    b.Property<float>("Honesty")
+                        .HasColumnType("REAL")
+                        .HasColumnName("honesty");
+
+                    b.Property<float>("Impulsiveness")
+                        .HasColumnType("REAL")
+                        .HasColumnName("impulsiveness");
+
+                    b.Property<DateTime>("LastSavedAt")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("last_saved_at");
+
+                    b.Property<float>("Laziness")
+                        .HasColumnType("REAL")
+                        .HasColumnName("laziness");
+
+                    b.Property<float>("Loyalty")
+                        .HasColumnType("REAL")
+                        .HasColumnName("loyalty");
+
+                    b.Property<float>("Professionalism")
+                        .HasColumnType("REAL")
+                        .HasColumnName("professionalism");
+
+                    b.Property<float>("RiskTolerance")
+                        .HasColumnType("REAL")
+                        .HasColumnName("risk_tolerance");
+
+                    b.Property<float>("Sociability")
+                        .HasColumnType("REAL")
+                        .HasColumnName("sociability");
+
+                    b.HasKey("PersistentId")
+                        .HasName("PK_ai_player_personality");
+
+                    b.ToTable("ai_player_personality", (string)null);
+                });
+
             modelBuilder.Entity("Content.Server.Database.Antag", b =>
                 {
                     b.Property<int>("Id")
@@ -1649,6 +1763,18 @@ namespace Content.Server.Database.Migrations.Sqlite
                     b.Navigation("Round");
                 });
 
+            modelBuilder.Entity("Content.Server.Database.AiPlayerMemoryRecord", b =>
+                {
+                    b.HasOne("Content.Server.Database.AiPlayerPersonality", "Personality")
+                        .WithMany("Memories")
+                        .HasForeignKey("PersistentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ai_player_memory_record_ai_player_personality_personality_temp_id");
+
+                    b.Navigation("Personality");
+                });
+
             modelBuilder.Entity("Content.Server.Database.Antag", b =>
                 {
                     b.HasOne("Content.Server.Database.Profile", "Profile")
@@ -2044,6 +2170,11 @@ namespace Content.Server.Database.Migrations.Sqlite
                     b.Navigation("Admins");
 
                     b.Navigation("Flags");
+                });
+
+            modelBuilder.Entity("Content.Server.Database.AiPlayerPersonality", b =>
+                {
+                    b.Navigation("Memories");
                 });
 
             modelBuilder.Entity("Content.Server.Database.Ban", b =>

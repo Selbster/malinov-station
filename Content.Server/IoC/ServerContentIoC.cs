@@ -83,5 +83,9 @@ internal static class ServerContentIoC
         deps.Register<ServerFeedbackManager>();
         deps.Register<ISharedFeedbackManager, ServerFeedbackManager>();
         deps.Register<WhitelistManager>();
+
+        // Malinov added start - AI Players LLM gateway (Content.Server/_MalinovStation/AIPlayers/LLM)
+        deps.Register<Content.Server._MalinovStation.AIPlayers.LLM.ILlmClient, Content.Server._MalinovStation.AIPlayers.LLM.HttpLlmClient>();
+        // Malinov added end
     }
 }

@@ -1,0 +1,11 @@
+# Milestone 11: data-driven professional/job-specific goals, separate from the fixed goal vocabulary in
+# AIGoals.cs so new job-specific work can be added without touching C# (spec section 4's original
+# Data/GoalPrototype.cs intent). See AiProfessionalGoalPrototype.cs and RepairMachineCompound in htn.yml.
+
+- type: aiProfessionalGoal
+  id: RepairMachine
+  htnCompound: RepairMachineCompound
+  basePriority: 0.55
+  jobs:
+    - StationEngineer
+    - ChiefEngineer

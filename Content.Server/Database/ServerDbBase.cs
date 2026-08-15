@@ -1695,6 +1695,98 @@ INSERT INTO player_round (players_id, rounds_id) VALUES ({players[player]}, {id}
 
         #endregion
 
+        // Malinov added start - AI Players persistence (Milestone 9)
+        #region AI Players Persistence
+
+        public async Task<AiPlayerPersistedData?> GetAiPlayerDataAsync(string persistentId, CancellationToken cancel = default)
+        {
+            await using var db = await GetDb(cancel);
+
+            var personality = await db.DbContext.AiPlayerPersonality
+                .Include(p => p.Memories)
+                .AsSplitQuery()
+                .SingleOrDefaultAsync(p => p.PersistentId == persistentId, cancel);
+
+            if (personality is null)
+                return null;
+
+            return new AiPlayerPersistedData(
+                personality.PersistentId,
+                personality.Sociability,
+                personality.Courage,
+                personality.Curiosity,
+                personality.Laziness,
+                personality.Greed,
+                personality.Aggression,
+                personality.Loyalty,
+                personality.RiskTolerance,
+                personality.AuthorityRespect,
+                personality.Professionalism,
+                personality.Empathy,
+                personality.Honesty,
+                personality.Impulsiveness,
+                personality.Memories
+                    .OrderByDescending(m => m.Importance)
+                    .Select(m => new AiPlayerPersistedMemory(m.Timestamp, m.Importance, m.EmotionalWeight, m.Source, m.Content))
+                    .ToList());
+        }
+
+        public async Task SaveAiPlayerDataAsync(AiPlayerPersistedData data, CancellationToken cancel = default)
+        {
+            await using var db = await GetDb(cancel);
+
+            var existing = await db.DbContext.AiPlayerPersonality
+                .Include(p => p.Memories)
+                .AsSplitQuery()
+                .SingleOrDefaultAsync(p => p.PersistentId == data.PersistentId, cancel);
+
+            if (existing is null)
+            {
+                existing = new AiPlayerPersonality { PersistentId = data.PersistentId };
+                db.DbContext.AiPlayerPersonality.Add(existing);
+            }
+            else
+            {
+                // Replace memories wholesale rather than diffing - simplest correct approach for a small,
+                // capped-length list that's always saved in full.
+                db.DbContext.AiPlayerMemoryRecord.RemoveRange(existing.Memories);
+                existing.Memories.Clear();
+            }
+
+            existing.Sociability = data.Sociability;
+            existing.Courage = data.Courage;
+            existing.Curiosity = data.Curiosity;
+            existing.Laziness = data.Laziness;
+            existing.Greed = data.Greed;
+            existing.Aggression = data.Aggression;
+            existing.Loyalty = data.Loyalty;
+            existing.RiskTolerance = data.RiskTolerance;
+            existing.AuthorityRespect = data.AuthorityRespect;
+            existing.Professionalism = data.Professionalism;
+            existing.Empathy = data.Empathy;
+            existing.Honesty = data.Honesty;
+            existing.Impulsiveness = data.Impulsiveness;
+            existing.LastSavedAt = DateTime.UtcNow;
+
+            foreach (var memory in data.Memories)
+            {
+                existing.Memories.Add(new AiPlayerMemoryRecord
+                {
+                    PersistentId = data.PersistentId,
+                    Timestamp = memory.Timestamp,
+                    Importance = memory.Importance,
+                    EmotionalWeight = memory.EmotionalWeight,
+                    Source = memory.Source,
+                    Content = memory.Content,
+                });
+            }
+
+            await db.DbContext.SaveChangesAsync(cancel);
+        }
+
+        #endregion
+        // Malinov added end
+
         public abstract Task SendNotification(DatabaseNotification notification);
 
         // SQLite returns DateTime as Kind=Unspecified, Npgsql actually knows for sure it's Kind=Utc.

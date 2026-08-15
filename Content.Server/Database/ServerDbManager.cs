@@ -369,6 +369,24 @@ namespace Content.Server.Database
         Task CustomVoteLogCancel(int voteId);
 
         #endregion
+
+        // Malinov added start - AI Players persistence (Milestone 9)
+        #region AI Players Persistence
+
+        /// <summary>
+        /// Loads a previously saved AI player's personality and memories, or null if nothing is saved
+        /// under this PersistentId yet.
+        /// </summary>
+        Task<AiPlayerPersistedData?> GetAiPlayerDataAsync(string persistentId, CancellationToken cancel = default);
+
+        /// <summary>
+        /// Saves (upserting) an AI player's personality and memories under its PersistentId, replacing
+        /// whatever was saved before.
+        /// </summary>
+        Task SaveAiPlayerDataAsync(AiPlayerPersistedData data, CancellationToken cancel = default);
+
+        #endregion
+        // Malinov added end
     }
 
     /// <summary>
@@ -1058,6 +1076,20 @@ namespace Content.Server.Database
             DbWriteOpsMetric.Inc();
             return RunDbCommand(() => _db.CustomVoteLogCancel(voteId));
         }
+
+        // Malinov added start - AI Players persistence (Milestone 9)
+        public Task<AiPlayerPersistedData?> GetAiPlayerDataAsync(string persistentId, CancellationToken cancel = default)
+        {
+            DbReadOpsMetric.Inc();
+            return RunDbCommand(() => _db.GetAiPlayerDataAsync(persistentId, cancel));
+        }
+
+        public Task SaveAiPlayerDataAsync(AiPlayerPersistedData data, CancellationToken cancel = default)
+        {
+            DbWriteOpsMetric.Inc();
+            return RunDbCommand(() => _db.SaveAiPlayerDataAsync(data, cancel));
+        }
+        // Malinov added end
 
         private async void HandleDatabaseNotification(DatabaseNotification notification)
         {

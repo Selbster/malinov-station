@@ -130,6 +130,9 @@ namespace Content.Client.Entry
             _prototypeManager.RegisterIgnore("ghostRoleRaffleDecider");
             _prototypeManager.RegisterIgnore("codewordGenerator");
             _prototypeManager.RegisterIgnore("codewordFaction");
+            // Malinov added start: AiProfessionalGoalPrototype (Content.Server._MalinovStation.AIPlayers.Prototypes) is server-only, like htnCompound above.
+            _prototypeManager.RegisterIgnore("aiProfessionalGoal");
+            // Malinov added end
 
             _componentFactory.GenerateNetIds();
             _adminManager.Initialize();

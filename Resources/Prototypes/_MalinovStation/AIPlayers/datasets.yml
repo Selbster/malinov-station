@@ -1,0 +1,19 @@
+# Fallback lines for SocialSystem's conversation exchange when the LLM is disabled/unavailable/fails.
+- type: localizedDataset
+  id: AIPlayerGreetingLines
+  values:
+    prefix: ai-player-greeting-
+    count: 5
+
+- type: localizedDataset
+  id: AIPlayerReplyLines
+  values:
+    prefix: ai-player-reply-
+    count: 5
+
+# Milestone 7: said via ComfortInjuredOperator when checking on someone who is incapacitated.
+- type: localizedDataset
+  id: AIPlayerComfortLines
+  values:
+    prefix: ai-player-comfort-
+    count: 4
