@@ -1,12 +1,12 @@
 ---
 name: ss14-virtual-controller-api
-description: Gives a practical catalog of APIs around the VirtualController in Space Station 14: selection of hooks and order, physics mutators, relay/movement/climb scripts, prediction constraints and safe application patterns.
+description: Gives a practical catalog of APIs around the VirtualController in Space Station 14: selection of hooks and order, physics mutators, relay/movement/climb scripts, prediction constraints and safe application patterns. Use it when you need to choose the right VirtualController API and avoid physics/prediction regressions.
 ---
 
 # VirtualController: API Practice
 
 Use this skill when you need to quickly choose the correct method and avoid getting physics/prediction regression 😎
-Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
+Freshness reference: `git blame` of the anchor line and the last upstream sync point of the fork. Age is a red flag, not a calendar rule - re-verify the catalog dates before relying on them.
 
 ## What to download
 
@@ -14,16 +14,29 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 2. `references/rejected-snippets.md` - risky places and misuse practices.
 3. `references/docs-context.md` - how to read docs without conflicting with the code.
 
+## Source of truth
+
+1. The codebase is the primary source of truth: `VirtualController`, `SharedPhysicsSystem`, `SharedMoverController`, `ClimbSystem`.
+2. Documentation is a secondary layer for terms, intent and diagnostics (see `references/docs-context.md`).
+3. On conflict between docs and runtime code, always follow the code.
+
+## Mental model
+
+1. A `VirtualController` is an `EntitySystem` that receives `UpdateBeforeSolve`/`UpdateAfterSolve` on every physics substep.
+2. `frameTime` is the duration of one substep, not the whole tick; `prediction` tells whether a predict re-simulation is running on the client.
+3. Order between controllers is fixed once in `Initialize()` via `UpdatesBefore`/`UpdatesAfter` - before `base.Initialize()`.
+4. See `ss14-virtual-controller-core` for the full architecture and lifecycle.
+
 ## Quick API selection
 
 1. You need a controller for the physics step: inherit from `VirtualController` and implement `UpdateBeforeSolve`/`UpdateAfterSolve`.
-2. You need order between controllers: add `UpdatesBefore`/`UpdatesAfter` to `base.Initialize()`.
+2. You need order between controllers: add `UpdatesBefore`/`UpdatesAfter` before calling `base.Initialize()`.
 3. You need control over velocity/impulse: use `SetLinearVelocity`, `ApplyLinearImpulse`, `SetBodyStatus`, damping setters.
 4. You need an entity management relay: use `SetRelay` to create it, and `RemComp<RelayInputMoverComponent>(uid)` to remove it safely (the system handles cleanup via `ComponentShutdown`).
 5. You need manual mobility mathematics: `Friction`, `Accelerate`, `GetWishDir`/`SetWishDir`.
 6. You need a container/movement link through “climbing out”: `ForciblySetClimbing`.
-7. We need a safe climb pipeline: `CanVault` -> `TryClimb`.
-8. We need predicted control on the client: `UpdateIsPredictedEvent` handlers.
+7. For a safe climb pipeline: `CanVault` -> `TryClimb`.
+8. For predicted control on the client: `UpdateIsPredictedEvent` handlers.
 
 ## API by group
 
@@ -38,7 +51,7 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 
 1. `UpdatesBefore.Add(typeof(...))` - this controller goes before the target.
 2. `UpdatesAfter.Add(typeof(...))` - this controller comes later than the target.
-3. Both lists must be configured to `base.Initialize()`.
+3. Both lists must be configured before `base.Initialize()`.
 
 ### 3) Physics mutators
 
@@ -65,7 +78,7 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 
 1. `CanVault(...)` — climb/vault pre-validation.
 2. `TryClimb(...)` — launching the climb procedure with do-after and checks.
-3. `ForciblySetClimbing(...)` - forced safe exit to the surface.
+3. `ForciblySetClimbing(...)` - forced safe exit to the surface (implementation not recently re-verified, verify before reuse).
 
 ### 7) Conveyor and Pull practical points
 
@@ -80,14 +93,14 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 
 ## Patterns
 
-1. Set up the controller order (`UpdatesBefore/After`) to `base.Initialize()`.
+1. Set up the controller order (`UpdatesBefore/After`) before `base.Initialize()`; see `ss14-virtual-controller-core` for the ordering graph and substep cycle.
 2. In `UpdateBeforeSolve` filter unsuitable bodies (`prediction`, `body.Predict`, static/sleeping cases).
 3. For `KinematicController` use helper friction + explicit setting of speeds.
 4. For relay scripts, use `SetRelay` to create the link and `RemComp<RelayInputMoverComponent>(uid)` (or `RemCompDeferred`) to tear it down safely.
 5. For gravity/space pull scenarios, take into account the pair impulse if required by the mechanics.
 6. For climb-flow, always do `CanVault` before `TryClimb`.
 7. For ejection from a container/cryo/scanner, use `ForciblySetClimbing` as a post-action step.
-8. For conveyor logic, calculate the direction separately, apply the result after the parallel part.
+8. For conveyor logic, calculate the direction separately, apply the result after the parallel part; see `ss14-virtual-controller-core` for the conveyor substep pipeline.
 9. For client prediction, adjust `IsPredicted/BlockPrediction` through the appropriate events.
 10. Use `SetBodyStatus` only in clearly justified special mechanics.
 11. For APIs that are called frequently, cache queries and avoid unnecessary allocations.
@@ -101,7 +114,7 @@ Freshness reference: `git log`/`blame` with cutoff `2024-02-20`.
 4. In the predicted controller, use nondeterministic logic without protections.
 5. Copy TODO-heavy pieces from pull/contact/solver as “best practice”.
 6. Rely on the empty client conveyor class as the source of behavior.
-7. Use pre-cutoff legacy fragments as a reference.
+7. Use legacy fragments older than the last re-verified anchor as a reference.
 8. Mix transform shifts and impulses without an explicit order model.
 9. Skip the `CanVault` checks and immediately force the climb-flow.
 10. Ignore update prediction events in relay/pullable scenarios.
@@ -126,6 +139,7 @@ public sealed class ExampleController : VirtualController
         // There is only deterministic pre-solver logic here.
     }
 }
+// Verify the UpdateBeforeSolve contract against the fork's current code before reuse.
 ```
 
 ### 2) Explicit ordering API
@@ -138,6 +152,7 @@ public override void Initialize()
     // Important: we set the order before base.Initialize().
     base.Initialize();
 }
+// Verify UpdatesBefore/UpdatesAfter semantics against the fork's current code before reuse.
 ```
 
 ### 3) Relay lifecycle via API, not manually
@@ -149,6 +164,7 @@ _mover.SetRelay(pilotUid, proxyUid);
 // We remove the relay correctly; SharedMoverController cleans up the target
 // component and prediction state automatically on ComponentShutdown.
 RemComp<RelayInputMoverComponent>(pilotUid);
+// Verify SetRelay/RemComp<RelayInputMoverComponent> against the fork's current code before reuse.
 ```
 
 ### 4) Movement math helper: friction + accelerate
@@ -161,6 +177,7 @@ _mover.Friction(minimumFrictionSpeed, frameTime, friction, ref velocity);
 SharedMoverController.Accelerate(ref velocity, targetDir, accel, frameTime);
 
 PhysicsSystem.SetLinearVelocity(uid, velocity, body: body);
+// Verify Friction/Accelerate/SetLinearVelocity against the fork's current code before reuse.
 ```
 
 ### 5) Physics mutators in pull mechanics
@@ -169,6 +186,7 @@ PhysicsSystem.SetLinearVelocity(uid, velocity, body: body);
 var impulse = accel * physics.Mass * frameTime;
 PhysicsSystem.WakeBody(targetUid, body: physics);
 PhysicsSystem.ApplyLinearImpulse(targetUid, impulse, body: physics);
+// Verify ApplyLinearImpulse against the fork's current code before reuse.
 ```
 
 ### 6) Safe climb pipeline
@@ -178,8 +196,9 @@ if (_climb.CanVault(climbable, user, target, out _) &&
     _climb.TryClimb(user, target, climbableUid, out var doAfter, climbable))
 {
     // Climb started normally, doAfter is stored for continuation.
-    component.DoAfterId = doAfter;
+    component.DoAfter = doAfter;
 }
+// Verify CanVault/TryClimb against the fork's current code before reuse.
 ```
 
 ### 7) Container eject -> ForciblySetClimbing
@@ -189,6 +208,7 @@ _container.Remove(containedUid, bodyContainer);
 
 // After extraction, we transfer the entity to the correct “outside” state.
 _climb.ForciblySetClimbing(containedUid, containerOwnerUid);
+// Verify ForciblySetClimbing against the fork's current code before reuse.
 ```
 
 ### 8) Prediction hook for pullable on the client
@@ -201,6 +221,7 @@ private void OnUpdatePullablePredicted(Entity<PullableComponent> ent, ref Update
     else if (ent.Comp.Puller != null)
         args.BlockPrediction = true;
 }
+// Verify UpdateIsPredictedEvent semantics against the fork's current code before reuse.
 ```
 
 ### 9) Conveyor + wish direction
@@ -213,7 +234,19 @@ if (Vector2.Dot(wishDir, targetDir) > 0f)
     targetDir += wishDir;
 
 SharedMoverController.Accelerate(ref velocity, targetDir, 20f, frameTime);
+// Verify GetWishDir/Accelerate against the fork's current code before reuse.
 ```
+
+## Dimension checklist
+
+| Dimension | Coverage |
+|---|---|
+| Client prediction gating | Covered: `UpdateIsPredictedEvent` hooks, `prediction`/`body.Predict` early-exits |
+| Server/Shared/Client split | Covered: catalog `Layer` column + relay/prediction hooks |
+| Event ordering | Covered: `UpdatesBefore/UpdatesAfter` before `base.Initialize()` |
+| Component lifecycle | Covered: relay teardown via `ComponentShutdown` |
+| Hot-path allocations | Covered: prefer cached queries + system mutators over per-step component surgery |
+| PVS visibility | N/A: controllers operate on physics state, not on PVS-visible entities |
 
 ## Rule of application
 
@@ -223,3 +256,12 @@ SharedMoverController.Accelerate(ref velocity, targetDir, 20f, frameTime);
 4. If there is a discrepancy between the docs and the code, always fix the decision in favor of the code.
 
 Keep the API layer predictable: the right method and the right lifecycle are more important than a “short” call :)
+
+## Extension rule
+
+1. Add a new method to `fresh-pattern-catalog.md` with `git blame -L` of the anchor line (caller site for usage-case rows, method definition for method rows).
+2. If the method or its usage contains TODO/`temporary` markers, move it to `rejected-snippets.md` instead.
+3. Every new example must carry a `// Verify ... before reuse` marker.
+4. If a fact already lives in `ss14-virtual-controller-core`, add a pointer there instead of duplicating the text.
+
+Verified against code state: 2026-08-16

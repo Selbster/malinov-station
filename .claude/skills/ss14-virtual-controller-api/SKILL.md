@@ -1,6 +1,6 @@
 ---
 name: ss14-virtual-controller-api
-description: Gives a practical catalog of APIs around the VirtualController in Space Station 14: selection of hooks and order, physics mutators, relay/movement/climb scripts, prediction constraints and safe application patterns.
+description: Gives a practical catalog of APIs around the VirtualController in Space Station 14: selection of hooks and order, physics mutators, relay/movement/climb scripts, prediction constraints and safe application patterns. Use it when you need to choose the right VirtualController API and avoid physics/prediction regressions.
 ---
 
 # Claude Bridge
