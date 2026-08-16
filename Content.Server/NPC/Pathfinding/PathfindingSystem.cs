@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Content.Server.Administration.Managers;
 using Content.Server.Destructible;
+using Content.Server.NPC.Components;
 using Content.Server.NPC.Systems;
 using Content.Shared.Access.Components;
 using Content.Shared.Administration;
@@ -425,7 +426,34 @@ namespace Content.Server.NPC.Pathfinding
                 (layer, mask) = _physics.GetHardCollision(entity, fixtures);
             }
 
-            return new AStarPathRequest(start, end, flags, range, layer, mask, cancelToken);
+            return new AStarPathRequest(start, end, flags, range, layer, mask, cancelToken, GetDeniedTiles(entity));
+        }
+
+        /// <summary>
+        /// Snapshots this entity's currently-remembered access denials (<see cref="NPCDeniedAccessComponent"/>)
+        /// into tile keys GetTileCost can check without touching the entity manager - pathfinding runs across
+        /// worker threads, so this has to be resolved up front on the main thread instead.
+        /// </summary>
+        private HashSet<(EntityUid, Vector2i, byte)>? GetDeniedTiles(EntityUid entity)
+        {
+            if (!TryComp<NPCDeniedAccessComponent>(entity, out var denied) || denied.DeniedDoors.Count == 0)
+                return null;
+
+            HashSet<(EntityUid, Vector2i, byte)>? tiles = null;
+
+            foreach (var (door, expiresAt) in denied.DeniedDoors)
+            {
+                if (expiresAt < _timing.CurTime || Deleted(door))
+                    continue;
+
+                if (GetPoly(Transform(door).Coordinates) is not { } poly)
+                    continue;
+
+                tiles ??= new HashSet<(EntityUid, Vector2i, byte)>();
+                tiles.Add((poly.GraphUid, poly.ChunkOrigin, poly.TileIndex));
+            }
+
+            return tiles;
         }
 
         public PathFlags GetFlags(EntityUid uid)
@@ -460,6 +488,16 @@ namespace Content.Server.NPC.Pathfinding
             if (blackboard.TryGetValue<bool>(NPCBlackboard.NavInteract, out var interact, EntityManager) && interact)
             {
                 flags |= PathFlags.Interact;
+            }
+
+            if (blackboard.TryGetValue<bool>(NPCBlackboard.NavAccessInteract, out var accessInteract, EntityManager) && accessInteract)
+            {
+                flags |= PathFlags.AccessInteract;
+            }
+
+            if (blackboard.TryGetValue<bool>(NPCBlackboard.NavGentleApproach, out var gentleApproach, EntityManager) && gentleApproach)
+            {
+                flags |= PathFlags.GentleApproach;
             }
 
             return flags;

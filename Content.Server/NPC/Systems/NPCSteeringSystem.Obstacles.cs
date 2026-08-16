@@ -38,6 +38,13 @@ public sealed partial class NPCSteeringSystem
     [Dependency] private EntityQuery<ClimbableComponent> _climbableQuery = default!;
     [Dependency] private EntityQuery<DestructibleComponent> _destructibleQuery = default!;
 
+    /// <summary>
+    /// How long a denied door is remembered for (see <see cref="NPCDeniedAccessComponent"/>) before pathing
+    /// is willing to optimistically try it again - long enough to break an immediate replan loop, short
+    /// enough to recover if access legitimately changes later.
+    /// </summary>
+    private static readonly TimeSpan DeniedAccessMemory = TimeSpan.FromSeconds(90);
+
     private SteeringObstacleStatus TryHandleFlags(EntityUid uid, NPCSteeringComponent component, PathPoly poly)
     {
         DebugTools.Assert(!poly.Data.IsFreeSpace);
@@ -101,6 +108,36 @@ public sealed partial class NPCSteeringSystem
                 }
 
                 // If we get to here then didn't succeed for reasons.
+            }
+
+            // Doors that require access: never force them open, only ever use one we're actually
+            // authorised for - the same per-door AccessReaderSystem check a player's own click would
+            // trigger. If we're not authorised, don't touch it and fall through to Prying/Smashing/Failed
+            // below rather than looping on a door that will never open for us.
+            if (isDoor && isAccessRequired && (component.Flags & PathFlags.AccessInteract) != 0x0)
+            {
+                foreach (var ent in obstacleEnts)
+                {
+                    if (!_doorQuery.TryGetComponent(ent, out var door))
+                        continue;
+
+                    if (door.BumpOpen || door.State == DoorState.Opening)
+                        continue;
+
+                    if (!_accessReader.IsAllowed(uid, ent))
+                    {
+                        // Remember this for future path requests (see PathfindingSystem.GetDeniedTiles) so
+                        // we stop optimistically re-routing back through a door we've confirmed we can't
+                        // open, instead of replanning into the same dead end forever.
+                        EnsureComp<NPCDeniedAccessComponent>(uid).DeniedDoors[ent] = _timing.CurTime + DeniedAccessMemory;
+                        continue;
+                    }
+
+                    _interaction.InteractionActivate(uid, ent);
+                    return SteeringObstacleStatus.Continuing;
+                }
+
+                // Not authorised (or nothing usable) - fall through to Prying/Smashing/Failed below.
             }
 
             if ((component.Flags & PathFlags.Prying) != 0x0 && isDoor)

@@ -1,5 +1,6 @@
 using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server.Mind;
+using Content.Server.NPC;
 using Content.Server.NPC.HTN;
 using Content.Server.NPC.Systems;
 using Content.Server.Station.Systems;
@@ -88,6 +89,20 @@ public sealed partial class AIPlayerSystem : EntitySystem
 
         var htn = AddComp<HTNComponent>(mobUid);
         htn.RootTask = new HTNCompoundTask { Task = RootCompound };
+        // Without this the pathfinder treats every closed door as impassable (see
+        // PathfindingSystem.Common.cs / NPCSteeringSystem.Obstacles.cs), so AI players would never
+        // leave a sealed room like arrivals. Vanilla door-using NPCs (dragon, xenos, monkeys) all set
+        // this the same way via their prototype's blackboard.
+        htn.Blackboard.SetValue(NPCBlackboard.NavInteract, true);
+        // NavInteract alone only covers doors with no access requirement. Without this, every
+        // access-locked door (e.g. a department's own airlock) is a wall to the pathfinder even for a
+        // legitimately-badged AI player - see PathFlags.AccessInteract's doc comment for the real
+        // per-door access check this triggers at steering time.
+        htn.Blackboard.SetValue(NPCBlackboard.NavAccessInteract, true);
+        // Without this, collision avoidance treats every nearby closed door as a threat to steer away
+        // from - including the one the AI player is deliberately walking up to open - producing a visible
+        // approach/retreat "dance" right up until the door finally opens (see PathFlags.GentleApproach).
+        htn.Blackboard.SetValue(NPCBlackboard.NavGentleApproach, true);
         _npc.WakeNPC(mobUid, htn);
 
         return mobUid;

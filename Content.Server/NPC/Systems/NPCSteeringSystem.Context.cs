@@ -503,12 +503,14 @@ public sealed partial class NPCSteeringSystem
         int layer,
         int mask,
         TransformComponent xform,
-        Span<float> danger)
+        Span<float> danger,
+        PathFlags flags)
     {
         var objectRadius = 0.25f;
         var detectionRadius = MathF.Max(0.35f, agentRadius + objectRadius);
         var ents = _entSetPool.Get();
         _lookup.GetEntitiesInRange(uid, detectionRadius, ents, LookupFlags.Dynamic | LookupFlags.Static | LookupFlags.Approximate);
+        var ignoreDoors = (flags & PathFlags.GentleApproach) != 0x0;
 
         foreach (var ent in ents)
         {
@@ -518,7 +520,8 @@ public sealed partial class NPCSteeringSystem
                 !otherBody.CanCollide ||
                 otherBody.BodyType == BodyType.KinematicController ||
                 (mask & otherBody.CollisionLayer) == 0x0 &&
-                (layer & otherBody.CollisionMask) == 0x0)
+                (layer & otherBody.CollisionMask) == 0x0 ||
+                ignoreDoors && _doorQuery.HasComponent(ent))
             {
                 continue;
             }

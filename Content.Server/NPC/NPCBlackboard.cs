@@ -305,6 +305,19 @@ public sealed partial class NPCBlackboard : IEnumerable<KeyValuePair<string, obj
     public const string NavInteract = "NavInteract";
 
     /// <summary>
+    /// Can the NPC use its own held access (ID/PDA) to open doors that require it, verified per-door
+    /// against the real AccessReaderSystem check rather than forced open. See
+    /// <see cref="Content.Server.NPC.Pathfinding.PathFlags.AccessInteract"/>.
+    /// </summary>
+    public const string NavAccessInteract = "NavAccessInteract";
+
+    /// <summary>
+    /// Should the NPC ignore doors as collision-avoidance obstacles while approaching them. See
+    /// <see cref="Content.Server.NPC.Pathfinding.PathFlags.GentleApproach"/>.
+    /// </summary>
+    public const string NavGentleApproach = "NavGentleApproach";
+
+    /// <summary>
     /// Can the NPC pry open doors for steering.
     /// </summary>
     public const string NavPry = "NavPry";

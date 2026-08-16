@@ -59,9 +59,22 @@ public sealed partial class PathfindingSystem
             var isAccess = (end.Data.Flags & PathfindingBreadcrumbFlag.Access) != 0x0;
             var isClimb = (end.Data.Flags & PathfindingBreadcrumbFlag.Climb) != 0x0;
 
+            // A door we've already confirmed (via a failed real access check at steering time) this entity
+            // can't open - don't keep optimistically routing back through it every replan. See
+            // NPCDeniedAccessComponent / PathfindingSystem.GetDeniedTiles.
+            var isKnownDenied = request is AStarPathRequest { DeniedTiles: { } deniedTiles } &&
+                deniedTiles.Contains((end.GraphUid, end.ChunkOrigin, end.TileIndex));
+
             // TODO: Handling power + door prying
             // Door we should be able to open
             if (isDoor && !isAccess && (request.Flags & PathFlags.Interact) != 0x0)
+            {
+                modifier += 0.5f;
+            }
+            // Door that requires access - optimistic at planning time, since a single flag can't encode
+            // per-door authorisation; the real per-door AccessReaderSystem check happens at steering time
+            // (NPCSteeringSystem.Obstacles.cs) before it's actually opened.
+            else if (isDoor && isAccess && !isKnownDenied && (request.Flags & PathFlags.AccessInteract) != 0x0)
             {
                 modifier += 0.5f;
             }

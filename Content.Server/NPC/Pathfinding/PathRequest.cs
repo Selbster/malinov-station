@@ -57,6 +57,14 @@ public sealed class AStarPathRequest : PathRequest
     /// </summary>
     public float Distance;
 
+    /// <summary>
+    /// Tile keys (GraphUid/ChunkOrigin/TileIndex) to treat as impassable regardless of flags, even though
+    /// they'd otherwise be allowed - doors this entity is known to have been denied real access to
+    /// recently. Snapshotted up front since pathfinding runs across worker threads (see
+    /// PathfindingSystem.GetDeniedTiles), so it can't safely be resolved from the entity manager mid-search.
+    /// </summary>
+    public readonly IReadOnlySet<(EntityUid, Vector2i, byte)>? DeniedTiles;
+
     public AStarPathRequest(
         EntityCoordinates start,
         EntityCoordinates end,
@@ -64,10 +72,12 @@ public sealed class AStarPathRequest : PathRequest
         float distance,
         int layer,
         int mask,
-        CancellationToken cancelToken) : base(start, flags, layer, mask, cancelToken)
+        CancellationToken cancelToken,
+        IReadOnlySet<(EntityUid, Vector2i, byte)>? deniedTiles = null) : base(start, flags, layer, mask, cancelToken)
     {
         Distance = distance;
         End = end;
+        DeniedTiles = deniedTiles;
     }
 }
 
