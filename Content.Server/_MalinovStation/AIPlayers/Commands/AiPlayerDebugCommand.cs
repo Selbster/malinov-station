@@ -6,6 +6,7 @@ using Content.Server.NPC.HTN;
 using Content.Shared.Administration;
 using Content.Shared.Tools.Components;
 using Robust.Shared.Console;
+using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.AIPlayers.Commands;
 
@@ -16,6 +17,8 @@ namespace Content.Server._MalinovStation.AIPlayers.Commands;
 [AdminCommand(AdminFlags.Debug)]
 public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
 {
+    [Dependency] private IGameTiming _timing = default!;
+
     public override string Command => "aiplayer_debug";
 
     public override void Execute(IConsoleShell shell, string argStr, string[] args)
@@ -45,7 +48,20 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
             sb.AppendLine($"Job: {aiPlayer.Job}");
 
         if (EntityManager.TryGetComponent<GoalComponent>(uid, out var goal))
-            sb.AppendLine($"Goal: {goal.CurrentGoal} (priority {goal.CurrentPriority:0.00}, reason: {goal.Reason})");
+        {
+            var since = (_timing.CurTime - goal.CurrentGoalSince).TotalSeconds;
+            sb.AppendLine($"Goal: {goal.CurrentGoal} (priority {goal.CurrentPriority:0.00}, reason: {goal.Reason}, active for {since:0}s)");
+
+            if (goal.LastLlmDecision is { } lastDecision)
+            {
+                var decisionAge = (_timing.CurTime - goal.LastLlmDecisionAt).TotalSeconds;
+                sb.AppendLine($"Last LLM decision: {lastDecision} ({decisionAge:0}s ago)");
+            }
+            else
+            {
+                sb.AppendLine("Last LLM decision: none");
+            }
+        }
 
         if (EntityManager.TryGetComponent<NeedsComponent>(uid, out var needs))
             sb.AppendLine($"Needs: Fatigue={needs.Fatigue:0.00} Stress={needs.Stress:0.00} Safety={needs.Safety:0.00} Social={needs.SocialNeed:0.00}");
@@ -59,12 +75,26 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
         }
 
         if (EntityManager.TryGetComponent<HTNComponent>(uid, out var htn))
+        {
             sb.AppendLine($"HTN: rootTask={htn.RootTask.Task} planning={htn.Planning} hasPlan={htn.Plan != null}");
+
+            if (htn.Plan is { } plan)
+            {
+                sb.AppendLine(
+                    $"Current plan: task {plan.Index + 1}/{plan.Tasks.Count}, " +
+                    $"action={plan.CurrentOperator.GetType().Name}");
+            }
+        }
 
         if (EntityManager.TryGetComponent<PerceptionComponent>(uid, out var perception))
         {
             var visible = perception.LastObservation?.VisibleCharacters.Count ?? 0;
-            sb.AppendLine($"Perception: visionRadius={perception.VisionRadius} currentlyVisible={visible} everSeen={perception.LastSeen.Count}");
+            var lastEvent = perception.LastObservation is { } observation
+                ? $"{(_timing.CurTime - observation.Timestamp).TotalSeconds:0}s ago"
+                : "never";
+            sb.AppendLine(
+                $"Perception: visionRadius={perception.VisionRadius} currentlyVisible={visible} " +
+                $"everSeen={perception.LastSeen.Count} lastScan={lastEvent}");
         }
 
         if (EntityManager.TryGetComponent<MemoryComponent>(uid, out var memory))
@@ -74,7 +104,11 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
             sb.AppendLine($"Relationships: {relationships.Relationships.Count} known entities");
 
         if (EntityManager.TryGetComponent<DangerComponent>(uid, out var danger))
-            sb.AppendLine($"Danger: threatSource={danger.ThreatSource} nearbyInjured={danger.NearbyInjured}");
+        {
+            sb.AppendLine(
+                $"Danger: threatSource={danger.ThreatSource} nearbyInjured={danger.NearbyInjured} " +
+                $"fireHazard={danger.FireHazardLocation}");
+        }
 
         if (EntityManager.TryGetComponent<RepairOpportunityComponent>(uid, out var repair))
             sb.AppendLine($"RepairOpportunity: nearbyTarget={repair.NearbyRepairTarget}");

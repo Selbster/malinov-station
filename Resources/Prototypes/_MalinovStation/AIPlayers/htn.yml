@@ -5,6 +5,13 @@
 # professional AI attempts a real repair before flopping down to rest, unless Fatigue is already past
 # RestCompound's own 0.75 threshold), then self-care (Rest, driven by NeedsComponent.Fatigue), falling back
 # to wandering (IdleCompound) when nothing is urgent.
+#
+# Milestone 1: this top-to-bottom order is a coarse safety net, not the real arbitrator. Flee/HelpInjured/
+# RepairMachine/Rest each additionally require CurrentGoalPrecondition (owner.GoalComponent.CurrentGoal), so
+# whenever more than one of them is simultaneously eligible, GoalSystem's priority arithmetic (needs + danger +
+# personality, or an LLM override) picks which one actually runs - not just YAML declaration order. Food/Thirst
+# (pure vanilla reuse) and ForcedMove (an explicit directive, not a needs/danger goal) are deliberately left
+# out of that gate; see GoalComponent's doc comment.
 - type: htnCompound
   id: AIPlayerRootCompound
   branches:
@@ -33,6 +40,14 @@
 # Milestone 7: reacts to being attacked (DangerComponent.ThreatSource, set by DangerSystem on
 # DamageChangedEvent). Picks a point away from the threat and walks there; HTN's constant replanning keeps
 # re-picking a fresh point away from the threat's current position for as long as it stays active.
+# pathfindInPlanning: true (Milestone 1, unlike the other MoveToOperator steps in this file) matters here:
+# PickFleeDestinationOperator computes a raw "N units in a straight line away from the threat" point with no
+# walkability awareness (it can land in a wall or off the accessible grid, e.g. a threat standing right next to
+# the AI degenerates the direction to a fixed vector), which the other MoveToOperator steps don't risk since
+# their targets are always another existing entity's own position. Without this flag, MoveToOperator.Plan()
+# doesn't validate the target either, so an unreachable flee point would make the AI silently thrash
+# (fail -> replan -> pick the same unreachable point -> fail again) rather than fleeing or falling back to
+# something else it can actually do.
 - type: htnCompound
   id: FleeCompound
   branches:
@@ -40,12 +55,14 @@
         - !type:HTNPrimitiveTask
           preconditions:
             - !type:DangerPrecondition
+            - !type:CurrentGoalPrecondition
+              goal: Flee
           operator: !type:PickFleeDestinationOperator
             fleeDistance: 8
 
         - !type:HTNPrimitiveTask
           operator: !type:MoveToOperator
-            pathfindInPlanning: false
+            pathfindInPlanning: true
 
 # Milestone 7: reacts to seeing another character incapacitated nearby (DangerComponent.NearbyInjured, set
 # by DangerSystem's perception scan). Walks over and says a concerned line (Milestone 5's Talk action).
@@ -56,6 +73,8 @@
         - !type:HTNPrimitiveTask
           preconditions:
             - !type:HelpInjuredPrecondition
+            - !type:CurrentGoalPrecondition
+              goal: HelpInjured
           operator: !type:PickInjuredTargetOperator
 
         - !type:HTNPrimitiveTask
@@ -90,6 +109,8 @@
           preconditions:
             - !type:FatiguePrecondition
               above: 0.75
+            - !type:CurrentGoalPrecondition
+              goal: Rest
           operator: !type:PickAccessibleOperator
             rangeKey: IdleRange
 
@@ -110,7 +131,12 @@
 # fetch (if it wasn't already in a hand) + switches to whichever hand ends up holding it + lights it if
 # needed (a freshly-held welder starts unlit, same as for a real player). The last step reuses vanilla
 # InteractWithOperator, which drives the same InteractUsingEvent -> RepairableSystem pipeline a real player's
-# click would.
+# click would. expectDoAfter: true (Milestone 1) matters here: RepairableSystem only ever starts a DoAfter when
+# the interaction actually has something to do (target still damaged, tool quality/fuel/range all check out),
+# so without this flag a no-op interaction (e.g. an unexpected edge case InteractWithOperator itself can't see)
+# would silently report Finished - "arrived and clicked" is not "task completed" (spec Milestone 1 section 7).
+# With it, that case correctly fails the task instead, which GoalSystem's stuck-goal warning (see GoalSystem.cs)
+# can surface if it keeps happening on every replan.
 - type: htnCompound
   id: RepairMachineCompound
   branches:
@@ -120,6 +146,8 @@
             - !type:RepairOpportunityPrecondition
             - !type:HasToolQualityPrecondition
               quality: Welding
+            - !type:CurrentGoalPrecondition
+              goal: RepairMachine
           operator: !type:PickRepairTargetOperator
 
         - !type:HTNPrimitiveTask
@@ -134,3 +162,4 @@
         - !type:HTNPrimitiveTask
           operator: !type:InteractWithOperator
             targetKey: RepairTarget
+            expectDoAfter: true

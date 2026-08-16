@@ -9,9 +9,10 @@ namespace Content.Server._MalinovStation.AIPlayers.HTN.Preconditions;
 /// <summary>
 /// IsMet when the owner currently sees a damaged repairable machine (populated by
 /// <see cref="RepairOpportunitySystem"/>'s scan) AND its job is allowed to pursue
-/// <see cref="ProfessionalGoals.RepairMachine"/>. Gates RepairMachineCompound independently of
-/// <see cref="GoalSystem"/>'s own (observability) job filtering, the same defense-in-depth already used for
-/// Flee/HelpInjured: the HTN branch never trusts GoalComponent blindly.
+/// <see cref="ProfessionalGoals.RepairMachine"/>. Re-derives the same fact <see cref="GoalSystem"/> uses to
+/// compute the RepairMachine priority, independently of it - RepairMachineCompound also separately requires
+/// <c>CurrentGoalPrecondition</c> to match, so this is defense-in-depth: CurrentGoal alone (whether set by
+/// GoalSystem or an LLM override) can never make this branch run against a job/opportunity that isn't real.
 /// </summary>
 public sealed partial class RepairOpportunityPrecondition : HTNPrecondition
 {

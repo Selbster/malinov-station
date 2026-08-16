@@ -1,18 +1,23 @@
+using System.Numerics;
 using Content.Server._MalinovStation.AIPlayers.Components;
+using Content.Shared.Atmos.Components;
 using Content.Shared.Damage.Systems;
 using Content.Shared.Mobs.Systems;
+using Robust.Shared.Map.Components;
 using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
 
 /// <summary>
-/// Detects the two "dynamic danger events" AI players react to (spec Milestone 7):
+/// Detects the "dynamic danger events" AI players react to (spec Milestone 7, extended in Milestone 1):
 /// <list type="bullet">
 /// <item>Being attacked (via <see cref="DamageChangedEvent"/>) - raises Safety, records a memory, and turns
 /// the attacker's relationship negative (this is where Milestone 6's "only ever positive" relationship
 /// nudges get a reason to go the other way).</item>
 /// <item>Seeing another character incapacitated nearby (a periodic scan of what Perception already
 /// recorded) - drives the HelpInjured goal.</item>
+/// <item>Being near an active fire (a periodic scan of the grid's atmos hotspot state, reusing vanilla atmos
+/// directly rather than a parallel fire system) - drives Flee exactly like being attacked does.</item>
 /// </list>
 /// Populates <see cref="DangerComponent"/>; <see cref="GoalSystem"/> reads it to prioritize Flee/HelpInjured.
 /// </summary>
@@ -23,6 +28,8 @@ public sealed partial class DangerSystem : EntitySystem
     [Dependency] private RelationshipSystem _relationships = default!;
     [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private AiLodSystem _lod = default!;
+    [Dependency] private SharedTransformSystem _transform = default!;
+    [Dependency] private SharedMapSystem _mapSystem = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private ILogManager _logManager = default!;
 
@@ -86,8 +93,8 @@ public sealed partial class DangerSystem : EntitySystem
     {
         base.Update(frameTime);
 
-        var query = EntityQueryEnumerator<DangerComponent, PerceptionComponent>();
-        while (query.MoveNext(out var uid, out var danger, out var perception))
+        var query = EntityQueryEnumerator<DangerComponent, PerceptionComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out var danger, out var perception, out var xform))
         {
             if (danger.ThreatSource is not null && _timing.CurTime >= danger.ThreatExpiresAt)
                 danger.ThreatSource = null;
@@ -96,10 +103,11 @@ public sealed partial class DangerSystem : EntitySystem
             if (danger.ScanAccumulator > 0f)
                 continue;
 
-            // Only the routine "look for someone hurt nearby" scan is LOD-scaled - the attack reaction in
-            // OnDamaged above is event-driven and always fires immediately regardless of LOD.
+            // Only the routine scans (injured/fire) are LOD-scaled - the attack reaction in OnDamaged above is
+            // event-driven and always fires immediately regardless of LOD.
             danger.ScanAccumulator = danger.ScanCooldown * _lod.GetMultiplier(uid);
             ScanForInjured(uid, danger, perception);
+            ScanForFireHazard(uid, danger, xform);
         }
     }
 
@@ -121,5 +129,50 @@ public sealed partial class DangerSystem : EntitySystem
             danger.NearbyInjured = other;
             return;
         }
+    }
+
+    /// <summary>
+    /// Looks for the closest active fire (atmos hotspot) within <see cref="DangerComponent.FireScanRadius"/> of
+    /// the owner, reusing vanilla atmos state directly (<see cref="GridAtmosphereComponent.HotspotTiles"/>)
+    /// rather than a parallel fire-detection system. On first noticing a hazard, forces an immediate goal
+    /// reconsideration (same as <see cref="OnDamaged"/> does for being attacked) instead of waiting out the
+    /// routine cooldown.
+    /// </summary>
+    private void ScanForFireHazard(EntityUid uid, DangerComponent danger, TransformComponent xform)
+    {
+        var hadHazard = danger.FireHazardLocation is not null;
+        danger.FireHazardLocation = null;
+
+        if (xform.GridUid is not { } gridUid ||
+            !TryComp<GridAtmosphereComponent>(gridUid, out var gridAtmos) ||
+            gridAtmos.HotspotTiles.Count == 0 ||
+            !TryComp<MapGridComponent>(gridUid, out var grid))
+        {
+            return;
+        }
+
+        var ownerWorldPos = _transform.GetWorldPosition(xform);
+        var closestDistanceSq = danger.FireScanRadius * danger.FireScanRadius;
+
+        foreach (var tile in gridAtmos.HotspotTiles)
+        {
+            if (!tile.Hotspot.Valid)
+                continue;
+
+            var tileCoords = _mapSystem.GridTileToLocal(gridUid, grid, tile.GridIndices);
+            var distanceSq = (_transform.ToMapCoordinates(tileCoords).Position - ownerWorldPos).LengthSquared();
+            if (distanceSq > closestDistanceSq)
+                continue;
+
+            closestDistanceSq = distanceSq;
+            danger.FireHazardLocation = tileCoords;
+        }
+
+        if (hadHazard || danger.FireHazardLocation is null || !TryComp<GoalComponent>(uid, out var goal))
+            return;
+
+        goal.IsLlmOverride = false;
+        goal.ReconsiderAccumulator = 0f;
+        _sawmill.Info($"[AI:{ToPrettyString(uid)}] Danger: noticed a nearby fire hazard.");
     }
 }

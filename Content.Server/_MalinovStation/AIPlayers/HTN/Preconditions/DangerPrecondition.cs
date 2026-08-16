@@ -5,8 +5,8 @@ using Content.Server.NPC.HTN.Preconditions;
 namespace Content.Server._MalinovStation.AIPlayers.HTN.Preconditions;
 
 /// <summary>
-/// IsMet when the owner has an active threat (was recently attacked - populated by the Danger system).
-/// Gates FleeCompound.
+/// IsMet when the owner has an active threat: was recently attacked, or is near an active fire (both
+/// populated by the Danger system). Gates FleeCompound.
 /// </summary>
 public sealed partial class DangerPrecondition : HTNPrecondition
 {
@@ -20,6 +20,6 @@ public sealed partial class DangerPrecondition : HTNPrecondition
             return false;
         }
 
-        return danger.ThreatSource is not null;
+        return danger.ThreatSource is not null || danger.FireHazardLocation is not null;
     }
 }

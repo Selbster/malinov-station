@@ -9,13 +9,15 @@ using Robust.Shared.Timing;
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
 
 /// <summary>
-/// Picks the AI player's current goal from needs + personality. This is primarily an observability/intent
-/// layer for now (see <see cref="GoalComponent"/> docs): SatisfyHunger/SatisfyThirst are reported here purely
-/// for visibility, since the existing vanilla FoodCompound HTN branch already reacts to the same
-/// SatiationComponent directly. Rest (Milestone 2), Flee/HelpInjured (Milestone 7) and RepairMachine
-/// (Milestone 11) each have a dedicated HTN branch whose own precondition independently re-derives the same
-/// underlying fact this system reads, rather than trusting CurrentGoal.
-/// While a Milestone 4 LLM override is in effect, this system leaves CurrentGoal alone until it expires.
+/// Picks the AI player's current goal from needs + personality, and is the single source of truth HTN
+/// arbitrates between simultaneously-eligible branches with: Flee/HelpInjured/RepairMachine/Rest (see htn.yml)
+/// each require <c>CurrentGoalPrecondition</c> to match this system's pick, in addition to their own
+/// independent real-world fact precondition (defense-in-depth - CurrentGoal alone can never make a branch run
+/// when its underlying fact isn't true; see Milestone 1). SatisfyHunger/SatisfyThirst remain
+/// observability-only: the vanilla FoodCompound HTN branch reacts to the same SatiationComponent directly, and
+/// this system mirrors its exact thresholds so the two never disagree about when hunger/thirst is urgent.
+/// While an LLM override (Milestone 4) is in effect, this system leaves CurrentGoal alone until it expires -
+/// this is also what makes an LLM decision to abandon/prioritize a goal actually take effect on HTN behaviour.
 /// </summary>
 public sealed partial class GoalSystem : EntitySystem
 {
@@ -29,6 +31,20 @@ public sealed partial class GoalSystem : EntitySystem
     private static readonly SatiationValue PeckishThreshold = "Peckish";
     private static readonly SatiationValue ParchedThreshold = "Parched";
     private static readonly SatiationValue? NoLowerBound = null;
+
+    /// <summary>
+    /// How long an actionable goal (not Idle/Rest/Socialize, which are expected to run for a while) can keep
+    /// getting reselected without resolving before GoalSystem logs a warning - and how often that warning can
+    /// repeat while still stuck. Spec Milestone 1 section 19: an AI should never silently loop forever.
+    /// </summary>
+    public static readonly TimeSpan StuckWarningThreshold = TimeSpan.FromSeconds(20);
+
+    private static readonly IReadOnlySet<string> ExemptFromStuckWarning = new HashSet<string>
+    {
+        AIGoals.Idle,
+        AIGoals.Rest,
+        AIGoals.Socialize,
+    };
 
     public override void Update(float frameTime)
     {
@@ -67,7 +83,9 @@ public sealed partial class GoalSystem : EntitySystem
         if (TryComp<DangerComponent>(uid, out var danger))
         {
             // Braver/more risk-tolerant AI players still flee, just a little less readily than fearful ones.
-            var fleePriority = danger.ThreatSource is not null
+            // A nearby fire is just as urgent as an attacker - both are handled by the same FleeCompound branch.
+            var hasThreat = danger.ThreatSource is not null || danger.FireHazardLocation is not null;
+            var fleePriority = hasThreat
                 ? MathF.Max(0.5f, 0.95f - personality.Courage * 0.25f - personality.RiskTolerance * 0.1f)
                 : 0f;
 
@@ -75,7 +93,7 @@ public sealed partial class GoalSystem : EntitySystem
             {
                 best = AIGoals.Flee;
                 bestPriority = fleePriority;
-                reason = "attacked";
+                reason = danger.ThreatSource is not null ? "attacked" : "saw-fire";
             }
 
             // Empathetic/brave AI players are more likely to go check on someone than to look away.
@@ -155,10 +173,37 @@ public sealed partial class GoalSystem : EntitySystem
         goal.CurrentPriority = bestPriority;
 
         if (best == goal.CurrentGoal)
+        {
+            WarnIfStuck(uid, goal, best);
             return;
+        }
 
         Log.Debug($"{ToPrettyString(uid)} goal changed: {goal.CurrentGoal} -> {best} ({reason}, priority {bestPriority:0.00})");
         goal.CurrentGoal = best;
         goal.Reason = reason;
+        goal.CurrentGoalSince = _timing.CurTime;
+    }
+
+    /// <summary>
+    /// Logs a throttled warning if an actionable goal has been reselected for longer than
+    /// <see cref="StuckWarningThreshold"/> without resolving - e.g. an AI player stuck replanning the same
+    /// failing repair attempt every ~0.45s (HTN's PlanCooldown) with nothing externally visible about it.
+    /// </summary>
+    private void WarnIfStuck(EntityUid uid, GoalComponent goal, string currentGoal)
+    {
+        if (ExemptFromStuckWarning.Contains(currentGoal))
+            return;
+
+        if (_timing.CurTime - goal.CurrentGoalSince < StuckWarningThreshold)
+            return;
+
+        if (_timing.CurTime - goal.LastStuckWarningAt < StuckWarningThreshold)
+            return;
+
+        Log.Warning(
+            $"{ToPrettyString(uid)} has been pursuing goal \"{currentGoal}\" for over " +
+            $"{StuckWarningThreshold.TotalSeconds:0}s without it resolving (reason: {goal.Reason}) - " +
+            "possible stuck loop (unreachable/unfixable target, missing tool, etc).");
+        goal.LastStuckWarningAt = _timing.CurTime;
     }
 }

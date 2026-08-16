@@ -1,3 +1,5 @@
+using Robust.Shared.Map;
+
 namespace Content.Server._MalinovStation.AIPlayers.Components;
 
 /// <summary>
@@ -30,6 +32,19 @@ public sealed partial class DangerComponent : Component
     /// </summary>
     [ViewVariables]
     public EntityUid? NearbyInjured;
+
+    /// <summary>
+    /// The closest active fire (atmos hotspot) within <see cref="FireScanRadius"/>, if any (refreshed each
+    /// Danger scan - unlike <see cref="ThreatSource"/> this has no separate expiry, since it's a re-polled
+    /// continuous state rather than a discrete event). Distinct from ThreatSource since a fire has no
+    /// attacking entity to point at; FleeCompound reacts to either.
+    /// </summary>
+    [ViewVariables]
+    public EntityCoordinates? FireHazardLocation;
+
+    /// <summary>How far to scan for a nearby fire hazard.</summary>
+    [DataField]
+    public float FireScanRadius = 6f;
 
     /// <summary>
     /// When each entity was last comforted, so HelpInjuredCompound doesn't repeat itself on the same

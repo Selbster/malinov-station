@@ -5,6 +5,7 @@ using Content.Server._MalinovStation.AIPlayers.LLM;
 using Content.Server._MalinovStation.AIPlayers.Perception;
 using Content.Server._MalinovStation.AIPlayers.Prototypes;
 using Content.Shared._MalinovStation.AIPlayers;
+using Prometheus;
 using Robust.Shared.Configuration;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Timing;
@@ -21,6 +22,25 @@ namespace Content.Server._MalinovStation.AIPlayers.Systems;
 /// </summary>
 public sealed partial class LlmGatewaySystem : EntitySystem
 {
+    /// <summary>
+    /// Total LLM requests kicked off (decisions + conversation lines combined - both draw from the same
+    /// concurrency budget). Spec Milestone 1 section 20: divide by elapsed time/population externally
+    /// (Prometheus rate()) to get "LLM calls/minute" - this just exposes the raw counter, same convention as
+    /// <see cref="Content.Server.Database.ServerDbManager.DbReadOpsMetric"/>.
+    /// </summary>
+    public static readonly Counter LlmRequestsMetric = Metrics.CreateCounter(
+        "aiplayers_llm_requests_total",
+        "Total number of LLM requests (decisions + conversation lines) kicked off by the AI players LLM gateway.");
+
+    /// <summary>
+    /// Wall-clock time from kicking off a decision request to it completing (success, failure or timeout).
+    /// Spec Milestone 1 section 20's "average decision latency" - sum/count of this histogram.
+    /// </summary>
+    public static readonly Histogram LlmDecisionLatencyMetric = Metrics.CreateHistogram(
+        "aiplayers_llm_decision_latency_seconds",
+        "Time from kicking off an LLM goal-decision request to it completing.",
+        new HistogramConfiguration { Buckets = Histogram.ExponentialBuckets(0.1, 2, 10) });
+
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private ILlmClient _client = default!;
     [Dependency] private ContextBuilderSystem _contextBuilder = default!;
@@ -38,7 +58,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     private float _overrideDurationSeconds;
 
     private int _inFlight;
-    private readonly Dictionary<EntityUid, Task<LlmDecision?>> _pending = new();
+    private readonly Dictionary<EntityUid, (Task<LlmDecision?> Task, TimeSpan StartedAt)> _pending = new();
     private readonly Dictionary<EntityUid, TimeSpan> _lastRequestAt = new();
     private readonly List<EntityUid> _finishedBuffer = new();
 
@@ -104,9 +124,10 @@ public sealed partial class LlmGatewaySystem : EntitySystem
 
         _lastRequestAt[uid] = _timing.CurTime;
         _inFlight++;
+        LlmRequestsMetric.Inc();
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
-        _pending[uid] = _client.DecideAsync(context, cts.Token);
+        _pending[uid] = (_client.DecideAsync(context, cts.Token), _timing.CurTime);
         return true;
     }
 
@@ -138,6 +159,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
             return false;
 
         _inFlight++;
+        LlmRequestsMetric.Inc();
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
         var task = _client.GenerateLineAsync(context, cts.Token);
@@ -159,19 +181,20 @@ public sealed partial class LlmGatewaySystem : EntitySystem
             return;
 
         _finishedBuffer.Clear();
-        foreach (var (uid, task) in _pending)
+        foreach (var (uid, entry) in _pending)
         {
-            if (task.IsCompleted)
+            if (entry.Task.IsCompleted)
                 _finishedBuffer.Add(uid);
         }
 
         foreach (var uid in _finishedBuffer)
         {
-            var task = _pending[uid];
+            var entry = _pending[uid];
             _pending.Remove(uid);
             _inFlight--;
 
-            HandleCompletedRequest(uid, task);
+            LlmDecisionLatencyMetric.Observe((_timing.CurTime - entry.StartedAt).TotalSeconds);
+            HandleCompletedRequest(uid, entry.Task);
         }
     }
 
@@ -264,11 +287,16 @@ public sealed partial class LlmGatewaySystem : EntitySystem
 
         var priority = Math.Clamp(decision.Priority, 0f, 1f);
 
+        if (goal.CurrentGoal != decision.Intent)
+            goal.CurrentGoalSince = _timing.CurTime;
+
         goal.CurrentGoal = decision.Intent;
         goal.CurrentPriority = priority;
         goal.Reason = $"llm: {decision.Reason}";
         goal.IsLlmOverride = true;
         goal.LlmOverrideExpiresAt = _timing.CurTime + TimeSpan.FromSeconds(_overrideDurationSeconds);
+        goal.LastLlmDecision = $"{decision.Intent} (priority {priority:0.00}) - {decision.Reason}";
+        goal.LastLlmDecisionAt = _timing.CurTime;
 
         _sawmill.Info($"[AI:{ToPrettyString(uid)}] LLM decision: {decision.Intent} (priority {priority:0.00}) - {decision.Reason}");
         return true;

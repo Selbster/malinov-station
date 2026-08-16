@@ -1,11 +1,15 @@
 namespace Content.Server._MalinovStation.AIPlayers.Components;
 
 /// <summary>
-/// Tracks the AI player's currently selected goal, as computed by
-/// <see cref="Content.Server._MalinovStation.AIPlayers.Systems.GoalSystem"/> from needs and personality.
-/// This is an observability/intent layer: most goals here (SatisfyHunger/SatisfyThirst) are already handled
-/// by existing HTN branches that gate on their own vanilla components, so this does not (yet) drive them
-/// directly. Rest is the one goal in Milestone 2 with a dedicated HTN branch reading <see cref="NeedsComponent"/>.
+/// Tracks the AI player's currently selected goal/intent, as computed by
+/// <see cref="Content.Server._MalinovStation.AIPlayers.Systems.GoalSystem"/> from needs, danger and
+/// personality (or overridden by an LLM decision - see <see cref="Systems.LlmGatewaySystem"/>). This is the
+/// single unambiguous "current intent" the spec asks for (Milestone 1): Flee/HelpInjured/RepairMachine/Rest's
+/// HTN branches all require <c>CurrentGoalPrecondition</c> to match <see cref="CurrentGoal"/> before they can
+/// run, on top of their own independent real-world fact precondition. SatisfyHunger/SatisfyThirst stay
+/// observability-only - the vanilla FoodCompound HTN branch reacts to <see cref="Content.Shared.Nutrition.Components.SatiationComponent"/>
+/// directly, and this component's owner mirrors its exact thresholds so the two never disagree. Socialize is
+/// also a direct consumer (see <see cref="Systems.SocialSystem"/>).
 /// </summary>
 [RegisterComponent]
 public sealed partial class GoalComponent : Component
@@ -38,6 +42,33 @@ public sealed partial class GoalComponent : Component
 
     [ViewVariables]
     public TimeSpan LlmOverrideExpiresAt;
+
+    /// <summary>
+    /// When <see cref="CurrentGoal"/> was last (re)selected. Lets <see cref="Systems.GoalSystem"/> notice a
+    /// goal that keeps getting reselected without ever resolving (spec Milestone 1 section 19: an AI should
+    /// never silently loop on one action) and warn about it instead of staying quiet forever.
+    /// </summary>
+    [ViewVariables]
+    public TimeSpan CurrentGoalSince;
+
+    /// <summary>
+    /// When <see cref="Systems.GoalSystem"/> last logged a "stuck on this goal" warning for the current goal,
+    /// so repeats are throttled to once per <see cref="Systems.GoalSystem.StuckWarningThreshold"/> instead of
+    /// spamming every reconsider tick.
+    /// </summary>
+    [ViewVariables]
+    public TimeSpan LastStuckWarningAt;
+
+    /// <summary>
+    /// The most recent LLM decision applied to this AI player (intent + reason), or null if none ever was.
+    /// Kept for debug visibility (spec Milestone 1 section 16) even after <see cref="IsLlmOverride"/> expires
+    /// and <see cref="CurrentGoal"/>/<see cref="Reason"/> move on to something else.
+    /// </summary>
+    [ViewVariables]
+    public string? LastLlmDecision;
+
+    [ViewVariables]
+    public TimeSpan LastLlmDecisionAt;
 }
 
 /// <summary>
