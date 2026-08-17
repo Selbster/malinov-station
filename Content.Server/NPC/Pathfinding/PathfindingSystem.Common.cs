@@ -60,9 +60,10 @@ public sealed partial class PathfindingSystem
             var isClimb = (end.Data.Flags & PathfindingBreadcrumbFlag.Climb) != 0x0;
 
             // A door we've already confirmed (via a failed real access check at steering time) this entity
-            // can't open - don't keep optimistically routing back through it every replan. See
-            // NPCDeniedAccessComponent / PathfindingSystem.GetDeniedTiles.
-            var isKnownDenied = request is AStarPathRequest { DeniedTiles: { } deniedTiles } &&
+            // can't open - don't keep optimistically routing back through it every replan. Lives on the base
+            // PathRequest (see its doc comment) so this applies to BFS random-destination searches too, not
+            // just A* searches toward a specific target.
+            var isKnownDenied = request.DeniedTiles is { } deniedTiles &&
                 deniedTiles.Contains((end.GraphUid, end.ChunkOrigin, end.TileIndex));
 
             // TODO: Handling power + door prying

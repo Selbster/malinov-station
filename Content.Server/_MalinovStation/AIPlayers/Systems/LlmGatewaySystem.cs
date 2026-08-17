@@ -48,6 +48,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private ILogManager _logManager = default!;
     [Dependency] private IPrototypeManager _proto = default!;
+    [Dependency] private AiTraceSystem _trace = default!;
 
     private ISawmill _sawmill = default!;
 
@@ -243,12 +244,14 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         if (task.IsFaulted)
         {
             _sawmill.Warning($"LLM request for {ToPrettyString(uid)} threw: {task.Exception?.GetBaseException().Message}");
+            _trace.LlmFailure(uid, "RequestThrew");
             return;
         }
 
         if (task.IsCanceled)
         {
             _sawmill.Debug($"LLM request for {ToPrettyString(uid)} timed out or was cancelled.");
+            _trace.LlmFailure(uid, "TimeoutOrCancelled");
             return;
         }
 
@@ -261,6 +264,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         if (result is not { } decision)
         {
             _sawmill.Debug($"LLM returned no usable decision for {ToPrettyString(uid)}.");
+            _trace.LlmFailure(uid, "NoUsableDecision");
             return;
         }
 
@@ -279,6 +283,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         if (!AIGoals.All.Contains(decision.Intent) && !_proto.HasIndex<AiProfessionalGoalPrototype>(decision.Intent))
         {
             _sawmill.Warning($"LLM proposed an unknown intent \"{decision.Intent}\" for {ToPrettyString(uid)}; ignoring.");
+            _trace.LlmFailure(uid, "UnknownIntent");
             return false;
         }
 
@@ -298,7 +303,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         goal.LastLlmDecision = $"{decision.Intent} (priority {priority:0.00}) - {decision.Reason}";
         goal.LastLlmDecisionAt = _timing.CurTime;
 
-        _sawmill.Info($"[AI:{ToPrettyString(uid)}] LLM decision: {decision.Intent} (priority {priority:0.00}) - {decision.Reason}");
+        _trace.LlmDecision(uid, decision.Intent, priority, decision.Reason);
         return true;
     }
 }

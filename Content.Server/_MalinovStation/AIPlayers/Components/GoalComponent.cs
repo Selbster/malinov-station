@@ -69,6 +69,25 @@ public sealed partial class GoalComponent : Component
 
     [ViewVariables]
     public TimeSpan LastLlmDecisionAt;
+
+    /// <summary>
+    /// The measurable progress value (see <see cref="Systems.GoalSystem.GetProgressValue"/>) recorded the
+    /// first time a stuck warning fired for the current goal pursuit, or null before that/for goals with no
+    /// measurable signal. Compared against the current value on the next stuck check to tell "genuinely not
+    /// working" from "just slow" (Stabilization milestone stage 4/5) - reset to null every time
+    /// <see cref="CurrentGoal"/> changes, so each fresh pursuit gets its own fair baseline.
+    /// </summary>
+    [ViewVariables]
+    public float? ProgressBaseline;
+
+    /// <summary>
+    /// Goals GoalSystem has given up on due to measurably making no progress, each with when the entry
+    /// expires - excluded from being reselected as <see cref="CurrentGoal"/> until then, so a different goal
+    /// gets picked instead of immediately reselecting the same dead end (Stabilization milestone stage 4:
+    /// real recovery, not just a log warning).
+    /// </summary>
+    [ViewVariables]
+    public Dictionary<string, TimeSpan> RecentlyAbandoned = new();
 }
 
 /// <summary>

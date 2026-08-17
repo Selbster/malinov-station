@@ -3,6 +3,7 @@ using Content.Server._MalinovStation.AIPlayers.Perception;
 using Content.Shared.Humanoid;
 using Content.Shared.Interaction;
 using Content.Shared.Physics;
+using Prometheus;
 using Robust.Shared.Map;
 using Robust.Shared.Timing;
 
@@ -17,6 +18,24 @@ namespace Content.Server._MalinovStation.AIPlayers.Systems;
 /// </summary>
 public sealed partial class PerceptionSystem : EntitySystem
 {
+    /// <summary>
+    /// Stabilization milestone stage 10: total perception scans performed, for "perception updates/sec"
+    /// (Prometheus rate()) - same convention as LlmGatewaySystem's request counters.
+    /// </summary>
+    public static readonly Counter PerceptionScansMetric = Metrics.CreateCounter(
+        "aiplayers_perception_scans_total",
+        "Total number of AI player perception scans performed.");
+
+    /// <summary>
+    /// Wall-clock time per scan - the spatial lookup + line-of-sight raycasts are the single most expensive
+    /// thing this subsystem does per entity (see the LOD comment below), so this is the metric to watch for
+    /// perception becoming a real cost as AI player population grows.
+    /// </summary>
+    public static readonly Histogram PerceptionScanDurationMetric = Metrics.CreateHistogram(
+        "aiplayers_perception_scan_duration_seconds",
+        "Wall-clock time spent per AI player perception scan.",
+        new HistogramConfiguration { Buckets = Histogram.ExponentialBuckets(0.0001, 2, 14) });
+
     [Dependency] private EntityLookupSystem _lookup = default!;
     [Dependency] private SharedInteractionSystem _interaction = default!;
     [Dependency] private MemorySystem _memory = default!;
@@ -40,7 +59,12 @@ public sealed partial class PerceptionSystem : EntitySystem
             // The spatial lookup + line-of-sight raycasts below are the single most expensive thing this
             // subsystem does per entity - this is the primary target for LOD (spec section 25).
             perception.PerceiveAccumulator = perception.PerceiveCooldown * _lod.GetMultiplier(uid);
-            Perceive(uid, perception, xform);
+
+            PerceptionScansMetric.Inc();
+            using (PerceptionScanDurationMetric.NewTimer())
+            {
+                Perceive(uid, perception, xform);
+            }
         }
     }
 

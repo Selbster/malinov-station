@@ -541,6 +541,114 @@ public sealed class GoalIntentUnificationTests : GameTest
     }
 
     /// <summary>
+    /// Stabilization milestone stage 8: proves the plan-lifecycle inference in <see cref="AiTraceSystem"/>
+    /// itself is correct (Active -&gt; Suspended -&gt; Resumed), not just that GoalComponent/repair-damage end up
+    /// in the right place (that's Emergency_FireInterruptsRepairWork_*'s job). AiTraceSystem has no test
+    /// coverage of its own despite non-trivial diffing logic (ReferenceEquals plan comparisons, tracking
+    /// which goal got preempted so a later plan for it traces as PlanResumed rather than a fresh PlanStarted)
+    /// - a bug there would silently corrupt telemetry (spec section 1's whole point) without any test
+    /// noticing. Reads AiTraceStateComponent directly since it's the one piece of that inference that's
+    /// observable without capturing log output.
+    /// </summary>
+    [Test]
+    public async Task Emergency_TraceStateReflectsInterruptSuspendResumeLifecycle()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        var station = await StartRoundAndGetStation(pair);
+
+        var (aiPlayer, machine) = await SpawnAiWithDamagedMachine(pair, station, StationEngineer);
+        await GiveWelder(pair, aiPlayer);
+
+        await server.WaitPost(() =>
+        {
+            var personality = server.EntMan.GetComponent<PersonalityComponent>(aiPlayer);
+            personality.Courage = 0f;
+            personality.RiskTolerance = 0f;
+            personality.Professionalism = 0.5f;
+            personality.Laziness = 0.5f;
+            server.EntMan.GetComponent<GoalComponent>(aiPlayer).ReconsiderAccumulator = 0f;
+        });
+
+        await pair.RunTicksSync(2);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(server.EntMan.GetComponent<GoalComponent>(aiPlayer).CurrentGoal, Is.EqualTo(ProfessionalGoals.RepairMachine),
+                "Test setup: AI should have settled on the repair job before the emergency starts.");
+        });
+
+        // Let AiTraceSystem's own Update() observe and record the settled repair plan as Active before the
+        // interrupt - otherwise there's nothing for it to later recognise as "the goal that got preempted".
+        await WaitForCondition(pair, () =>
+            server.EntMan.GetComponent<AiTraceStateComponent>(aiPlayer).LastPlanGoal == ProfessionalGoals.RepairMachine);
+
+        await server.WaitPost(() =>
+        {
+            var xform = server.EntMan.GetComponent<TransformComponent>(aiPlayer);
+            var danger = server.EntMan.GetComponent<DangerComponent>(aiPlayer);
+            danger.FireHazardLocation = xform.Coordinates;
+            danger.ScanAccumulator = 999f;
+
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            goal.IsLlmOverride = false;
+            goal.ReconsiderAccumulator = 0f;
+        });
+
+        await WaitForCondition(pair, () => server.EntMan.GetComponent<GoalComponent>(aiPlayer).CurrentGoal == AIGoals.Flee);
+        // Give AiTraceSystem a tick to see the abandoned RepairMachine plan disappear and record the interrupt.
+        await WaitForCondition(pair, () =>
+            server.EntMan.GetComponent<AiTraceStateComponent>(aiPlayer).LastInterruptedGoal == ProfessionalGoals.RepairMachine);
+
+        await server.WaitAssertion(() =>
+        {
+            var state = server.EntMan.GetComponent<AiTraceStateComponent>(aiPlayer);
+            Assert.That(state.LastInterruptedGoal, Is.EqualTo(ProfessionalGoals.RepairMachine),
+                "AiTraceSystem should recognise the repair plan was preempted mid-flight (Suspended), not that it simply failed.");
+        });
+
+        await server.WaitPost(() =>
+        {
+            var danger = server.EntMan.GetComponent<DangerComponent>(aiPlayer);
+            danger.FireHazardLocation = null;
+            danger.ScanAccumulator = 0f;
+            server.EntMan.GetComponent<GoalComponent>(aiPlayer).ReconsiderAccumulator = 0f;
+        });
+
+        await WaitForCondition(pair, () =>
+            server.EntMan.GetComponent<GoalComponent>(aiPlayer).CurrentGoal == ProfessionalGoals.RepairMachine);
+        // A fresh plan for the resumed goal needs to actually appear before AiTraceSystem can trace it as Resumed.
+        await WaitForCondition(pair, () =>
+            server.EntMan.GetComponent<Content.Server.NPC.HTN.HTNComponent>(aiPlayer).Plan != null, maxIterations: 20);
+        await pair.RunTicksSync(2);
+
+        await server.WaitAssertion(() =>
+        {
+            var state = server.EntMan.GetComponent<AiTraceStateComponent>(aiPlayer);
+            Assert.That(state.LastInterruptedGoal, Is.Null,
+                "Once the resumed goal gets a real plan again, AiTraceSystem should trace it as Resumed and clear the pending interrupt - " +
+                "a leftover value here would misclassify the *next* unrelated interrupt as a resume of this old one.");
+            Assert.That(state.LastPlanGoal, Is.EqualTo(ProfessionalGoals.RepairMachine),
+                "AiTraceSystem should be tracking the resumed repair plan as current.");
+        });
+
+        await WaitForCondition(pair, () => GetTotalDamage(pair, machine) <= 0f);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(GetTotalDamage(pair, machine), Is.LessThanOrEqualTo(0f),
+                "AI should still actually finish the resumed repair, not just look right at the trace-state level.");
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.EntMan.DeleteEntity(aiPlayer);
+            server.EntMan.DeleteEntity(machine);
+        });
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
+    /// <summary>
     /// Spec Milestone 1 section 19: an AI should never silently loop forever. Simulates a goal that's been
     /// active for longer than GoalSystem.StuckWarningThreshold (rather than waiting out ~20 real simulated
     /// seconds of replanning) and checks the warning actually fires.
@@ -581,6 +689,137 @@ public sealed class GoalIntentUnificationTests : GameTest
         {
             Assert.That(server.EntMan.GetComponent<GoalComponent>(aiPlayer).LastStuckWarningAt, Is.GreaterThan(TimeSpan.Zero),
                 "GoalSystem should have logged (and recorded) a stuck-goal warning once the threshold passed.");
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.EntMan.DeleteEntity(aiPlayer);
+            server.EntMan.DeleteEntity(machine);
+        });
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
+    /// <summary>
+    /// Stabilization milestone, stage 4: a stuck warning alone isn't real recovery - GoalSystem should give
+    /// up on a goal that's provably making zero measurable progress (not just "hasn't finished yet"), so a
+    /// different goal gets picked instead of reselecting the same dead end forever. Reuses the same
+    /// no-welder setup as GoalSystem_WarnsWhenAGoalNeverResolves - repair damage genuinely never changes,
+    /// which is exactly the "no progress" signal GoalSystem.GetProgressValue is meant to catch.
+    /// </summary>
+    [Test]
+    public async Task GoalSystem_AbandonsGoalWithNoMeasurableProgress_AndPicksSomethingElse()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        var station = await StartRoundAndGetStation(pair);
+
+        var (aiPlayer, machine) = await SpawnAiWithDamagedMachine(pair, station, StationEngineer);
+        await StripBeltContents(pair, aiPlayer); // No welder anywhere - damage can never actually decrease.
+
+        await pair.RunTicksSync(2);
+
+        await server.WaitAssertion(() =>
+        {
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            Assert.That(goal.CurrentGoal, Is.EqualTo(ProfessionalGoals.RepairMachine));
+            Assert.That(goal.ProgressBaseline, Is.Null, "No stuck check has run yet, so no baseline should exist.");
+        });
+
+        // First stuck check: establishes the progress baseline (the machine's current, unchanging damage),
+        // doesn't abandon yet - GoalSystem can't tell "stuck" from "just started" on the very first sample.
+        // No welder means RepairMachineCompound's own HTN precondition (HasToolQualityPrecondition) always
+        // fails too, so HTN execution falls through to IdleCompound underneath the still-RepairMachine
+        // GoalComponent label and physically wanders the AI away from the stationary machine - re-teleport
+        // it back on top of the machine and force a fresh scan before each check so NearbyRepairTarget stays
+        // valid regardless of how far idle wandering has carried it by this point in the test.
+        await server.WaitPost(() =>
+        {
+            server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates =
+                server.EntMan.GetComponent<TransformComponent>(machine).Coordinates;
+            server.EntMan.GetComponent<RepairOpportunityComponent>(aiPlayer).ScanAccumulator = 0f;
+            server.EntMan.GetComponent<GoalComponent>(aiPlayer).ReconsiderAccumulator = 0f;
+        });
+        await pair.RunTicksSync(2);
+
+        // Confirm the goal has settled back on RepairMachine (freshly re-selected, CurrentGoalSince reset to
+        // "now" by that selection) *before* backdating the clock - otherwise backdating first and then
+        // having this same reconsideration re-select RepairMachine would immediately stomp the backdated
+        // timestamp with "now" again, since a goal *change* always resets CurrentGoalSince/ProgressBaseline.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(server.EntMan.GetComponent<GoalComponent>(aiPlayer).CurrentGoal, Is.EqualTo(ProfessionalGoals.RepairMachine),
+                "Test setup: goal should have re-settled on RepairMachine after re-teleporting onto the machine.");
+        });
+
+        await server.WaitPost(() =>
+        {
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            // Backdate LastStuckWarningAt too, not just CurrentGoalSince: its sentinel value is
+            // TimeSpan.Zero ("never warned"), and in a freshly-provisioned test server CurTime itself may
+            // still be well under the threshold, so "CurTime - 0 < threshold" would otherwise reject this
+            // very first check as "too soon since the last warning" even though there never was one.
+            goal.CurrentGoalSince = server.Timing.CurTime - GoalSystem.StuckWarningThreshold - TimeSpan.FromSeconds(1);
+            goal.LastStuckWarningAt = server.Timing.CurTime - GoalSystem.StuckWarningThreshold - TimeSpan.FromSeconds(1);
+            goal.ReconsiderAccumulator = 0f;
+        });
+        await pair.RunTicksSync(2);
+
+        await server.WaitAssertion(() =>
+        {
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            Assert.That(goal.ProgressBaseline, Is.Not.Null, "First stuck check should have recorded a progress baseline.");
+            Assert.That(goal.RecentlyAbandoned, Does.Not.ContainKey(ProfessionalGoals.RepairMachine),
+                "Shouldn't abandon on the very first stuck check - only once a second check confirms no movement.");
+        });
+
+        // Second stuck check, a full threshold later: damage is identical to the baseline (still no welder),
+        // so this is the "confirmed no progress" case - GoalSystem should give up on it. Re-teleport again
+        // (idle wandering may have carried it off again since the first check) and confirm the goal is still
+        // settled on RepairMachine before backdating LastStuckWarningAt, same reasoning as above.
+        await server.WaitPost(() =>
+        {
+            server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates =
+                server.EntMan.GetComponent<TransformComponent>(machine).Coordinates;
+            server.EntMan.GetComponent<RepairOpportunityComponent>(aiPlayer).ScanAccumulator = 0f;
+            server.EntMan.GetComponent<GoalComponent>(aiPlayer).ReconsiderAccumulator = 0f;
+        });
+        await pair.RunTicksSync(2);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(server.EntMan.GetComponent<GoalComponent>(aiPlayer).CurrentGoal, Is.EqualTo(ProfessionalGoals.RepairMachine),
+                "Test setup: goal should still be settled on RepairMachine going into the second stuck check.");
+        });
+
+        await server.WaitPost(() =>
+        {
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            goal.LastStuckWarningAt = server.Timing.CurTime - GoalSystem.StuckWarningThreshold - TimeSpan.FromSeconds(1);
+            goal.ReconsiderAccumulator = 0f;
+        });
+        await pair.RunTicksSync(2);
+
+        await server.WaitAssertion(() =>
+        {
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            Assert.That(goal.RecentlyAbandoned, Does.ContainKey(ProfessionalGoals.RepairMachine),
+                "GoalSystem should have abandoned RepairMachine after confirming zero progress across two stuck checks.");
+        });
+
+        // Force a fresh reconsideration - RepairMachine is still nominally available (same damaged machine,
+        // same job) but should now be excluded, so something else (Idle, the baseline) gets picked instead.
+        await server.WaitPost(() =>
+        {
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            goal.ReconsiderAccumulator = 0f;
+        });
+        await pair.RunTicksSync(2);
+
+        await server.WaitAssertion(() =>
+        {
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            Assert.That(goal.CurrentGoal, Is.Not.EqualTo(ProfessionalGoals.RepairMachine),
+                "An abandoned goal should not be immediately reselected just because its underlying opportunity is still technically there.");
         });
 
         await server.WaitPost(() =>

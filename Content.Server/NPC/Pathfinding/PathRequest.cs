@@ -36,14 +36,33 @@ public abstract class PathRequest
     public readonly int CollisionLayer;
     public readonly int CollisionMask;
 
+    /// <summary>
+    /// Tile keys (GraphUid/ChunkOrigin/TileIndex) to treat as impassable regardless of flags, even though
+    /// they'd otherwise be allowed - doors this entity is known to have been denied real access to
+    /// recently. Snapshotted up front since pathfinding runs across worker threads (see
+    /// PathfindingSystem.GetDeniedTiles), so it can't safely be resolved from the entity manager mid-search.
+    /// Lives on the base class (not just AStarPathRequest) so BFSPathRequest (PickAccessibleOperator's random
+    /// idle/rest destination search) respects it too - otherwise a BFS search would keep optimistically
+    /// routing an AI's random wander target back through/near a door it's already been denied, producing a
+    /// plan that looks valid at planning time but reliably fails at steering time, replans, and repeats.
+    /// </summary>
+    public readonly IReadOnlySet<(EntityUid, Vector2i, byte)>? DeniedTiles;
+
     #endregion
 
-    public PathRequest(EntityCoordinates start, PathFlags flags, int layer, int mask, CancellationToken cancelToken)
+    public PathRequest(
+        EntityCoordinates start,
+        PathFlags flags,
+        int layer,
+        int mask,
+        CancellationToken cancelToken,
+        IReadOnlySet<(EntityUid, Vector2i, byte)>? deniedTiles = null)
     {
         Start = start;
         Flags = flags;
         CollisionLayer = layer;
         CollisionMask = mask;
+        DeniedTiles = deniedTiles;
         Tcs = new TaskCompletionSource<PathResult>(cancelToken);
     }
 }
@@ -57,14 +76,6 @@ public sealed class AStarPathRequest : PathRequest
     /// </summary>
     public float Distance;
 
-    /// <summary>
-    /// Tile keys (GraphUid/ChunkOrigin/TileIndex) to treat as impassable regardless of flags, even though
-    /// they'd otherwise be allowed - doors this entity is known to have been denied real access to
-    /// recently. Snapshotted up front since pathfinding runs across worker threads (see
-    /// PathfindingSystem.GetDeniedTiles), so it can't safely be resolved from the entity manager mid-search.
-    /// </summary>
-    public readonly IReadOnlySet<(EntityUid, Vector2i, byte)>? DeniedTiles;
-
     public AStarPathRequest(
         EntityCoordinates start,
         EntityCoordinates end,
@@ -73,11 +84,10 @@ public sealed class AStarPathRequest : PathRequest
         int layer,
         int mask,
         CancellationToken cancelToken,
-        IReadOnlySet<(EntityUid, Vector2i, byte)>? deniedTiles = null) : base(start, flags, layer, mask, cancelToken)
+        IReadOnlySet<(EntityUid, Vector2i, byte)>? deniedTiles = null) : base(start, flags, layer, mask, cancelToken, deniedTiles)
     {
         Distance = distance;
         End = end;
-        DeniedTiles = deniedTiles;
     }
 }
 
@@ -100,7 +110,8 @@ public sealed class BFSPathRequest : PathRequest
         PathFlags flags,
         int layer,
         int mask,
-        CancellationToken cancelToken) : base(start, flags, layer, mask, cancelToken)
+        CancellationToken cancelToken,
+        IReadOnlySet<(EntityUid, Vector2i, byte)>? deniedTiles = null) : base(start, flags, layer, mask, cancelToken, deniedTiles)
         {
             ExpansionRange = expansionRange;
             ExpansionLimit = expansionLimit;

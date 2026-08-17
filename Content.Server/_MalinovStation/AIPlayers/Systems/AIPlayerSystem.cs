@@ -83,6 +83,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
         AddComp<DangerComponent>(mobUid);
         AddComp<AiLodComponent>(mobUid);
         AddComp<RepairOpportunityComponent>(mobUid);
+        AddComp<AiTraceStateComponent>(mobUid);
 
         if (persistentId is not null)
             _persistence.RequestLoad(mobUid, persistentId);
