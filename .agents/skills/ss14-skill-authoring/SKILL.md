@@ -129,6 +129,7 @@ Check:
 7. The bridge in `.claude/skills` is synced and the bridge check passes.
 8. A reverse walkthrough was done: read the skill as a fresh agent and confirm it answers three control questions without access to the codebase.
 9. Every API example carries a verification marker.
+10. Every API method mentioned has a real signature in the fork's current RobustToolbox HEAD. If a described overload does not exist (e.g., uid-only variant when only `Entity<T>` exists), remove it or mark `[unverified]`. Do not describe hypothetical API surface.
 
 ## Patterns for writing skills ✅
 
@@ -144,6 +145,7 @@ Check:
 10. Walk the SS14 dimension checklist before writing the architecture section.
 11. Do a reverse walkthrough before completion.
 12. Respect the context budget: dense facts first, depth in `references/`.
+13. When describing a pattern, state the **triggering condition** (when it applies) and the **non-triggering condition** (when it does NOT). Anti-pattern: `SetCoordinates → AttachToGridOrMap` described as "always required" when it only applies to cross-grid/cross-map teleports (~20% of callers). Misleading universal patterns cause LLMs to add unnecessary code.
 
 ## Anti-patterns when writing skills ❌
 
@@ -160,6 +162,10 @@ Check:
 11. Blow past the size budget, pushing the skill out of the context window.
 12. Ship API examples without a verification marker.
 13. Name the skill in Title Case while the folder is hyphen-case.
+14. Publish a raw API catalog without application context. A skill listing 100+ method signatures without "when to use" forces the LLM to read like an IDE tooltip. Group by goal, show preferred overload, and move full signatures to `references/`.
+15. Ship code examples without verification markers. Every snippet must carry `// Verify: <System>.cs — grep <Method>` so the next agent can confirm the example is current without reading the entire codebase.
+16. Describe a pattern as universally required when it only applies to a subset of cases (e.g., `SetCoordinates → AttachToGridOrMap` is only needed for cross-grid/cross-map teleports, not all SetCoordinates calls). Always state the triggering and non-triggering conditions.
+17. Suggest API calls that do not exist in the real codebase (e.g., `MetaDataSystem.GetEntityData()` for resolving `EntParentChangedMessage.OldMapId`). Always grep for actual usage patterns before adding resolution instructions.
 
 ## Examples of templates and fragments
 
