@@ -24,16 +24,30 @@ public sealed partial class HttpLlmClient : ILlmClient, IPostInjectInit
 
     private ISawmill _sawmill = default!;
 
-    public async Task<LlmDecision?> DecideAsync(AiContext context, CancellationToken cancellationToken)
+    public async Task<LlmDecision?> DecideAsync(AiContext context, IReadOnlyCollection<string> allowedIntents, CancellationToken cancellationToken)
     {
         var raw = await RequestChatCompletionAsync(
-            PromptBuilder.BuildSystemPrompt(),
+            PromptBuilder.BuildSystemPrompt(allowedIntents),
             PromptBuilder.BuildUserPrompt(context),
             cancellationToken);
 
         var decision = ResponseParser.Parse(raw);
         if (raw is not null && decision is null)
             _sawmill.Warning("LLM decision response failed validation; discarding.");
+
+        return decision;
+    }
+
+    public async Task<LlmCognitiveDecision?> DecideCognitiveAsync(CognitiveState context, IReadOnlyCollection<string> allowedIntents, CancellationToken cancellationToken)
+    {
+        var raw = await RequestChatCompletionAsync(
+            PromptBuilder.BuildCognitiveSystemPrompt(allowedIntents),
+            PromptBuilder.BuildCognitiveUserPrompt(context),
+            cancellationToken);
+
+        var decision = CognitiveResponseParser.Parse(raw);
+        if (raw is not null && decision is null)
+            _sawmill.Warning("LLM cognitive decision response failed validation; discarding.");
 
         return decision;
     }

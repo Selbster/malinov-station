@@ -1,6 +1,9 @@
 using System.Linq;
 using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server._MalinovStation.AIPlayers.LLM;
+using Content.Shared.Nutrition.Components;
+using Content.Shared.Nutrition.EntitySystems;
+using Content.Shared.Nutrition.Prototypes;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
 
@@ -8,11 +11,22 @@ namespace Content.Server._MalinovStation.AIPlayers.Systems;
 /// Assembles the <see cref="AiContext"/> sent to the LLM for one AI player. This is the enforcement point
 /// for "don't leak hidden information" (spec section 16): it only reads what Perception already recorded
 /// (LastObservation/memories/relationships), never a fresh omniscient query over the whole station.
+/// Also assembles the richer <see cref="CognitiveState"/> for cognitive-mode AI players (AI Players 2.0
+/// Milestone 1) - kept in the same system rather than a new one so this stays the single "don't leak hidden
+/// information" enforcement point instead of forking it.
 /// </summary>
 public sealed partial class ContextBuilderSystem : EntitySystem
 {
     [Dependency] private MemorySystem _memory = default!;
     [Dependency] private RelationshipSystem _relationships = default!;
+    [Dependency] private SatiationSystem _satiation = default!;
+
+    // Same threshold keys GoalSystem/vanilla FoodCompound gate on - deliberately duplicated (not shared via a
+    // public field) rather than reaching into GoalSystem's private state, same "each file mirrors the exact
+    // vanilla threshold it needs" precedent GoalSystem's own doc comments already establish.
+    private static readonly SatiationValue PeckishThreshold = "Peckish";
+    private static readonly SatiationValue ParchedThreshold = "Parched";
+    private static readonly SatiationValue? NoLowerBound = null;
 
     private static readonly (string Name, Func<PersonalityComponent, float> Value)[] Traits =
     {
@@ -77,6 +91,97 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             goal.CurrentPriority,
             goal.Reason,
             visible);
+    }
+
+    /// <summary>
+    /// Builds the <see cref="CognitiveState"/> for a cognitive-mode AI player, or null if it isn't a fully
+    /// set-up AI player. Works for any AI player component-wise (doesn't require <see cref="CognitiveModeComponent"/>
+    /// itself), but is only ever called for one today - see <see cref="LlmGatewaySystem"/>.
+    /// </summary>
+    public CognitiveState? BuildCognitiveState(EntityUid uid)
+    {
+        if (!TryComp<AIPlayerComponent>(uid, out var aiPlayer) ||
+            !TryComp<PersonalityComponent>(uid, out var personality) ||
+            !TryComp<NeedsComponent>(uid, out var needs) ||
+            !TryComp<GoalComponent>(uid, out var goal))
+        {
+            return null;
+        }
+
+        var hasSatiation = TryComp<SatiationComponent>(uid, out var satiation);
+        var isHungry = hasSatiation &&
+            _satiation.IsValueInRange((uid, satiation!), SatiationSystem.Hunger, above: NoLowerBound, below: PeckishThreshold);
+        var isThirsty = hasSatiation &&
+            _satiation.IsValueInRange((uid, satiation!), SatiationSystem.Thirst, above: NoLowerBound, below: ParchedThreshold);
+
+        var emotion = TryComp<EmotionComponent>(uid, out var emotionComp)
+            ? new CognitiveEmotion(emotionComp.Fear, emotionComp.Anger, emotionComp.Sadness, emotionComp.Anxiety, emotionComp.Joy, emotionComp.Confidence)
+            : new CognitiveEmotion(0f, 0f, 0f, 0f, 0f, 0f);
+
+        var desires = TryComp<DesireComponent>(uid, out var desireComp)
+            ? (IReadOnlyList<Desire>)desireComp.Current
+            : Array.Empty<Desire>();
+
+        var intent = TryComp<IntentComponent>(uid, out var intentComp)
+            ? new Desire(intentComp.Name, goal.CurrentPriority, intentComp.DesireServed)
+            : new Desire(goal.CurrentGoal, goal.CurrentPriority, goal.Reason);
+        var intentConfidence = intentComp?.Confidence ?? 1f;
+
+        var visible = new List<CognitivePerceivedCharacter>();
+        var relevantMemories = new List<string>();
+
+        if (TryComp<PerceptionComponent>(uid, out var perception) && perception.LastObservation is { } observation)
+        {
+            foreach (var other in observation.VisibleCharacters)
+            {
+                if (Deleted(other))
+                    continue;
+
+                var relationship = _relationships.GetRelationship(uid, other);
+                var recent = _memory.GetMemoriesAbout(uid, other, max: 3);
+
+                visible.Add(new CognitivePerceivedCharacter(
+                    Comp<MetaDataComponent>(other).EntityName,
+                    relationship.Trust,
+                    relationship.Respect,
+                    relationship.Fear,
+                    relationship.Friendship,
+                    relationship.Anger,
+                    relationship.Loyalty,
+                    recent.Count > 0 ? recent[0].Content : null));
+
+                relevantMemories.AddRange(recent.Select(m => m.Content));
+            }
+        }
+
+        var knownFacts = _memory.GetMostImportant(uid, max: 5)
+            .Where(m => m.Source != "rumor")
+            .Select(m => m.Content)
+            .ToList();
+
+        var beliefs = TryComp<BeliefComponent>(uid, out var beliefComp)
+            ? beliefComp.Beliefs
+                .OrderByDescending(b => b.Confidence)
+                .ThenByDescending(b => b.Timestamp)
+                .Take(5)
+                .Select(b => new BeliefSummary(b.Content, b.Confidence, b.Source))
+                .ToList()
+            : new List<BeliefSummary>();
+
+        return new CognitiveState(
+            Comp<MetaDataComponent>(uid).EntityName,
+            aiPlayer.Job?.Id ?? "Unknown",
+            SummarizePersonality(personality),
+            new CognitiveNeeds(needs.Fatigue, needs.Stress, needs.Safety, needs.SocialNeed, isHungry, isThirsty),
+            emotion,
+            goal.CurrentGoal,
+            desires,
+            intent,
+            intentConfidence,
+            visible,
+            relevantMemories,
+            knownFacts,
+            beliefs);
     }
 
     /// <summary>

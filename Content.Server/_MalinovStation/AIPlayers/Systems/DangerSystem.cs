@@ -26,6 +26,7 @@ public sealed partial class DangerSystem : EntitySystem
     [Dependency] private NeedsSystem _needs = default!;
     [Dependency] private MemorySystem _memory = default!;
     [Dependency] private RelationshipSystem _relationships = default!;
+    [Dependency] private EmotionSystem _emotion = default!;
     [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private AiLodSystem _lod = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
@@ -52,6 +53,8 @@ public sealed partial class DangerSystem : EntitySystem
             return;
 
         _needs.ModifySafety(uid, 0.6f);
+        // AI Players 2.0 Milestone 1: no-op for a legacy AI player (no EmotionComponent).
+        _emotion.Modify(uid, fearDelta: 0.5f, angerDelta: 0.3f);
 
         var origin = args.Origin;
         var isSelfInflicted = origin == uid;
@@ -113,6 +116,7 @@ public sealed partial class DangerSystem : EntitySystem
 
     private void ScanForInjured(EntityUid uid, DangerComponent danger, PerceptionComponent perception)
     {
+        var hadInjured = danger.NearbyInjured is not null;
         danger.NearbyInjured = null;
 
         if (perception.LastObservation is not { } observation)
@@ -127,6 +131,12 @@ public sealed partial class DangerSystem : EntitySystem
                 continue;
 
             danger.NearbyInjured = other;
+
+            // Only on newly noticing them, not every ~2s scan they're still visible - same "hadHazard"
+            // pattern ScanForFireHazard already uses below.
+            if (!hadInjured)
+                _emotion.Modify(uid, sadnessDelta: 0.2f);
+
             return;
         }
     }
@@ -171,6 +181,7 @@ public sealed partial class DangerSystem : EntitySystem
         if (hadHazard || danger.FireHazardLocation is null || !TryComp<GoalComponent>(uid, out var goal))
             return;
 
+        _emotion.Modify(uid, fearDelta: 0.3f);
         goal.IsLlmOverride = false;
         goal.ReconsiderAccumulator = 0f;
         _sawmill.Info($"[AI:{ToPrettyString(uid)}] Danger: noticed a nearby fire hazard.");

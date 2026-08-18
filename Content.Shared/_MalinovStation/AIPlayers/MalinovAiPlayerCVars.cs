@@ -53,6 +53,16 @@ public sealed class MalinovAiPlayerCVars : CVars
         CVarDef.Create("ai_players.llm.override_duration_seconds", 60f, CVar.SERVERONLY);
 
     /// <summary>
+    /// AI Players 2.0 Milestone 1 master switch for the LLM Cognitive Layer. Independent of
+    /// <see cref="AiPlayersLlmEnabled"/> (which gates the LLM gateway entirely) - even an AI player spawned
+    /// with cognitive mode does nothing extra while this is false. Belt-and-suspenders alongside cognitive
+    /// mode being opt-in per entity (see <c>aiplayer_spawn_cognitive</c>): both must be true for any of the
+    /// new cognitive behaviour to run.
+    /// </summary>
+    public static readonly CVarDef<bool> AiPlayersCognitiveEnabled =
+        CVarDef.Create("ai_players.cognitive.enabled", false, CVar.SERVERONLY);
+
+    /// <summary>
     /// Master switch for Milestone 9's cross-round persistence. When false, AI players never read or write
     /// the database, even if spawned with a PersistentId - matches spec section 26's "don't make persistence
     /// mandatory for the MVP."

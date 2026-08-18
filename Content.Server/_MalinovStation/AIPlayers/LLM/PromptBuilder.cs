@@ -9,14 +9,19 @@ namespace Content.Server._MalinovStation.AIPlayers.LLM;
 /// </summary>
 public static class PromptBuilder
 {
-    public static string BuildSystemPrompt()
+    /// <param name="allowedIntents">Every intent the caller will actually accept - previously this hardcoded
+    /// only <see cref="AIGoals.All"/>, silently omitting any loaded professional-goal ids the gateway's own
+    /// whitelist would accept (a real gap: the LLM could never legally propose one, since it was never told
+    /// it existed). Now the caller (which already has to look prototypes up to build the whitelist) passes
+    /// the full combined list in.</param>
+    public static string BuildSystemPrompt(IReadOnlyCollection<string> allowedIntents)
     {
         return "You are the decision-making mind of an NPC aboard a space station in a sci-fi roleplaying game. " +
                "You will be given the character's personality, needs, current goal, and what they can currently perceive. " +
                "Decide what the character's goal should be right now, in character. " +
                "Respond with ONLY a single JSON object, no other text, of the exact form: " +
                "{\"intent\": \"<one of the allowed intents>\", \"priority\": <number 0.0 to 1.0>, \"reason\": \"<short in-character reason>\"}. " +
-               $"Allowed intents: {string.Join(", ", AIGoals.All)}. " +
+               $"Allowed intents: {string.Join(", ", allowedIntents)}. " +
                "Use exactly one of the allowed intents, spelled exactly as given.";
     }
 
@@ -78,6 +83,89 @@ public static class PromptBuilder
             sb.AppendLine(context.LinePartnerJustSaid is null
                 ? $"{context.SpeakerName} is starting the conversation with a brief greeting or check-in."
                 : $"{context.PartnerName} just said: \"{context.LinePartnerJustSaid}\". {context.SpeakerName} should give a short, natural reply.");
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>AI Players 2.0 Milestone 1: the LLM Cognitive Layer's system prompt.</summary>
+    public static string BuildCognitiveSystemPrompt(IReadOnlyCollection<string> allowedIntents)
+    {
+        return "You are the mind of a character aboard a space station in a sci-fi roleplaying game - not a script, " +
+               "a person with their own desires, beliefs and feelings. You will be given your current needs, mood, " +
+               "personality, what you're currently doing, what you currently want (your desires) and how strongly, " +
+               "who/what you can see, what you know for certain, and things you've heard but aren't sure are true. " +
+               "You only know what is listed below - anything not mentioned, you have no way of knowing. " +
+               "Decide what you actually want to do right now, in character, and why. " +
+               "Respond with ONLY a single JSON object, no other text, of the exact form: " +
+               "{\"desire\": \"<which of your current desires this commits to>\", " +
+               "\"intention\": \"<one of the allowed intentions>\", \"priority\": <number 0.0 to 1.0>, " +
+               "\"confidence\": <number 0.0 to 1.0, how sure you are this is the right call>, " +
+               "\"reason\": \"<short in-character reason>\"}. " +
+               $"Allowed intentions: {string.Join(", ", allowedIntents)}. " +
+               "Use exactly one of the allowed intentions, spelled exactly as given.";
+    }
+
+    /// <summary>AI Players 2.0 Milestone 1: the LLM Cognitive Layer's user prompt, from a full <see cref="CognitiveState"/>.</summary>
+    public static string BuildCognitiveUserPrompt(CognitiveState context)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Character: {context.Name}, job: {context.Job}.");
+        sb.AppendLine($"Notable personality traits: {context.PersonalitySummary}.");
+        sb.AppendLine(
+            $"Needs (0 = fine, 1 = critical): Fatigue={context.Needs.Fatigue:0.00}, Stress={context.Needs.Stress:0.00}, " +
+            $"Safety={context.Needs.Safety:0.00}, SocialNeed={context.Needs.SocialNeed:0.00}, " +
+            $"Hungry={context.Needs.IsHungry}, Thirsty={context.Needs.IsThirsty}.");
+        sb.AppendLine(
+            $"Mood (0 = none, 1 = intense): Fear={context.Emotion.Fear:0.00}, Anger={context.Emotion.Anger:0.00}, " +
+            $"Sadness={context.Emotion.Sadness:0.00}, Anxiety={context.Emotion.Anxiety:0.00}, " +
+            $"Joy={context.Emotion.Joy:0.00}, Confidence={context.Emotion.Confidence:0.00}.");
+        sb.AppendLine($"Currently doing: {context.CurrentActivity}.");
+
+        if (context.CurrentDesires.Count == 0)
+        {
+            sb.AppendLine("You don't currently want anything in particular.");
+        }
+        else
+        {
+            sb.AppendLine("What you currently want, strongest first:");
+            foreach (var desire in context.CurrentDesires)
+                sb.AppendLine($"- {desire.Name} (strength {desire.Priority:0.00}) - {desire.Reason}");
+        }
+
+        if (context.VisibleWorld.Count == 0)
+        {
+            sb.AppendLine("You do not currently see anyone else nearby.");
+        }
+        else
+        {
+            sb.AppendLine("You can currently see:");
+            foreach (var character in context.VisibleWorld)
+            {
+                sb.Append($"- {character.Name} (trust {character.Trust:0.00}, respect {character.Respect:0.00}, ");
+                sb.Append($"friendship {character.Friendship:0.00}, fear {character.Fear:0.00}, anger {character.Anger:0.00}, loyalty {character.Loyalty:0.00})");
+                if (!string.IsNullOrWhiteSpace(character.RelevantMemory))
+                    sb.Append($" - last memory: {character.RelevantMemory}");
+                sb.AppendLine();
+            }
+        }
+
+        if (context.KnownFacts.Count == 0)
+        {
+            sb.AppendLine("You don't know anything else worth mentioning right now.");
+        }
+        else
+        {
+            sb.AppendLine("Things you know for certain:");
+            foreach (var fact in context.KnownFacts)
+                sb.AppendLine($"- {fact}");
+        }
+
+        if (context.Beliefs.Count > 0)
+        {
+            sb.AppendLine("Things you've heard but aren't sure are true:");
+            foreach (var belief in context.Beliefs)
+                sb.AppendLine($"- {belief.Content} (confidence {belief.Confidence:0.00}, from {belief.Source})");
         }
 
         return sb.ToString();

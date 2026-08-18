@@ -35,6 +35,7 @@ public sealed partial class AiTraceSystem : EntitySystem
         new CounterConfiguration { LabelNames = new[] { "kind" } });
 
     [Dependency] private ILogManager _logManager = default!;
+    [Dependency] private MemorySystem _memory = default!;
 
     private ISawmill _sawmill = default!;
 
@@ -151,6 +152,13 @@ public sealed partial class AiTraceSystem : EntitySystem
     {
         TraceEventsMetric.WithLabels("GoalFailed").Inc();
         _sawmill.Info($"[AI:{ToPrettyString(uid)}] GoalFailed: {goal} (reason={reason})");
+
+        // AI Players 2.0 Milestone 1's feedback loop ("observe result -> adapt -> continue"): only for a
+        // cognitive-mode AI player (HasComp is a safe check regardless of whether the entity even has a
+        // MemoryComponent) - a legacy AI player never gets this side effect, since AiTraceSystem otherwise has
+        // zero memory writes of its own.
+        if (HasComp<CognitiveModeComponent>(uid))
+            _memory.AddMemory(uid, content: $"Tried to {goal} but made no progress and gave up.", importance: 0.3f, source: "outcome", emotionalWeight: -0.2f);
     }
 
     public void GoalStuck(EntityUid uid, string goal, string reason)
@@ -193,6 +201,9 @@ public sealed partial class AiTraceSystem : EntitySystem
     {
         TraceEventsMetric.WithLabels("PlanInterrupted").Inc();
         _sawmill.Debug($"[AI:{ToPrettyString(uid)}] PlanInterrupted: {goal} (by={byGoal})");
+
+        if (HasComp<CognitiveModeComponent>(uid))
+            _memory.AddMemory(uid, content: $"Was in the middle of {goal} when {byGoal} became more urgent.", importance: 0.25f, source: "outcome");
     }
 
     private void PlanResumed(EntityUid uid, string goal)
@@ -223,5 +234,20 @@ public sealed partial class AiTraceSystem : EntitySystem
     {
         TraceEventsMetric.WithLabels("ActionFailed").Inc();
         _sawmill.Info($"[AI:{ToPrettyString(uid)}] ActionFailed: {action} (reason={reason})");
+
+        if (HasComp<CognitiveModeComponent>(uid))
+            _memory.AddMemory(uid, content: $"Attempted {action} but it failed: {reason}.", importance: 0.2f, source: "outcome", emotionalWeight: -0.1f);
+    }
+
+    /// <summary>
+    /// AI Players 2.0 Milestone 1: a cognitive decision's chosen action, surfaced here instead of actually
+    /// performing it (e.g. via <see cref="AiActionRegistrySystem"/>) - keeps ActionProposal an observable,
+    /// testable concept for this milestone without the AI vocalizing its reasoning every reflection cycle
+    /// (see <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/>).
+    /// </summary>
+    public void ActionProposed(EntityUid uid, string actionName, string reason)
+    {
+        TraceEventsMetric.WithLabels("ActionProposed").Inc();
+        _sawmill.Info($"[AI:{ToPrettyString(uid)}] ActionProposed: {actionName} (reason={reason})");
     }
 }

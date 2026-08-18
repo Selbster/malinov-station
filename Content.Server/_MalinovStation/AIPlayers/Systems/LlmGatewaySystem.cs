@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Content.Server._MalinovStation.AIPlayers.Components;
@@ -53,6 +54,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     private ISawmill _sawmill = default!;
 
     private bool _enabled;
+    private bool _cognitiveEnabled;
     private float _decisionCooldownSeconds;
     private int _maxConcurrentRequests;
     private float _timeoutSeconds;
@@ -66,6 +68,12 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     private readonly Dictionary<EntityUid, (Task<string?> Task, Action<EntityUid, string?> OnComplete)> _pendingLines = new();
     private readonly List<EntityUid> _finishedLinesBuffer = new();
 
+    /// <summary>AI Players 2.0 Milestone 1: same shape as <see cref="_pending"/>, but for cognitive decisions
+    /// - shares <see cref="_lastRequestAt"/>/<see cref="_inFlight"/> with the legacy path rather than
+    /// tracking a second budget, since an entity is never both cognitive and legacy.</summary>
+    private readonly Dictionary<EntityUid, (Task<LlmCognitiveDecision?> Task, TimeSpan StartedAt)> _pendingCognitive = new();
+    private readonly List<EntityUid> _finishedCognitiveBuffer = new();
+
     public override void Initialize()
     {
         base.Initialize();
@@ -75,6 +83,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         SubscribeLocalEvent<AiPlayerMetNewCharacterEvent>(OnMetNewCharacter);
 
         Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmEnabled, v => _enabled = v, true);
+        Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersCognitiveEnabled, v => _cognitiveEnabled = v, true);
         Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmDecisionCooldownSeconds, v => _decisionCooldownSeconds = v, true);
         Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmMaxConcurrentRequests, v => _maxConcurrentRequests = v, true);
         Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmTimeoutSeconds, v => _timeoutSeconds = v, true);
@@ -83,8 +92,20 @@ public sealed partial class LlmGatewaySystem : EntitySystem
 
     private void OnMetNewCharacter(ref AiPlayerMetNewCharacterEvent ev)
     {
-        TryRequestDecision(ev.AiPlayer);
+        // AI Players 2.0 Milestone 1: a cognitive AI player gets the cognitive pipeline for every trigger
+        // (this event + the periodic reflection scan in Update()); a legacy one keeps its single existing
+        // event-driven trigger, completely unchanged.
+        if (HasComp<CognitiveModeComponent>(ev.AiPlayer))
+            TryRequestCognitiveDecision(ev.AiPlayer);
+        else
+            TryRequestDecision(ev.AiPlayer);
     }
+
+    /// <summary>Every intent name a decision will actually be accepted for - the same combined whitelist
+    /// <see cref="TryApplyDecision"/> checks against, told to the LLM up front so it never proposes something
+    /// outside it (this used to silently omit professional-goal ids - see <see cref="PromptBuilder.BuildSystemPrompt"/>).</summary>
+    private IReadOnlyCollection<string> GetAllowedIntents() =>
+        AIGoals.All.Concat(_proto.EnumeratePrototypes<AiProfessionalGoalPrototype>().Select(p => p.ID)).ToList();
 
     /// <summary>
     /// Whether an LLM request for this entity is currently in flight. Mainly useful for tests/debug tooling
@@ -128,7 +149,53 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         LlmRequestsMetric.Inc();
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
-        _pending[uid] = (_client.DecideAsync(context, cts.Token), _timing.CurTime);
+        _pending[uid] = (_client.DecideAsync(context, GetAllowedIntents(), cts.Token), _timing.CurTime);
+        return true;
+    }
+
+    /// <summary>
+    /// Whether a cognitive decision request for this entity is currently in flight.
+    /// </summary>
+    public bool HasPendingCognitiveRequest(EntityUid uid) => _pendingCognitive.ContainsKey(uid);
+
+    /// <summary>
+    /// AI Players 2.0 Milestone 1: same gating as <see cref="TryRequestDecision"/> (disabled, Background LOD,
+    /// already-pending, cooldown, concurrency budget), plus the cognitive-mode master switch, using a
+    /// <see cref="CognitiveState"/> instead of the narrower <see cref="AiContext"/>. Shares the same
+    /// <see cref="_lastRequestAt"/> cooldown dict and <see cref="_inFlight"/> budget as the legacy path - an
+    /// entity is never both cognitive and legacy, so there's no real collision, and this keeps the whole
+    /// gateway under one shared concurrency cap rather than two independent ones that could double-spend it.
+    /// </summary>
+    public bool TryRequestCognitiveDecision(EntityUid uid)
+    {
+        if (!_enabled || !_cognitiveEnabled)
+            return false;
+
+        if (_lod.IsBackground(uid))
+            return false;
+
+        if (_pendingCognitive.ContainsKey(uid))
+            return false;
+
+        if (_lastRequestAt.TryGetValue(uid, out var last) &&
+            _timing.CurTime - last < TimeSpan.FromSeconds(_decisionCooldownSeconds))
+        {
+            return false;
+        }
+
+        if (_inFlight >= _maxConcurrentRequests)
+            return false;
+
+        var context = _contextBuilder.BuildCognitiveState(uid);
+        if (context is null)
+            return false;
+
+        _lastRequestAt[uid] = _timing.CurTime;
+        _inFlight++;
+        LlmRequestsMetric.Inc();
+
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
+        _pendingCognitive[uid] = (_client.DecideCognitiveAsync(context, GetAllowedIntents(), cts.Token), _timing.CurTime);
         return true;
     }
 
@@ -173,7 +240,30 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         base.Update(frameTime);
 
         UpdatePendingDecisions();
+        UpdatePendingCognitiveDecisions();
         UpdatePendingLines();
+        UpdateReflectionTriggers(frameTime);
+    }
+
+    /// <summary>
+    /// AI Players 2.0 Milestone 1 (spec section 32's "periodic thought interval"): the only trigger a
+    /// cognitive AI player had until now was "just met someone new" (<see cref="OnMetNewCharacter"/>) - this
+    /// gives it a standing heartbeat too, LOD-scaled the same way <see cref="GoalSystem"/>'s own reconsider
+    /// cadence is. <see cref="TryRequestCognitiveDecision"/> already enforces the same cooldown/budget checks
+    /// as every other trigger, so this can never blow the budget - worst case it's a harmless same-tick no-op.
+    /// </summary>
+    private void UpdateReflectionTriggers(float frameTime)
+    {
+        var query = EntityQueryEnumerator<CognitiveModeComponent>();
+        while (query.MoveNext(out var uid, out var cognitive))
+        {
+            cognitive.ReflectionAccumulator -= frameTime;
+            if (cognitive.ReflectionAccumulator > 0f)
+                continue;
+
+            cognitive.ReflectionAccumulator = cognitive.ReflectionCooldown * _lod.GetMultiplier(uid);
+            TryRequestCognitiveDecision(uid);
+        }
     }
 
     private void UpdatePendingDecisions()
@@ -197,6 +287,61 @@ public sealed partial class LlmGatewaySystem : EntitySystem
             LlmDecisionLatencyMetric.Observe((_timing.CurTime - entry.StartedAt).TotalSeconds);
             HandleCompletedRequest(uid, entry.Task);
         }
+    }
+
+    private void UpdatePendingCognitiveDecisions()
+    {
+        if (_pendingCognitive.Count == 0)
+            return;
+
+        _finishedCognitiveBuffer.Clear();
+        foreach (var (uid, entry) in _pendingCognitive)
+        {
+            if (entry.Task.IsCompleted)
+                _finishedCognitiveBuffer.Add(uid);
+        }
+
+        foreach (var uid in _finishedCognitiveBuffer)
+        {
+            var entry = _pendingCognitive[uid];
+            _pendingCognitive.Remove(uid);
+            _inFlight--;
+
+            LlmDecisionLatencyMetric.Observe((_timing.CurTime - entry.StartedAt).TotalSeconds);
+            HandleCompletedCognitiveRequest(uid, entry.Task);
+        }
+    }
+
+    private void HandleCompletedCognitiveRequest(EntityUid uid, Task<LlmCognitiveDecision?> task)
+    {
+        if (task.IsFaulted)
+        {
+            _sawmill.Warning($"LLM cognitive request for {ToPrettyString(uid)} threw: {task.Exception?.GetBaseException().Message}");
+            _trace.LlmFailure(uid, "RequestThrew");
+            return;
+        }
+
+        if (task.IsCanceled)
+        {
+            _sawmill.Debug($"LLM cognitive request for {ToPrettyString(uid)} timed out or was cancelled.");
+            _trace.LlmFailure(uid, "TimeoutOrCancelled");
+            return;
+        }
+
+        // Safe: Update() only calls this once task.IsCompleted is true, and IsFaulted/IsCanceled are
+        // excluded above, so the task has already run to completion - this cannot block.
+#pragma warning disable RA0004
+        var result = task.Result;
+#pragma warning restore RA0004
+
+        if (result is not { } decision)
+        {
+            _sawmill.Debug($"LLM returned no usable cognitive decision for {ToPrettyString(uid)}.");
+            _trace.LlmFailure(uid, "NoUsableDecision");
+            return;
+        }
+
+        TryApplyCognitiveDecision(uid, decision);
     }
 
     private void UpdatePendingLines()
@@ -304,6 +449,32 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         goal.LastLlmDecisionAt = _timing.CurTime;
 
         _trace.LlmDecision(uid, decision.Intent, priority, decision.Reason);
+        return true;
+    }
+
+    /// <summary>
+    /// AI Players 2.0 Milestone 1: validates and applies a cognitive decision. Delegates the actual
+    /// <see cref="GoalComponent"/> write to <see cref="TryApplyDecision"/> so the intent whitelist, priority
+    /// clamp, and GoalChanged trace stay a single source of truth shared by both the legacy and cognitive
+    /// paths - they can never drift apart. On top of that, also fills in the cognitive-only
+    /// <see cref="IntentComponent"/> overlay (present since this is only ever called for an entity with
+    /// <see cref="CognitiveModeComponent"/>) and traces the proposed action - log/trace-only for this
+    /// milestone (no <c>Talk</c> call), since deciding what's actually worth vocalizing is future work.
+    /// </summary>
+    public bool TryApplyCognitiveDecision(EntityUid uid, LlmCognitiveDecision decision)
+    {
+        if (!TryApplyDecision(uid, new LlmDecision(decision.Intention, decision.Priority, decision.Reason)))
+            return false;
+
+        if (TryComp<IntentComponent>(uid, out var intent))
+        {
+            intent.Name = decision.Intention;
+            intent.Confidence = Math.Clamp(decision.Confidence, 0f, 1f);
+            intent.DesireServed = decision.Desire;
+            intent.ChosenAt = _timing.CurTime;
+        }
+
+        _trace.ActionProposed(uid, "reflect", decision.Reason);
         return true;
     }
 }

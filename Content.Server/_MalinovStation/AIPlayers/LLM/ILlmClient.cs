@@ -11,7 +11,15 @@ namespace Content.Server._MalinovStation.AIPlayers.LLM;
 /// </summary>
 public interface ILlmClient
 {
-    Task<LlmDecision?> DecideAsync(AiContext context, CancellationToken cancellationToken);
+    /// <param name="allowedIntents">Every intent name the caller will actually accept (see
+    /// <see cref="Systems.LlmGatewaySystem.TryApplyDecision"/>'s whitelist) - told to the LLM so it never
+    /// proposes something outside it, including data-driven professional goals the fixed
+    /// <see cref="Components.AIGoals.All"/> vocabulary alone doesn't cover.</param>
+    Task<LlmDecision?> DecideAsync(AiContext context, IReadOnlyCollection<string> allowedIntents, CancellationToken cancellationToken);
 
     Task<string?> GenerateLineAsync(DialogueContext context, CancellationToken cancellationToken);
+
+    /// <summary>AI Players 2.0 Milestone 1: the LLM Cognitive Layer's decision, from a full
+    /// <see cref="CognitiveState"/> rather than the narrower <see cref="AiContext"/>.</summary>
+    Task<LlmCognitiveDecision?> DecideCognitiveAsync(CognitiveState context, IReadOnlyCollection<string> allowedIntents, CancellationToken cancellationToken);
 }

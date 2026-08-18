@@ -33,6 +33,8 @@ public sealed partial class SocialSystem : EntitySystem
     [Dependency] private AiActionRegistrySystem _actions = default!;
     [Dependency] private MemorySystem _memory = default!;
     [Dependency] private RelationshipSystem _relationships = default!;
+    [Dependency] private BeliefSystem _belief = default!;
+    [Dependency] private EmotionSystem _emotion = default!;
     [Dependency] private AiLodSystem _lod = default!;
 
     private ISawmill _sawmill = default!;
@@ -224,18 +226,32 @@ public sealed partial class SocialSystem : EntitySystem
     }
 
     /// <summary>
-    /// Copies a rumor to the listener as a secondhand memory (reduced importance/emotional weight) and
+    /// Copies a rumor to the listener - as a secondhand <see cref="MemoryComponent"/> entry (reduced
+    /// importance/emotional weight, unchanged behaviour) for a legacy AI player, or as a
+    /// <see cref="BeliefComponent"/> entry (AI Players 2.0 Milestone 1) for a cognitive-mode one, since a
+    /// rumor is exactly the kind of secondhand information that could be wrong and shouldn't be treated as
+    /// ground truth the way every existing memory reader treats <see cref="MemoryComponent"/>. Either way,
     /// nudges their feelings toward whoever it's about - smaller than a firsthand experience would.
     /// </summary>
     private void ShareRumor(EntityUid listener, AiMemory rumor)
     {
-        _memory.AddMemory(
-            listener,
-            content: rumor.Content,
-            importance: rumor.Importance * 0.6f,
-            source: "rumor",
-            participants: rumor.Participants,
-            emotionalWeight: rumor.EmotionalWeight * 0.7f);
+        if (HasComp<CognitiveModeComponent>(listener))
+        {
+            var subject = rumor.Participants.Count > 0 && !Deleted(rumor.Participants[0])
+                ? Comp<MetaDataComponent>(rumor.Participants[0]).EntityName
+                : "someone";
+            _belief.AddBelief(listener, subject: subject, content: rumor.Content, confidence: 0.5f, source: "rumor", participants: rumor.Participants);
+        }
+        else
+        {
+            _memory.AddMemory(
+                listener,
+                content: rumor.Content,
+                importance: rumor.Importance * 0.6f,
+                source: "rumor",
+                participants: rumor.Participants,
+                emotionalWeight: rumor.EmotionalWeight * 0.7f);
+        }
 
         if (rumor.Participants.Count == 0)
             return;
@@ -268,6 +284,9 @@ public sealed partial class SocialSystem : EntitySystem
             listener,
             trustDelta: 0.01f * (0.5f + empathy),
             friendshipDelta: 0.02f * (0.5f + empathy));
+
+        // AI Players 2.0 Milestone 1: no-op for a legacy AI player (no EmotionComponent).
+        _emotion.Modify(speaker, joyDelta: 0.1f * (0.5f + empathy));
     }
 
     private void EndConversation(EntityUid uid)

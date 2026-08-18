@@ -103,6 +103,32 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
         if (EntityManager.TryGetComponent<RelationshipComponent>(uid, out var relationships))
             sb.AppendLine($"Relationships: {relationships.Relationships.Count} known entities");
 
+        // AI Players 2.0 Milestone 1 - only present on a cognitive-mode AI player (aiplayer_spawn_cognitive).
+        if (EntityManager.HasComponent<Components.CognitiveModeComponent>(uid))
+        {
+            sb.AppendLine("Cognitive mode: enabled");
+
+            if (EntityManager.TryGetComponent<EmotionComponent>(uid, out var emotion))
+            {
+                sb.AppendLine(
+                    $"Emotion: Fear={emotion.Fear:0.00} Anger={emotion.Anger:0.00} Sadness={emotion.Sadness:0.00} " +
+                    $"Anxiety={emotion.Anxiety:0.00} Joy={emotion.Joy:0.00} Confidence={emotion.Confidence:0.00}");
+            }
+
+            if (EntityManager.TryGetComponent<DesireComponent>(uid, out var desire) && desire.Current.Count > 0)
+            {
+                sb.AppendLine("Desires:");
+                foreach (var d in desire.Current)
+                    sb.AppendLine($"  - {d.Name} (strength {d.Priority:0.00}) - {d.Reason}");
+            }
+
+            if (EntityManager.TryGetComponent<IntentComponent>(uid, out var intent))
+                sb.AppendLine($"Intent: {intent.Name} (confidence {intent.Confidence:0.00}, serves {intent.DesireServed})");
+
+            if (EntityManager.TryGetComponent<BeliefComponent>(uid, out var belief))
+                sb.AppendLine($"Beliefs: {belief.Beliefs.Count}/{belief.MaxBeliefs}");
+        }
+
         if (EntityManager.TryGetComponent<DangerComponent>(uid, out var danger))
         {
             sb.AppendLine(

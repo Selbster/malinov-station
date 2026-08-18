@@ -43,6 +43,7 @@ public sealed partial class GoalSystem : EntitySystem
     [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private AiTraceSystem _trace = default!;
     [Dependency] private DamageableSystem _damageable = default!;
+    [Dependency] private DesireSystem _desire = default!;
 
     /// <summary>Minimum change in <see cref="GetProgressValue"/> to count as genuine progress rather than
     /// noise (background need decay, floating-point jitter).</summary>
@@ -157,75 +158,120 @@ public sealed partial class GoalSystem : EntitySystem
             goal.IsLlmOverride = false;
         }
 
-        var best = AIGoals.Idle;
-        // Baseline: nothing urgent, keep doing routine work/idling.
-        var bestPriority = 0.1f;
-        var reason = "nothing-urgent";
+        var candidates = ComputeCandidates(uid, goal, needs, personality);
+
+        // AI Players 2.0 Milestone 1: materialize every candidate this pass considered, not just the winner -
+        // a no-op for a legacy AI player (no DesireComponent), but this is the plural "what do I currently
+        // want, and how strongly" state a cognitive-mode AI's LLM decision gets to see and reason about.
+        _desire.Record(uid, candidates);
+
+        // Idle is always candidates[0] and is unconditionally added below, so this is never empty - the same
+        // "first candidate to reach a given priority wins ties" behaviour as the original sequential
+        // if (x > bestPriority) chain this replaced (see ComputeCandidates' doc comment for the equivalence
+        // proof), just as an explicit scan over a list instead of inline running-max variables.
+        var winner = candidates[0];
+        for (var i = 1; i < candidates.Count; i++)
+        {
+            if (candidates[i].Priority > winner.Priority)
+                winner = candidates[i];
+        }
+
+        goal.CurrentPriority = winner.Priority;
+
+        if (winner.Name == goal.CurrentGoal)
+        {
+            WarnIfStuck(uid, goal, winner.Name);
+            return;
+        }
+
+        _trace.GoalChanged(uid, goal.CurrentGoal, winner.Name, winner.Reason, winner.Priority);
+
+        if (NeedReasons.TryGetValue(winner.Reason, out var startedNeed))
+            _trace.NeedChanged(uid, startedNeed);
+
+        // Only claim a need actually resolved (not just got outranked by a different urgent need this tick)
+        // when nothing else is driving behaviour either - the safest signal we have without per-need
+        // threshold tracking (deferred to the progress-tracking stage).
+        if (winner.Reason == "nothing-urgent" && NeedReasons.TryGetValue(goal.Reason, out var resolvedNeed))
+            _trace.NeedSatisfied(uid, resolvedNeed);
+
+        goal.CurrentGoal = winner.Name;
+        goal.Reason = winner.Reason;
+        goal.CurrentGoalSince = _timing.CurTime;
+        // Fresh pursuit, fresh baseline - see WarnIfStuck.
+        goal.ProgressBaseline = null;
+
+        // Cognitive-mode overlay only (no-op via TryComp for every legacy AI player): IntentComponent mirrors
+        // GoalComponent.CurrentGoal exactly (HTN still only ever reads the latter, via CurrentGoalPrecondition
+        // - this never becomes a second thing HTN gates on), plus the reasoning/confidence GoalComponent has
+        // no room for. Confidence is 1f here because this is the formula-driven fallback, not an actual
+        // cognitive LLM decision - see LlmGatewaySystem.TryApplyCognitiveDecision for the other writer.
+        if (TryComp<IntentComponent>(uid, out var intent))
+        {
+            intent.Name = winner.Name;
+            intent.Confidence = 1f;
+            intent.DesireServed = winner.Name;
+            intent.ChosenAt = _timing.CurTime;
+        }
+    }
+
+    /// <summary>
+    /// Every candidate goal this AI player could pursue right now and its computed priority - the exact same
+    /// formulas <see cref="Reconsider"/> used to run inline as a sequential "if better than the running best"
+    /// chain, extracted so a cognitive-mode AI can see the whole set (<see cref="DesireSystem"/>) instead of
+    /// just the winner. <see cref="Reconsider"/>'s winner-selection (highest priority, first-evaluated wins
+    /// ties) reproduces the original chain's behaviour exactly as long as this returns the same (name,
+    /// priority) pairs in the same order for every candidate whose original gate condition held - which is
+    /// the entire contract this method must keep. Idle is always present as candidates[0] (the original's
+    /// starting baseline), so the result is never empty.
+    /// </summary>
+    private List<Desire> ComputeCandidates(EntityUid uid, GoalComponent goal, NeedsComponent needs, PersonalityComponent personality)
+    {
+        var candidates = new List<Desire> { new(AIGoals.Idle, 0.1f, "nothing-urgent") };
 
         if (TryComp<DangerComponent>(uid, out var danger))
         {
             // Braver/more risk-tolerant AI players still flee, just a little less readily than fearful ones.
             // A nearby fire is just as urgent as an attacker - both are handled by the same FleeCompound branch.
             var hasThreat = danger.ThreatSource is not null || danger.FireHazardLocation is not null;
-            var fleePriority = hasThreat
-                ? MathF.Max(0.5f, 0.95f - personality.Courage * 0.25f - personality.RiskTolerance * 0.1f)
-                : 0f;
-
-            if (fleePriority > bestPriority)
+            if (hasThreat)
             {
-                best = AIGoals.Flee;
-                bestPriority = fleePriority;
-                reason = danger.ThreatSource is not null ? "attacked" : "saw-fire";
+                var fleePriority = MathF.Max(0.5f, 0.95f - personality.Courage * 0.25f - personality.RiskTolerance * 0.1f);
+                candidates.Add(new Desire(AIGoals.Flee, fleePriority, danger.ThreatSource is not null ? "attacked" : "saw-fire"));
             }
 
             // Empathetic/brave AI players are more likely to go check on someone than to look away.
-            var helpPriority = danger.NearbyInjured is not null
-                ? MathF.Max(0f, 0.3f + personality.Empathy * 0.4f + personality.Courage * 0.1f)
-                : 0f;
-
-            if (helpPriority > bestPriority)
+            if (danger.NearbyInjured is not null)
             {
-                best = AIGoals.HelpInjured;
-                bestPriority = helpPriority;
-                reason = "saw-someone-hurt";
+                var helpPriority = MathF.Max(0f, 0.3f + personality.Empathy * 0.4f + personality.Courage * 0.1f);
+                candidates.Add(new Desire(AIGoals.HelpInjured, helpPriority, "saw-someone-hurt"));
             }
         }
 
         // Lazier AI players want to rest sooner; more professional/authority-respecting ones push through longer.
-        var restPriority = MathF.Max(0f, needs.Fatigue * (0.6f + personality.Laziness * 0.4f - personality.Professionalism * 0.2f));
-        if (restPriority > bestPriority && !IsAbandoned(goal, AIGoals.Rest))
+        if (!IsAbandoned(goal, AIGoals.Rest))
         {
-            best = AIGoals.Rest;
-            bestPriority = restPriority;
-            reason = "fatigue";
+            var restPriority = MathF.Max(0f, needs.Fatigue * (0.6f + personality.Laziness * 0.4f - personality.Professionalism * 0.2f));
+            candidates.Add(new Desire(AIGoals.Rest, restPriority, "fatigue"));
         }
 
         var socializePriority = needs.SocialNeed * personality.Sociability;
-        if (socializePriority > bestPriority)
-        {
-            best = AIGoals.Socialize;
-            bestPriority = socializePriority;
-            reason = "social-need";
-        }
+        candidates.Add(new Desire(AIGoals.Socialize, socializePriority, "social-need"));
 
         if (TryComp<SatiationComponent>(uid, out var satiation))
         {
             const float hungerPriority = 0.65f;
-            if (hungerPriority > bestPriority && !IsAbandoned(goal, AIGoals.SatisfyHunger) &&
+            if (!IsAbandoned(goal, AIGoals.SatisfyHunger) &&
                 _satiation.IsValueInRange((uid, satiation), SatiationSystem.Hunger, above: NoLowerBound, below: PeckishThreshold))
             {
-                best = AIGoals.SatisfyHunger;
-                bestPriority = hungerPriority;
-                reason = "hungry";
+                candidates.Add(new Desire(AIGoals.SatisfyHunger, hungerPriority, "hungry"));
             }
 
             const float thirstPriority = 0.65f;
-            if (thirstPriority > bestPriority && !IsAbandoned(goal, AIGoals.SatisfyThirst) &&
+            if (!IsAbandoned(goal, AIGoals.SatisfyThirst) &&
                 _satiation.IsValueInRange((uid, satiation), SatiationSystem.Thirst, above: NoLowerBound, below: ParchedThreshold))
             {
-                best = AIGoals.SatisfyThirst;
-                bestPriority = thirstPriority;
-                reason = "thirsty";
+                candidates.Add(new Desire(AIGoals.SatisfyThirst, thirstPriority, "thirsty"));
             }
         }
 
@@ -238,44 +284,16 @@ public sealed partial class GoalSystem : EntitySystem
             TryComp<AIPlayerComponent>(uid, out var aiPlayer) &&
             aiPlayer.Job is { } job &&
             _proto.TryIndex<AiProfessionalGoalPrototype>(ProfessionalGoals.RepairMachine, out var repairGoal) &&
-            repairGoal.Jobs.Contains(job))
+            repairGoal.Jobs.Contains(job) &&
+            !IsAbandoned(goal, ProfessionalGoals.RepairMachine))
         {
             // More professional, less lazy AI players prioritize work over idling sooner.
             var repairPriority = MathF.Max(0f,
                 repairGoal.BasePriority + personality.Professionalism * 0.3f - personality.Laziness * 0.2f);
-
-            if (repairPriority > bestPriority && !IsAbandoned(goal, ProfessionalGoals.RepairMachine))
-            {
-                best = ProfessionalGoals.RepairMachine;
-                bestPriority = repairPriority;
-                reason = "saw-damaged-machine";
-            }
+            candidates.Add(new Desire(ProfessionalGoals.RepairMachine, repairPriority, "saw-damaged-machine"));
         }
 
-        goal.CurrentPriority = bestPriority;
-
-        if (best == goal.CurrentGoal)
-        {
-            WarnIfStuck(uid, goal, best);
-            return;
-        }
-
-        _trace.GoalChanged(uid, goal.CurrentGoal, best, reason, bestPriority);
-
-        if (NeedReasons.TryGetValue(reason, out var startedNeed))
-            _trace.NeedChanged(uid, startedNeed);
-
-        // Only claim a need actually resolved (not just got outranked by a different urgent need this tick)
-        // when nothing else is driving behaviour either - the safest signal we have without per-need
-        // threshold tracking (deferred to the progress-tracking stage).
-        if (reason == "nothing-urgent" && NeedReasons.TryGetValue(goal.Reason, out var resolvedNeed))
-            _trace.NeedSatisfied(uid, resolvedNeed);
-
-        goal.CurrentGoal = best;
-        goal.Reason = reason;
-        goal.CurrentGoalSince = _timing.CurTime;
-        // Fresh pursuit, fresh baseline - see WarnIfStuck.
-        goal.ProgressBaseline = null;
+        return candidates;
     }
 
     private bool IsAbandoned(GoalComponent goal, string candidate) =>
