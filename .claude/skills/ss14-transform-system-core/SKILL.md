@@ -1,6 +1,6 @@
 ---
 name: ss14-transform-system-core
-description: An in-depth practical guide to TransformSystem in Space Station 14: coordinate model (EntityCoordinates/MapCoordinates), parent-grid-map hierarchy, safe movement, anchor/unbind and client/server patterns. Use for teleports, entity transfers, containers, anchoring and spatial optimizations.
+description: In-depth practical guide to TransformSystem in SS14: coordinate model (EntityCoordinates/MapCoordinates), parent-grid-map hierarchy, safe movement, anchor/unbind and client/server patterns. Use for teleports, entity transfers, containers, anchoring and spatial optimizations.
 ---
 
 # Claude Bridge
