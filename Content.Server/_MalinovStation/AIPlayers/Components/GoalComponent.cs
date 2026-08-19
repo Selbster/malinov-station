@@ -1,15 +1,18 @@
 namespace Content.Server._MalinovStation.AIPlayers.Components;
 
 /// <summary>
-/// Tracks the AI player's currently selected goal/intent, as computed by
+/// Tracks the AI player's currently selected reflex goal, as computed by
 /// <see cref="Content.Server._MalinovStation.AIPlayers.Systems.GoalSystem"/> from needs, danger and
-/// personality (or overridden by an LLM decision - see <see cref="Systems.LlmGatewaySystem"/>). This is the
-/// single unambiguous "current intent" the spec asks for (Milestone 1): Flee/HelpInjured/RepairMachine/Rest's
-/// HTN branches all require <c>CurrentGoalPrecondition</c> to match <see cref="CurrentGoal"/> before they can
-/// run, on top of their own independent real-world fact precondition. SatisfyHunger/SatisfyThirst stay
-/// observability-only - the vanilla FoodCompound HTN branch reacts to <see cref="Content.Shared.Nutrition.Components.SatiationComponent"/>
-/// directly, and this component's owner mirrors its exact thresholds so the two never disagree. Socialize is
-/// also a direct consumer (see <see cref="Systems.SocialSystem"/>).
+/// personality, or set directly by <see cref="Systems.GoalSystem.TrySetExternalGoal"/> (the single shared
+/// write path used by both <see cref="Systems.LlmGatewaySystem.TryApplyDecision"/> for a legacy AI and the
+/// <c>PursueGoal</c> action for a cognitive one - see <see cref="IntentComponent"/> for AI Players 0.3's
+/// independent, free-form "what the AI actually wants" concept, which this component is deliberately NOT).
+/// Flee/HelpInjured/RepairMachine/Rest's HTN branches all require <c>CurrentGoalPrecondition</c> to match
+/// <see cref="CurrentGoal"/> before they can run, on top of their own independent real-world fact
+/// precondition. SatisfyHunger/SatisfyThirst stay observability-only - the vanilla FoodCompound HTN branch
+/// reacts to <see cref="Content.Shared.Nutrition.Components.SatiationComponent"/> directly, and this
+/// component's owner mirrors its exact thresholds so the two never disagree. Socialize is also a direct
+/// consumer (see <see cref="Systems.SocialSystem"/>).
 /// </summary>
 [RegisterComponent]
 public sealed partial class GoalComponent : Component

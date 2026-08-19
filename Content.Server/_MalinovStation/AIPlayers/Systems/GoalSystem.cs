@@ -1,11 +1,14 @@
+using System.Diagnostics.CodeAnalysis;
 using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server._MalinovStation.AIPlayers.Prototypes;
+using Content.Shared._MalinovStation.AIPlayers;
 using Content.Shared.Damage.Components;
 using Content.Shared.Damage.Systems;
 using Content.Shared.Nutrition.Components;
 using Content.Shared.Nutrition.EntitySystems;
 using Content.Shared.Nutrition.Prototypes;
 using Prometheus;
+using Robust.Shared.Configuration;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Timing;
 
@@ -19,21 +22,24 @@ namespace Content.Server._MalinovStation.AIPlayers.Systems;
 /// when its underlying fact isn't true; see Milestone 1). SatisfyHunger/SatisfyThirst remain
 /// observability-only: the vanilla FoodCompound HTN branch reacts to the same SatiationComponent directly, and
 /// this system mirrors its exact thresholds so the two never disagree about when hunger/thirst is urgent.
-/// While an LLM override (Milestone 4) is in effect, this system leaves CurrentGoal alone until it expires -
-/// this is also what makes an LLM decision to abandon/prioritize a goal actually take effect on HTN behaviour.
+/// While an LLM override is in effect, this system leaves CurrentGoal alone until it expires - this is also
+/// what makes an external decision to abandon/prioritize a goal actually take effect on HTN behaviour.
 ///
-/// Stabilization milestone stage 7 (unified lifecycle audit): <see cref="GoalComponent.CurrentGoal"/> has
-/// exactly two writers in the whole codebase - <see cref="Reconsider"/> below and
-/// <see cref="LlmGatewaySystem.TryApplyDecision"/> (which itself only ever writes a value this system will
-/// happily resume arbitrating once <see cref="GoalComponent.LlmOverrideExpiresAt"/> passes). DangerSystem is
-/// not a third writer despite reacting to attacks/fires first: it only clears a stale LLM override and forces
+/// <see cref="GoalComponent.CurrentGoal"/> has exactly two write sites in the whole codebase -
+/// <see cref="Reconsider"/> below (the formula-driven arbitration this system owns) and
+/// <see cref="TrySetExternalGoal"/> (AI Players 0.3: the single shared method both
+/// <see cref="LlmGatewaySystem.TryApplyDecision"/> for a legacy AI and the cognitive <c>PursueGoal</c> action
+/// for a cognitive one call into - this system will happily resume arbitrating once
+/// <see cref="GoalComponent.LlmOverrideExpiresAt"/> passes either way). DangerSystem is not a third writer
+/// despite reacting to attacks/fires first: it only clears a stale LLM override and forces
 /// <see cref="GoalComponent.ReconsiderAccumulator"/> to 0 so this system reacts on the very next tick instead
 /// of waiting out the routine cooldown - the actual Flee/HelpInjured decision still goes through
 /// <see cref="Reconsider"/>. Every HTN branch either gates on <c>CurrentGoalPrecondition</c> matching this
 /// system's pick (Flee/HelpInjured/RepairMachine/Rest), is a deliberately independent direct consumer that
 /// mirrors the same underlying fact this system also reads (Food/Thirst vs SatiationComponent, Socialize vs
 /// SocialSystem), or is an explicit directive channel of its own (ForcedMove). No branch can run purely
-/// because HTN's own top-to-bottom compound order reached it.
+/// because HTN's own top-to-bottom compound order reached it. This system is purely a reflex layer - see
+/// <see cref="IntentComponent"/> for a cognitive AI's independent, free-form "what it actually wants".
 /// </summary>
 public sealed partial class GoalSystem : EntitySystem
 {
@@ -44,6 +50,7 @@ public sealed partial class GoalSystem : EntitySystem
     [Dependency] private AiTraceSystem _trace = default!;
     [Dependency] private DamageableSystem _damageable = default!;
     [Dependency] private DesireSystem _desire = default!;
+    [Dependency] private IConfigurationManager _cfg = default!;
 
     /// <summary>Minimum change in <see cref="GetProgressValue"/> to count as genuine progress rather than
     /// noise (background need decay, floating-point jitter).</summary>
@@ -119,6 +126,18 @@ public sealed partial class GoalSystem : EntitySystem
         "aiplayers_goal_reconsider_duration_seconds",
         "Wall-clock time spent per AI player goal reconsideration.",
         new HistogramConfiguration { Buckets = Histogram.ExponentialBuckets(0.0001, 2, 14) });
+
+    /// <summary>How long an externally-set goal (<see cref="TrySetExternalGoal"/>) stays in effect before
+    /// this system resumes normal arbitration. Subscribed here (moved from <see cref="LlmGatewaySystem"/> in
+    /// AI Players 0.3) since it now gates the one shared write path both the legacy LLM decision and the
+    /// cognitive <c>PursueGoal</c> action go through.</summary>
+    private float _overrideDurationSeconds;
+
+    public override void Initialize()
+    {
+        base.Initialize();
+        Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmOverrideDurationSeconds, v => _overrideDurationSeconds = v, true);
+    }
 
     public override void Update(float frameTime)
     {
@@ -201,18 +220,56 @@ public sealed partial class GoalSystem : EntitySystem
         // Fresh pursuit, fresh baseline - see WarnIfStuck.
         goal.ProgressBaseline = null;
 
-        // Cognitive-mode overlay only (no-op via TryComp for every legacy AI player): IntentComponent mirrors
-        // GoalComponent.CurrentGoal exactly (HTN still only ever reads the latter, via CurrentGoalPrecondition
-        // - this never becomes a second thing HTN gates on), plus the reasoning/confidence GoalComponent has
-        // no room for. Confidence is 1f here because this is the formula-driven fallback, not an actual
-        // cognitive LLM decision - see LlmGatewaySystem.TryApplyCognitiveDecision for the other writer.
-        if (TryComp<IntentComponent>(uid, out var intent))
+        // AI Players 0.3: deliberately does NOT touch IntentComponent, even for a cognitive-mode AI player.
+        // Intent is now independent of this reflex layer (see IntentComponent's own doc comment) - if this
+        // formula's pick were still mirrored here, it would silently overwrite a cognitive AI's free-form
+        // intent the instant its PursueGoal override expires, which is exactly the leak this milestone
+        // removes. IntentComponent is written exclusively by LlmGatewaySystem.TryApplyCognitiveDecision.
+    }
+
+    /// <summary>Whether <paramref name="goalName"/> is a legal external goal - the same combined whitelist
+    /// <see cref="TrySetExternalGoal"/> checks against, exposed read-only so an <see cref="Actions.IAiAction.CanDo"/>
+    /// implementation (e.g. the cognitive <c>PursueGoal</c> action) can validate without mutating state.</summary>
+    public bool IsKnownGoalName(string goalName) =>
+        AIGoals.All.Contains(goalName) || _proto.HasIndex<AiProfessionalGoalPrototype>(goalName);
+
+    /// <summary>
+    /// Validates and applies an externally-provided goal directly to <see cref="GoalComponent"/>, bypassing
+    /// <see cref="Reconsider"/>'s own needs/personality arbitration - the caller is asserting this goal should
+    /// take effect right now. The single shared write path for both <see cref="LlmGatewaySystem.TryApplyDecision"/>
+    /// (legacy AI) and the cognitive <c>PursueGoal</c> action, so <see cref="GoalComponent"/>'s writer surface
+    /// and "legal goal name" whitelist stay one source of truth (see <see cref="GoalComponent"/>'s own doc
+    /// comment for the resulting invariant).
+    /// </summary>
+    public bool TrySetExternalGoal(EntityUid uid, string goalName, float priority, string reason, [NotNullWhen(false)] out string? failReason)
+    {
+        if (!IsKnownGoalName(goalName))
         {
-            intent.Name = winner.Name;
-            intent.Confidence = 1f;
-            intent.DesireServed = winner.Name;
-            intent.ChosenAt = _timing.CurTime;
+            failReason = $"Unknown goal \"{goalName}\".";
+            return false;
         }
+
+        if (Deleted(uid) || !TryComp<GoalComponent>(uid, out var goal))
+        {
+            failReason = "Entity is not a valid AI player.";
+            return false;
+        }
+
+        var clamped = Math.Clamp(priority, 0f, 1f);
+
+        if (goal.CurrentGoal != goalName)
+            goal.CurrentGoalSince = _timing.CurTime;
+
+        goal.CurrentGoal = goalName;
+        goal.CurrentPriority = clamped;
+        goal.Reason = reason;
+        goal.IsLlmOverride = true;
+        goal.LlmOverrideExpiresAt = _timing.CurTime + TimeSpan.FromSeconds(_overrideDurationSeconds);
+        goal.LastLlmDecision = $"{goalName} (priority {clamped:0.00}) - {reason}";
+        goal.LastLlmDecisionAt = _timing.CurTime;
+
+        failReason = null;
+        return true;
     }
 
     /// <summary>

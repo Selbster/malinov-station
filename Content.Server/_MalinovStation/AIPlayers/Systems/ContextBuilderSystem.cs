@@ -123,7 +123,7 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             : Array.Empty<Desire>();
 
         var intent = TryComp<IntentComponent>(uid, out var intentComp)
-            ? new Desire(intentComp.Name, goal.CurrentPriority, intentComp.DesireServed)
+            ? new Desire(intentComp.Name, intentComp.Priority, intentComp.DesireServed)
             : new Desire(goal.CurrentGoal, goal.CurrentPriority, goal.Reason);
         var intentConfidence = intentComp?.Confidence ?? 1f;
 
@@ -154,8 +154,10 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             }
         }
 
+        // "landmark" memories get their own structured channel below (KnownLocations) rather than appearing
+        // here too as generic prose - avoids telling the LLM the same thing twice in two different shapes.
         var knownFacts = _memory.GetMostImportant(uid, max: 5)
-            .Where(m => m.Source != "rumor")
+            .Where(m => m.Source != "rumor" && m.Source != "landmark")
             .Select(m => m.Content)
             .ToList();
 
@@ -167,6 +169,8 @@ public sealed partial class ContextBuilderSystem : EntitySystem
                 .Select(b => new BeliefSummary(b.Content, b.Confidence, b.Source))
                 .ToList()
             : new List<BeliefSummary>();
+
+        var knownLocations = _memory.GetKnownLocationNames(uid, max: 5);
 
         return new CognitiveState(
             Comp<MetaDataComponent>(uid).EntityName,
@@ -181,7 +185,8 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             visible,
             relevantMemories,
             knownFacts,
-            beliefs);
+            beliefs,
+            knownLocations);
     }
 
     /// <summary>

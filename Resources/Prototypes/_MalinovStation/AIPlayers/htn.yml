@@ -88,6 +88,16 @@
 # Milestone 5's MoveTo action writes ForcedDestination onto the blackboard; this branch reacts to it and
 # walks there. MoveToOperator removes the key on arrival by default, so this branch naturally stops being
 # selected once the AI player arrives - no cleanup code needed here.
+# pathfindInPlanning: false (AI Navigation Controller v1) - like HelpInjured/Rest/RepairMachine below, not
+# FleeCompound above: a forced/known-location destination is always an anchored, walkable point (unlike
+# Flee's raw computed vector, which can land in a wall), so there's no walkability check to worry about at
+# planning time. This also matters for feedback: without it, MoveToOperator.Plan() defaults to validating the
+# destination reachable via a real (async) pathfind *before* this branch is ever selected - if that failed
+# silently, ForcedDestination would never get cleared and HTN would retry the same doomed pathfind forever
+# with no trace/memory/reflection ever firing. With pathfindInPlanning: false, an unreachable destination is
+# only discovered reactively once steering is already underway (NoPath), which aborts the already-selected
+# plan and *does* flow into AiTraceSystem.ActionFailed - the AI's only route to "I can't actually get there"
+# feedback for this branch.
 - type: htnCompound
   id: ForcedMoveCompound
   branches:
@@ -97,6 +107,7 @@
             - !type:KeyExistsPrecondition
               key: ForcedDestination
           operator: !type:MoveToOperator
+            pathfindInPlanning: false
             targetKey: ForcedDestination
             rangeKey: MovementRange
 

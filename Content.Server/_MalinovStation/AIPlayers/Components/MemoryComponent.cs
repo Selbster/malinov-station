@@ -27,6 +27,14 @@ public sealed class AiMemory
     public string Content = string.Empty;
 
     /// <summary>
+    /// Structured name this memory is about, e.g. a landmark's own display text ("Kitchen") - distinct from
+    /// <see cref="Content"/>'s natural-language prose so a consumer (see
+    /// <see cref="Systems.MemorySystem.FindKnownLocation"/>) doesn't need to parse a name back out of a
+    /// sentence. Null for memories with no single structured subject.
+    /// </summary>
+    public string? Subject;
+
+    /// <summary>
     /// -1 (very negative) to 1 (very positive). Distinct from Importance: a memory can be important and
     /// emotionally neutral, or trivial and either good or bad.
     /// </summary>

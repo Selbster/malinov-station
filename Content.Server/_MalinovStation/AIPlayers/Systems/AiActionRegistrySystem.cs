@@ -19,6 +19,8 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     [Dependency] private MobStateSystem _mobState = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IEntityManager _entManager = default!;
+    [Dependency] private GoalSystem _goal = default!;
+    [Dependency] private MemorySystem _memory = default!;
 
     private readonly Dictionary<string, IAiAction> _actions = new();
 
@@ -32,6 +34,9 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
         // constructor here rather than [Dependency] fields of their own - see TalkAction's remarks.
         Register(new TalkAction(_entManager, _chat, _mobState, _timing));
         Register(new MoveToAction(_entManager, _mobState));
+        Register(new PursueGoalAction(_entManager, _goal));
+        Register(new ContinueActivityAction());
+        Register(new GoToKnownLocationAction(_entManager, _mobState, _memory));
     }
 
     private void Register(IAiAction action)

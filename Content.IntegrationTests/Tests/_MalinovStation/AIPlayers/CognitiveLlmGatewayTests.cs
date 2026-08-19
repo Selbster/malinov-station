@@ -1,4 +1,5 @@
 #nullable enable
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Content.IntegrationTests.Fixtures;
@@ -19,11 +20,14 @@ using Robust.Shared.Prototypes;
 namespace Content.IntegrationTests.Tests._MalinovStation.AIPlayers;
 
 /// <summary>
-/// AI Players 2.0 Milestone 1: mirrors <see cref="LlmGatewaySystemTests"/>'s guaranteed contract for the new
-/// cognitive decision pipeline - it must be exactly as safe as the legacy one (disabled by default, validated,
-/// fails gracefully), since <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/> delegates its actual
-/// whitelist/clamp logic to the same <see cref="LlmGatewaySystem.TryApplyDecision"/> the legacy tests already
-/// cover. Also proves the bundled bug fix: the system prompt's allowed-intents list used to silently omit
+/// Mirrors <see cref="LlmGatewaySystemTests"/>'s guaranteed contract for the cognitive decision pipeline - it
+/// must be exactly as safe as the legacy one (disabled by default, validated, fails gracefully). AI Players
+/// 0.3: <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/> no longer delegates to
+/// <see cref="LlmGatewaySystem.TryApplyDecision"/> at all - Intent (free-form) and the "PursueGoal" action's
+/// goal name (whitelisted via <see cref="GoalSystem.IsKnownGoalName"/>, the same whitelist
+/// <see cref="LlmGatewaySystem.TryApplyDecision"/> now goes through too via <see cref="GoalSystem.TrySetExternalGoal"/>)
+/// are independent writes that can succeed/fail separately - see the tests below for the resulting divergence.
+/// Also proves the bundled Milestone 1 bug fix still holds: the system prompt's allowed-goals list includes
 /// loaded professional-goal ids.
 /// </summary>
 [TestFixture]
@@ -113,11 +117,13 @@ public sealed class CognitiveLlmGatewayTests : GameTest
     }
 
     /// <summary>
-    /// A structurally valid cognitive decision is applied to both GoalComponent (via the shared
-    /// TryApplyDecision whitelist/clamp logic) and the cognitive-only IntentComponent overlay.
+    /// AI Players 0.3: a structurally valid cognitive decision writes IntentComponent's free-form
+    /// self-narration directly (no longer forced through the AIGoals vocabulary), while a "PursueGoal" action
+    /// proposal separately drives GoalComponent via the shared TrySetExternalGoal write path - the two are now
+    /// independent and allowed to diverge, which is the actual point of this milestone.
     /// </summary>
     [Test]
-    public async Task TryApplyCognitiveDecision_ValidIntention_SetsGoalOverrideAndIntent()
+    public async Task TryApplyCognitiveDecision_ValidPursueGoal_SetsIndependentIntentAndGoalOverride()
     {
         var pair = Pair;
         var server = pair.Server;
@@ -133,7 +139,9 @@ public sealed class CognitiveLlmGatewayTests : GameTest
             var uid = aiPlayer!.Value;
 
             var gateway = server.System<LlmGatewaySystem>();
-            var decision = new LlmCognitiveDecision("fatigue", AIGoals.Rest, 0.8f, 0.9f, "I'm exhausted and should rest");
+            var decision = new LlmCognitiveDecision(
+                "fatigue", "rest_up", 0.8f, 0.9f, "I'm exhausted and should rest",
+                "PursueGoal", new Dictionary<string, string> { ["goal"] = AIGoals.Rest });
             Assert.That(gateway.TryApplyCognitiveDecision(uid, decision), Is.True);
 
             var goal = server.EntMan.GetComponent<GoalComponent>(uid);
@@ -142,7 +150,8 @@ public sealed class CognitiveLlmGatewayTests : GameTest
             {
                 Assert.That(goal.CurrentGoal, Is.EqualTo(AIGoals.Rest));
                 Assert.That(goal.IsLlmOverride, Is.True);
-                Assert.That(intent.Name, Is.EqualTo(AIGoals.Rest));
+                Assert.That(intent.Name, Is.EqualTo("rest_up"), "Intent should be the free-form string, not forced onto the goal vocabulary.");
+                Assert.That(intent.Priority, Is.EqualTo(0.8f));
                 Assert.That(intent.Confidence, Is.EqualTo(0.9f));
                 Assert.That(intent.DesireServed, Is.EqualTo("fatigue"));
             });
@@ -157,11 +166,13 @@ public sealed class CognitiveLlmGatewayTests : GameTest
     }
 
     /// <summary>
-    /// Same whitelist enforcement as the legacy path - proves the delegation to TryApplyDecision actually
-    /// happens rather than the cognitive path having its own, possibly-drifted, validation.
+    /// AI Players 0.3: Intention itself is no longer validated at all (it's free-form) - the whitelist now
+    /// lives on PursueGoal's "goal" parameter instead. An unknown goal name is rejected by the action's own
+    /// CanDo (via GoalSystem.IsKnownGoalName), leaving GoalComponent untouched - but IntentComponent still
+    /// gets updated, proving Intent and the action attempt now fail independently of each other.
     /// </summary>
     [Test]
-    public async Task TryApplyCognitiveDecision_UnknownIntention_IsRejected()
+    public async Task TryApplyCognitiveDecision_PursueGoalUnknownGoal_IsRejectedButIntentStillUpdates()
     {
         var pair = Pair;
         var server = pair.Server;
@@ -179,14 +190,19 @@ public sealed class CognitiveLlmGatewayTests : GameTest
             var goalBefore = server.EntMan.GetComponent<GoalComponent>(uid).CurrentGoal;
 
             var gateway = server.System<LlmGatewaySystem>();
-            var decision = new LlmCognitiveDecision("curiosity", "HackTheMainframe", 0.9f, 0.9f, "bogus intent");
+            var decision = new LlmCognitiveDecision(
+                "curiosity", "hack_the_mainframe", 0.9f, 0.9f, "bogus goal",
+                "PursueGoal", new Dictionary<string, string> { ["goal"] = "HackTheMainframe" });
             Assert.That(gateway.TryApplyCognitiveDecision(uid, decision), Is.False);
 
             var goal = server.EntMan.GetComponent<GoalComponent>(uid);
+            var intent = server.EntMan.GetComponent<IntentComponent>(uid);
             Assert.Multiple(() =>
             {
                 Assert.That(goal.CurrentGoal, Is.EqualTo(goalBefore));
                 Assert.That(goal.IsLlmOverride, Is.False);
+                Assert.That(intent.Name, Is.EqualTo("hack_the_mainframe"),
+                    "IntentComponent should still reflect the AI's self-reported intent even though the concrete action failed.");
             });
         });
 

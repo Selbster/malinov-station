@@ -25,7 +25,8 @@ public sealed partial class MemorySystem : EntitySystem
         IReadOnlyList<EntityUid>? participants = null,
         EntityCoordinates? location = null,
         float emotionalWeight = 0f,
-        MemoryComponent? memory = null)
+        MemoryComponent? memory = null,
+        string? subject = null)
     {
         if (!Resolve(uid, ref memory, false))
             return null;
@@ -39,6 +40,7 @@ public sealed partial class MemorySystem : EntitySystem
             Location = location,
             Content = content,
             EmotionalWeight = Math.Clamp(emotionalWeight, -1f, 1f),
+            Subject = subject,
         };
 
         memory.Memories.Add(entry);
@@ -81,6 +83,50 @@ public sealed partial class MemorySystem : EntitySystem
         return memory.Memories
             .OrderByDescending(m => m.Importance)
             .ThenByDescending(m => m.Timestamp)
+            .Take(max)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The AI Navigation Controller's only way to "know" a location (spec: never a fresh omniscient query) -
+    /// searches this entity's own <c>"landmark"</c>-sourced memories (written by
+    /// <see cref="LandmarkPerceptionSystem"/> when it actually perceives a station beacon) for one whose
+    /// <see cref="AiMemory.Subject"/> matches <paramref name="nameHint"/>, and returns its remembered
+    /// <see cref="AiMemory.Location"/>. Matching is a loose case-insensitive substring check in either
+    /// direction, so a slightly-off LLM-proposed hint ("kitchen" vs "Kitchen area") still resolves. Returns
+    /// null if this AI has never perceived anywhere by that name.
+    /// </summary>
+    public EntityCoordinates? FindKnownLocation(EntityUid uid, string nameHint, MemoryComponent? memory = null)
+    {
+        if (!Resolve(uid, ref memory, false) || string.IsNullOrWhiteSpace(nameHint))
+            return null;
+
+        return memory.Memories
+            .Where(m => m.Source == "landmark" && m.Location is not null && m.Subject is { } subject &&
+                (subject.Contains(nameHint, StringComparison.OrdinalIgnoreCase) ||
+                 nameHint.Contains(subject, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(m => m.Importance)
+            .ThenByDescending(m => m.Timestamp)
+            .Select(m => m.Location)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Every distinct place name this AI currently remembers, strongest/most-recent first - surfaced to the
+    /// LLM (see <see cref="Systems.ContextBuilderSystem.BuildCognitiveState"/>) so it only ever proposes a
+    /// "GoToKnownLocation" hint that <see cref="FindKnownLocation"/> can actually resolve.
+    /// </summary>
+    public IReadOnlyList<string> GetKnownLocationNames(EntityUid uid, int max = 5, MemoryComponent? memory = null)
+    {
+        if (!Resolve(uid, ref memory, false))
+            return Array.Empty<string>();
+
+        return memory.Memories
+            .Where(m => m.Source == "landmark" && m.Subject is not null)
+            .OrderByDescending(m => m.Importance)
+            .ThenByDescending(m => m.Timestamp)
+            .Select(m => m.Subject!)
+            .Distinct()
             .Take(max)
             .ToList();
     }

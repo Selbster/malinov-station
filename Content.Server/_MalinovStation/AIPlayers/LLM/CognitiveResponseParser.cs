@@ -4,10 +4,12 @@ namespace Content.Server._MalinovStation.AIPlayers.LLM;
 
 /// <summary>
 /// Parses and validates a raw LLM response into a structured <see cref="LlmCognitiveDecision"/>. Mirrors
-/// <see cref="ResponseParser"/>'s strictness exactly: malformed JSON, a missing/wrong-typed field, or an
-/// out-of-range Priority/Confidence all result in null rather than a best-effort guess. Whitelisting
-/// Intention happens one layer up in the gateway (via the existing <c>TryApplyDecision</c>), same split as
-/// the legacy parser.
+/// <see cref="ResponseParser"/>'s strictness exactly for every field except <c>parameters</c> (see its own
+/// remarks below): malformed JSON, a missing/wrong-typed field, or an out-of-range Priority/Confidence all
+/// result in null rather than a best-effort guess. Neither Intention nor Action's parameters are whitelisted
+/// here (AI Players 0.3) - Intention is deliberately free-form (never validated), and Action/parameters are
+/// schema-checked one layer up by <see cref="ActionProposalResolver"/>, which needs the gateway's action
+/// registry to do so.
 /// </summary>
 public static class CognitiveResponseParser
 {
@@ -46,12 +48,39 @@ public static class CognitiveResponseParser
             if (!TryGetUnitFloat(root, "confidence", out var confidence))
                 return null;
 
+            if (!TryGetNonBlankString(root, "action", out var action))
+                return null;
+
             var reason = root.TryGetProperty("reason", out var reasonProp) && reasonProp.ValueKind == JsonValueKind.String
                 ? reasonProp.GetString() ?? string.Empty
                 : string.Empty;
 
-            return new LlmCognitiveDecision(desire, intention, priority, confidence, reason);
+            var parameters = ParseParameters(root);
+
+            return new LlmCognitiveDecision(desire, intention, priority, confidence, reason, action, parameters);
         }
+    }
+
+    /// <summary>
+    /// Reads the optional "parameters" object. Deliberately lenient rather than failing the whole parse:
+    /// absent/wrong-typed "parameters" yields an empty dict, and any individual non-string value is dropped
+    /// rather than rejecting the response - the only parameter this milestone needs (PursueGoal's "goal") is
+    /// a plain string, so a stray malformed extra key shouldn't sink an otherwise-valid decision. Revisit if a
+    /// future action needs a required (not just best-effort) parameter type beyond string.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> ParseParameters(JsonElement root)
+    {
+        if (!root.TryGetProperty("parameters", out var prop) || prop.ValueKind != JsonValueKind.Object)
+            return new Dictionary<string, string>();
+
+        var parameters = new Dictionary<string, string>();
+        foreach (var property in prop.EnumerateObject())
+        {
+            if (property.Value.ValueKind == JsonValueKind.String && property.Value.GetString() is { } value)
+                parameters[property.Name] = value;
+        }
+
+        return parameters;
     }
 
     private static bool TryGetNonBlankString(JsonElement root, string property, out string value)

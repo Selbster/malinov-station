@@ -46,11 +46,12 @@ public sealed partial class AIPlayerSystem : EntitySystem
     /// default, and the only behaviour available before this milestone.
     /// </param>
     /// <param name="cognitiveMode">
-    /// AI Players 2.0 Milestone 1. Defaults to false, so every existing call site (and every AI player
-    /// spawned before this parameter existed) is unaffected - only <c>aiplayer_spawn_cognitive</c> passes
-    /// true. When true, adds <see cref="CognitiveModeComponent"/> plus the cognitive-only overlay components
+    /// Defaults to false, so every existing call site (and every AI player spawned before this parameter
+    /// existed) is unaffected - only <c>aiplayer_spawn_cognitive</c> passes true. When true, adds
+    /// <see cref="CognitiveModeComponent"/> plus the cognitive-only overlay components
     /// (<see cref="IntentComponent"/>/<see cref="DesireComponent"/>/<see cref="EmotionComponent"/>/
-    /// <see cref="BeliefComponent"/>) - everything else about spawning stays identical either way.
+    /// <see cref="BeliefComponent"/>/<see cref="LandmarkPerceptionComponent"/>) - everything else about
+    /// spawning stays identical either way.
     /// </param>
     /// <returns>The spawned entity, or null if spawning failed (e.g. no station/spawn point available).</returns>
     public EntityUid? SpawnAiPlayer(
@@ -104,6 +105,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
             AddComp<DesireComponent>(mobUid);
             AddComp<EmotionComponent>(mobUid);
             AddComp<BeliefComponent>(mobUid);
+            AddComp<LandmarkPerceptionComponent>(mobUid);
         }
 
         if (persistentId is not null)

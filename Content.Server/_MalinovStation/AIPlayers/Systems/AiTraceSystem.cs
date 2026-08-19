@@ -157,8 +157,14 @@ public sealed partial class AiTraceSystem : EntitySystem
         // cognitive-mode AI player (HasComp is a safe check regardless of whether the entity even has a
         // MemoryComponent) - a legacy AI player never gets this side effect, since AiTraceSystem otherwise has
         // zero memory writes of its own.
-        if (HasComp<CognitiveModeComponent>(uid))
+        if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
+        {
             _memory.AddMemory(uid, content: $"Tried to {goal} but made no progress and gave up.", importance: 0.3f, source: "outcome", emotionalWeight: -0.2f);
+            // AI Players 0.3: a failed goal is exactly the kind of outcome that should shorten the wait until
+            // the AI reconsiders (spec's "current intent invalidated" trigger), same precedent as
+            // DangerSystem forcing GoalComponent.ReconsiderAccumulator to 0 on a new attack.
+            cognitive.ReflectionAccumulator = 0f;
+        }
     }
 
     public void GoalStuck(EntityUid uid, string goal, string reason)
@@ -202,8 +208,11 @@ public sealed partial class AiTraceSystem : EntitySystem
         TraceEventsMetric.WithLabels("PlanInterrupted").Inc();
         _sawmill.Debug($"[AI:{ToPrettyString(uid)}] PlanInterrupted: {goal} (by={byGoal})");
 
-        if (HasComp<CognitiveModeComponent>(uid))
+        if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
+        {
             _memory.AddMemory(uid, content: $"Was in the middle of {goal} when {byGoal} became more urgent.", importance: 0.25f, source: "outcome");
+            cognitive.ReflectionAccumulator = 0f;
+        }
     }
 
     private void PlanResumed(EntityUid uid, string goal)
@@ -230,20 +239,30 @@ public sealed partial class AiTraceSystem : EntitySystem
         _sawmill.Debug($"[AI:{ToPrettyString(uid)}] ActionCompleted: {action}");
     }
 
-    private void ActionFailed(EntityUid uid, string action, string reason)
+    /// <summary>
+    /// A named action was attempted and failed. Called both by the internal HTN-plan diffing above (an
+    /// operator aborted mid-plan) and, since AI Players 0.3, directly by
+    /// <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/> when a proposed action's own CanDo/Do rejects
+    /// it - the same outcome-memory-plus-fast-reflection feedback applies either way.
+    /// </summary>
+    public void ActionFailed(EntityUid uid, string action, string reason)
     {
         TraceEventsMetric.WithLabels("ActionFailed").Inc();
         _sawmill.Info($"[AI:{ToPrettyString(uid)}] ActionFailed: {action} (reason={reason})");
 
-        if (HasComp<CognitiveModeComponent>(uid))
+        if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
+        {
             _memory.AddMemory(uid, content: $"Attempted {action} but it failed: {reason}.", importance: 0.2f, source: "outcome", emotionalWeight: -0.1f);
+            cognitive.ReflectionAccumulator = 0f;
+        }
     }
 
     /// <summary>
-    /// AI Players 2.0 Milestone 1: a cognitive decision's chosen action, surfaced here instead of actually
-    /// performing it (e.g. via <see cref="AiActionRegistrySystem"/>) - keeps ActionProposal an observable,
-    /// testable concept for this milestone without the AI vocalizing its reasoning every reflection cycle
-    /// (see <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/>).
+    /// A cognitive decision's chosen action was successfully carried out via
+    /// <see cref="AiActionRegistrySystem.TryDoAction"/> (AI Players 0.3 - prior to this milestone this was
+    /// logged instead of the action actually running, with the literal placeholder name "reflect"; now
+    /// <paramref name="actionName"/> is the real action that ran, e.g. "PursueGoal"/"ContinueActivity" - see
+    /// <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/>).
     /// </summary>
     public void ActionProposed(EntityUid uid, string actionName, string reason)
     {

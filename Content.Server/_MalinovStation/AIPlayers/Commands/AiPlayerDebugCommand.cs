@@ -123,7 +123,11 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
             }
 
             if (EntityManager.TryGetComponent<IntentComponent>(uid, out var intent))
-                sb.AppendLine($"Intent: {intent.Name} (confidence {intent.Confidence:0.00}, serves {intent.DesireServed})");
+            {
+                sb.AppendLine(
+                    $"Intent: {intent.Name} (priority {intent.Priority:0.00}, confidence {intent.Confidence:0.00}, serves {intent.DesireServed}) " +
+                    "- independent of Goal above, see IntentComponent's doc comment");
+            }
 
             if (EntityManager.TryGetComponent<BeliefComponent>(uid, out var belief))
                 sb.AppendLine($"Beliefs: {belief.Beliefs.Count}/{belief.MaxBeliefs}");

@@ -164,42 +164,12 @@ public sealed class CognitiveDesireTests : GameTest
         await server.WaitPost(() => server.System<GameTicker>().RestartRound());
     }
 
-    /// <summary>
-    /// Two engineers in the identical situation, differing only in Professionalism/Laziness, must end up with
-    /// different chosen Intent - the same personality-dependent divergence GoalIntentUnificationTests.
-    /// Personality_ProfessionalismAndLaziness_ChangeWhichGoalWinsInTheSameSituation already proves for
-    /// GoalComponent, now also proven for the richer IntentComponent overlay.
-    /// </summary>
-    [Test]
-    public async Task IntentComponent_DivergesByPersonality_InTheSameSituation()
-    {
-        var pair = Pair;
-        var server = pair.Server;
-        var station = await StartRoundAndGetStation(pair);
-
-        var professional = await SpawnFatiguedEngineerWithDamagedMachine(pair, station, professionalism: 1f, laziness: 0f);
-        var lazy = await SpawnFatiguedEngineerWithDamagedMachine(pair, station, professionalism: 0f, laziness: 1f);
-
-        await server.WaitAssertion(() =>
-        {
-            var professionalIntent = server.EntMan.GetComponent<IntentComponent>(professional);
-            var lazyIntent = server.EntMan.GetComponent<IntentComponent>(lazy);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(professionalIntent.Name, Is.EqualTo(ProfessionalGoals.RepairMachine),
-                    "High-professionalism, low-laziness engineer should intend to work.");
-                Assert.That(lazyIntent.Name, Is.EqualTo(AIGoals.Rest),
-                    "Low-professionalism, high-laziness engineer should intend to rest, in the exact same situation.");
-                Assert.That(professionalIntent.Name, Is.Not.EqualTo(lazyIntent.Name));
-            });
-        });
-
-        await server.WaitPost(() =>
-        {
-            server.EntMan.DeleteEntity(professional);
-            server.EntMan.DeleteEntity(lazy);
-        });
-        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
-    }
+    // AI Players 0.3 removed IntentComponent_DivergesByPersonality_InTheSameSituation: it exercised the pure
+    // formula-driven path (no LLM call) and asserted IntentComponent.Name equalled the goal vocabulary -
+    // GoalSystem.Reconsider no longer writes IntentComponent at all (see IntentComponent's own doc comment),
+    // so there's no formula-driven analogue left to test at this level. Coverage is subsumed by
+    // DesireComponent_ContainsBothWorkAndRestCandidates_NotJustTheWinner above (Desire divergence) and
+    // GoalIntentUnificationTests.Personality_ProfessionalismAndLaziness_ChangeWhichGoalWinsInTheSameSituation
+    // (Goal divergence); Intent's own personality-dependent divergence is now covered via a real
+    // TryApplyCognitiveDecision call in CognitiveActionLoopTests instead.
 }

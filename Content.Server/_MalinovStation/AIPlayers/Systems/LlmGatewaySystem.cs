@@ -50,6 +50,8 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     [Dependency] private ILogManager _logManager = default!;
     [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private AiTraceSystem _trace = default!;
+    [Dependency] private GoalSystem _goal = default!;
+    [Dependency] private AiActionRegistrySystem _actionRegistry = default!;
 
     private ISawmill _sawmill = default!;
 
@@ -58,7 +60,6 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     private float _decisionCooldownSeconds;
     private int _maxConcurrentRequests;
     private float _timeoutSeconds;
-    private float _overrideDurationSeconds;
 
     private int _inFlight;
     private readonly Dictionary<EntityUid, (Task<LlmDecision?> Task, TimeSpan StartedAt)> _pending = new();
@@ -87,7 +88,6 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmDecisionCooldownSeconds, v => _decisionCooldownSeconds = v, true);
         Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmMaxConcurrentRequests, v => _maxConcurrentRequests = v, true);
         Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmTimeoutSeconds, v => _timeoutSeconds = v, true);
-        Subs.CVar(_cfg, MalinovAiPlayerCVars.AiPlayersLlmOverrideDurationSeconds, v => _overrideDurationSeconds = v, true);
     }
 
     private void OnMetNewCharacter(ref AiPlayerMetNewCharacterEvent ev)
@@ -419,62 +419,65 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// <summary>
     /// Validates and applies an LLM decision to the entity's <see cref="GoalComponent"/>. Public (and
     /// separate from the async plumbing above) so it can be exercised directly in tests without a real
-    /// network round-trip. Rejects anything whose intent isn't in <see cref="AIGoals.All"/> or a loaded
-    /// <see cref="AiProfessionalGoalPrototype"/> (Milestone 11) - the two whitelists combine, but either one
-    /// alone is sufficient to accept an intent; nothing outside both is ever accepted.
+    /// network round-trip. Thin wrapper around <see cref="GoalSystem.TrySetExternalGoal"/> - the actual
+    /// whitelist/clamp/write logic lives there now (AI Players 0.3), shared with the cognitive
+    /// <c>PursueGoal</c> action, but this method's own external contract (reason prefixed with "llm: ",
+    /// <see cref="AiTraceSystem.LlmDecision"/>/<see cref="AiTraceSystem.LlmFailure"/> tracing) is unchanged.
     /// </summary>
     public bool TryApplyDecision(EntityUid uid, LlmDecision decision)
     {
-        if (!AIGoals.All.Contains(decision.Intent) && !_proto.HasIndex<AiProfessionalGoalPrototype>(decision.Intent))
+        var priority = Math.Clamp(decision.Priority, 0f, 1f);
+
+        if (!_goal.TrySetExternalGoal(uid, decision.Intent, decision.Priority, $"llm: {decision.Reason}", out _))
         {
             _sawmill.Warning($"LLM proposed an unknown intent \"{decision.Intent}\" for {ToPrettyString(uid)}; ignoring.");
             _trace.LlmFailure(uid, "UnknownIntent");
             return false;
         }
 
-        if (Deleted(uid) || !TryComp<GoalComponent>(uid, out var goal))
-            return false;
-
-        var priority = Math.Clamp(decision.Priority, 0f, 1f);
-
-        if (goal.CurrentGoal != decision.Intent)
-            goal.CurrentGoalSince = _timing.CurTime;
-
-        goal.CurrentGoal = decision.Intent;
-        goal.CurrentPriority = priority;
-        goal.Reason = $"llm: {decision.Reason}";
-        goal.IsLlmOverride = true;
-        goal.LlmOverrideExpiresAt = _timing.CurTime + TimeSpan.FromSeconds(_overrideDurationSeconds);
-        goal.LastLlmDecision = $"{decision.Intent} (priority {priority:0.00}) - {decision.Reason}";
-        goal.LastLlmDecisionAt = _timing.CurTime;
-
         _trace.LlmDecision(uid, decision.Intent, priority, decision.Reason);
         return true;
     }
 
     /// <summary>
-    /// AI Players 2.0 Milestone 1: validates and applies a cognitive decision. Delegates the actual
-    /// <see cref="GoalComponent"/> write to <see cref="TryApplyDecision"/> so the intent whitelist, priority
-    /// clamp, and GoalChanged trace stay a single source of truth shared by both the legacy and cognitive
-    /// paths - they can never drift apart. On top of that, also fills in the cognitive-only
-    /// <see cref="IntentComponent"/> overlay (present since this is only ever called for an entity with
-    /// <see cref="CognitiveModeComponent"/>) and traces the proposed action - log/trace-only for this
-    /// milestone (no <c>Talk</c> call), since deciding what's actually worth vocalizing is future work.
+    /// AI Players 0.3: validates and applies a cognitive decision. Unlike the legacy path, this no longer
+    /// forces the decision through <see cref="TryApplyDecision"/>/<see cref="GoalComponent"/> at all - Intent
+    /// and Goal are now independent writes (see <see cref="IntentComponent"/>'s own doc comment). Steps:
+    /// (1) write <see cref="IntentComponent"/> unconditionally - the AI's self-reported intent persists
+    /// regardless of whether the concrete action attempt below succeeds; (2) resolve the raw proposed
+    /// action/parameters into a validated <see cref="ActionProposal"/> (structural validation - known action
+    /// name, required parameters present); (3) run it through <see cref="AiActionRegistrySystem.TryDoAction"/>
+    /// (semantic validation - e.g. an unknown goal name inside <c>PursueGoal</c> - happens in the action's own
+    /// CanDo). A failure at either (2) or (3) is real feedback, not a silent drop: (2) means the LLM's output
+    /// itself was malformed (<see cref="AiTraceSystem.LlmFailure"/>, no memory write); (3) means the AI
+    /// proposed something well-formed but wrong (<see cref="AiTraceSystem.ActionFailed"/>, which writes an
+    /// outcome memory and forces a fast re-reflection).
     /// </summary>
     public bool TryApplyCognitiveDecision(EntityUid uid, LlmCognitiveDecision decision)
     {
-        if (!TryApplyDecision(uid, new LlmDecision(decision.Intention, decision.Priority, decision.Reason)))
+        if (Deleted(uid) || !TryComp<IntentComponent>(uid, out var intent))
             return false;
 
-        if (TryComp<IntentComponent>(uid, out var intent))
+        intent.Name = decision.Intention;
+        intent.Priority = Math.Clamp(decision.Priority, 0f, 1f);
+        intent.Confidence = Math.Clamp(decision.Confidence, 0f, 1f);
+        intent.DesireServed = decision.Desire;
+        intent.ChosenAt = _timing.CurTime;
+
+        if (!ActionProposalResolver.TryResolve(decision, out var proposal, out var resolveFailReason))
         {
-            intent.Name = decision.Intention;
-            intent.Confidence = Math.Clamp(decision.Confidence, 0f, 1f);
-            intent.DesireServed = decision.Desire;
-            intent.ChosenAt = _timing.CurTime;
+            _sawmill.Warning($"LLM proposed an invalid action for {ToPrettyString(uid)}: {resolveFailReason}");
+            _trace.LlmFailure(uid, "InvalidActionProposal");
+            return false;
         }
 
-        _trace.ActionProposed(uid, "reflect", decision.Reason);
+        if (!_actionRegistry.TryDoAction(uid, proposal.ActionName, proposal.Parameters, out var doFailReason))
+        {
+            _trace.ActionFailed(uid, proposal.ActionName, doFailReason);
+            return false;
+        }
+
+        _trace.ActionProposed(uid, proposal.ActionName, decision.Reason);
         return true;
     }
 }

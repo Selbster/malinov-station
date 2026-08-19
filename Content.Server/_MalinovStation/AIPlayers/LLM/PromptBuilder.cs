@@ -88,22 +88,40 @@ public static class PromptBuilder
         return sb.ToString();
     }
 
-    /// <summary>AI Players 2.0 Milestone 1: the LLM Cognitive Layer's system prompt.</summary>
-    public static string BuildCognitiveSystemPrompt(IReadOnlyCollection<string> allowedIntents)
+    /// <summary>AI Players 0.3/Navigation Controller: the LLM Cognitive Layer's system prompt.
+    /// <paramref name="allowedGoals"/> is still the combined AIGoals/professional-goal whitelist (same list
+    /// <see cref="Systems.LlmGatewaySystem.GetAllowedIntents"/> always computed) - it validates the "goal"
+    /// parameter of the "PursueGoal" action, not "intention" (which is free-form and unvalidated). NOTE: the
+    /// three available actions described below (PursueGoal, ContinueActivity, GoToKnownLocation) must stay in
+    /// sync with <see cref="ActionProposalResolver"/>'s switch - acceptable to hardcode at this size, revisit
+    /// once the action catalog grows.</summary>
+    public static string BuildCognitiveSystemPrompt(IReadOnlyCollection<string> allowedGoals)
     {
         return "You are the mind of a character aboard a space station in a sci-fi roleplaying game - not a script, " +
                "a person with their own desires, beliefs and feelings. You will be given your current needs, mood, " +
                "personality, what you're currently doing, what you currently want (your desires) and how strongly, " +
-               "who/what you can see, what you know for certain, and things you've heard but aren't sure are true. " +
+               "who/what you can see, what you know for certain, things you've heard but aren't sure are true, and " +
+               "places you know how to get to. " +
                "You only know what is listed below - anything not mentioned, you have no way of knowing. " +
-               "Decide what you actually want to do right now, in character, and why. " +
+               "Decide what you actually want to do right now, in character, and why, and pick ONE concrete " +
+               "action to take toward it. " +
                "Respond with ONLY a single JSON object, no other text, of the exact form: " +
                "{\"desire\": \"<which of your current desires this commits to>\", " +
-               "\"intention\": \"<one of the allowed intentions>\", \"priority\": <number 0.0 to 1.0>, " +
+               "\"intention\": \"<a short free-form description of what you want, e.g. find_food, meet_person, " +
+               "help_person, finish_repair, investigate_event, find_safe_location, avoid_security, obtain_item, " +
+               "rest, escape_danger - not required to match any specific game mechanic>\", " +
+               "\"priority\": <number 0.0 to 1.0>, " +
                "\"confidence\": <number 0.0 to 1.0, how sure you are this is the right call>, " +
-               "\"reason\": \"<short in-character reason>\"}. " +
-               $"Allowed intentions: {string.Join(", ", allowedIntents)}. " +
-               "Use exactly one of the allowed intentions, spelled exactly as given.";
+               "\"reason\": \"<short in-character reason>\", " +
+               "\"action\": \"<one of: PursueGoal, ContinueActivity, GoToKnownLocation>\", " +
+               "\"parameters\": {\"goal\": \"<required only for PursueGoal - one of the allowed goals below>\", " +
+               "\"location\": \"<required only for GoToKnownLocation - one of the places you know below>\"}}. " +
+               "\"PursueGoal\" actively commits to one of your existing goals right now - use it when one of the " +
+               "allowed goals below matches what you want to do. \"GoToKnownLocation\" walks you to a place you " +
+               "know how to get to - use it ONLY for a place actually listed below, never one you merely guess " +
+               "the name of. \"ContinueActivity\" means keep doing what you're already doing, with no parameters. " +
+               $"Allowed goals (for PursueGoal's \"goal\" parameter only): {string.Join(", ", allowedGoals)}. " +
+               "Use exactly one of the allowed goals, spelled exactly as given.";
     }
 
     /// <summary>AI Players 2.0 Milestone 1: the LLM Cognitive Layer's user prompt, from a full <see cref="CognitiveState"/>.</summary>
@@ -166,6 +184,17 @@ public static class PromptBuilder
             sb.AppendLine("Things you've heard but aren't sure are true:");
             foreach (var belief in context.Beliefs)
                 sb.AppendLine($"- {belief.Content} (confidence {belief.Confidence:0.00}, from {belief.Source})");
+        }
+
+        if (context.KnownLocations.Count == 0)
+        {
+            sb.AppendLine("You don't know how to get to anywhere in particular right now.");
+        }
+        else
+        {
+            sb.AppendLine("Places you know how to get to (for GoToKnownLocation's \"location\" parameter):");
+            foreach (var location in context.KnownLocations)
+                sb.AppendLine($"- {location}");
         }
 
         return sb.ToString();
