@@ -15,21 +15,29 @@ Use this skill when needed:
 
 The internals of `PoolManager/TestPair` are discussed in detail in `ss14-tests-poolmanager`. Here the emphasis is on the author's workflow and the quality of tests as an artifact.
 
+## Mental model
+
+Tests borrow pooled server/client pairs via `PoolManager.GetServerClient()`.
+Mutations go in `WaitPost(...)`, assertions go in `WaitAssertion(...)`.
+Every pair must be returned via `CleanReturnAsync()` — `DisposeAsync()` is destructive.
+Tick synchronization (`RunTicksSync` + `SyncTicks`) is mandatory before cross-side assertions.
+The pool reuses pairs across tests for speed; minimize side effects so reuse stays safe.
+
 ## Short decision tree
 
 1. Are you testing pure logic without network/tick/IoC?
 - Yes: unit test.
 - No: integration test.
 
-2. Do you need real synchronization client↔server, UI/BUI, prediction or input?
+2. Do you need real synchronization client<->server, UI/BUI, prediction or input?
 - Yes: server+client integration.
 - No: server-only integration may be simpler and faster.
 
 3. Does the test change the global state, which does not survive reuse well?
-- Yes: `Dirty = true` or dotted `Pool = false` for isolation.
-- No: leave reuse, it greatly speeds up the wound.
+- Yes: `Dirty = true` or `Pool = false` for isolation.
+- No: leave reuse, it greatly speeds up the run.
 
-## Basic workflow of the author 🧪
+## Basic workflow of the author
 
 1. Fix the invariants:
 - what needs to change;
@@ -61,6 +69,7 @@ The internals of `PoolManager/TestPair` are discussed in detail in `ss14-tests-p
 ## Pattern 1: standard content integration test
 
 ```csharp
+// Verify: PoolManager.GetServerClient — grep in RobustToolbox IntegrationTestPair
 [Test]
 public async Task MyScenario_Works()
 {
@@ -95,6 +104,7 @@ public async Task MyScenario_Works()
 ## Pattern 2: inline prototypes inside a test
 
 ```csharp
+// Verify: TestPrototypesAttribute — grep in RobustToolbox
 [TestPrototypes]
 private const string Prototypes = @"
 - type: entity
@@ -122,6 +132,7 @@ public async Task UsesInlinePrototype()
 Use when the case involves global registrations/deep isolation.
 
 ```csharp
+// Verify: StartServer/StartClient — grep in RobustToolbox IntegrationTest
 var server = StartServer(new ServerIntegrationOptions
 {
     Pool = false,
@@ -138,9 +149,9 @@ Assert.DoesNotThrow(() => client.SetConnectTarget(server));
 await client.WaitPost(() => client.ResolveDependency<IClientNetManager>().ClientConnect(null!, 0, null!));
 ```
 
-## Good test patterns :)
+## Good test patterns
 
-- Each test checks 1 behavioral contract (not “all at once”).
+- Each test checks 1 behavioral contract (not "all at once").
 - Arrange/Act/Assert are visually separated.
 - All mutations are wrapped in `WaitPost`, all checks are wrapped in `WaitAssertion`.
 - There is an explicit synchronization of ticks before cross-side assertions.
@@ -149,18 +160,20 @@ await client.WaitPost(() => client.ResolveDependency<IClientNetManager>().Client
 
 ## Anti-patterns
 
-- “Giant” test with dozens of independent goals.
+- "Giant" test with dozens of independent goals.
 - Magical `RunTicks(123)` without explanation why exactly so much.
 - `Dirty = true` and `Pool = false` default for no reason.
 - Assertions in `Post(...)` and mutations in `WaitAssertion(...)`.
 - Reliance on documentation contrary to current code.
-- Ignoring cleanup and hoping for automatic dispose 😬
+- Ignoring cleanup and hoping for automatic dispose.
+- Spawning entities in `WaitPost(...)` without deleting them in cleanup. Stale entities leak into the next test on a reused pair. Mark `Dirty = true` or explicitly `DelEntity(...)` in cleanup.
 
 ## Examples from actual code
 
 ### Example A: scenario where lobby/in-round transitions are needed
 
 ```csharp
+// Verify: GameTicker.RunLevel — grep GameRunLevel
 await using var pair = await PoolManager.GetServerClient(new PoolSettings
 {
     Dirty = true,       // the test changes the phase of the game
@@ -179,6 +192,7 @@ await pair.Server.WaitAssertion(() =>
 ### Example B: Testing Interaction via System Call
 
 ```csharp
+// Verify: InteractionSystem.UserInteraction — grep in Content.Server
 await server.WaitPost(() =>
 {
     // Act: server-side user interaction with the target.
@@ -195,6 +209,7 @@ await server.WaitAssertion(() =>
 ### Example C: UI/BUI steps considering network RTT
 
 ```csharp
+// Verify: BoundUserInterface.SendMessage — grep in RobustToolbox
 await client.WaitPost(() => bui.SendMessage(message));
 
 // We give time for client->server->client processing.
@@ -206,6 +221,14 @@ await client.WaitAssertion(() =>
 });
 ```
 
+## Extension rule
+
+When adding a new test pattern:
+1. Verify the pattern against the fork's current test infrastructure (grep PoolManager, IntegrationTest).
+2. Add `// Verify:` marker to every new code snippet.
+3. State the triggering condition (when the pattern applies) and the non-triggering condition (when it does NOT).
+4. Update this checklist if a new anti-pattern is discovered.
+
 ## Mini checklist before PR
 
 - The test runs locally for at least 3 runs in a row.
@@ -213,10 +236,13 @@ await client.WaitAssertion(() =>
 - No hidden mutation of global state without rollback.
 - Cleanup is explicit and correct.
 - The environment parameters are minimal (nothing extra).
+- Inline prototypes (`[TestPrototypes]`, `ExtraPrototypes`) pass YAML linter.
 
 ## Practical notes from docs
 
-- `COMPlus_gcServer=1` usually speeds up integration wounds.
-- User data is in in-memory integration mode and is not saved between runs.
+- `COMPlus_gcServer=1` [unverified] usually speeds up integration runs. Check against current CI configuration.
+- User data is in-memory integration mode and is not saved between runs [unverified].
 
 Use this as an operational note, but always check the final decision against the current implementation of the code.
+
+Verified against code state: 2026-08-20

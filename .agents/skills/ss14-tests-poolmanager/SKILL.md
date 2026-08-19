@@ -5,6 +5,16 @@ description: An in-depth guide to the SS14 integration test framework: PoolManag
 
 # SS14 Integration Test Framework
 
+## Mental model
+
+`PoolManager` maintains a pool of pre-initialized server/client pairs (`TestPair`).
+Tests borrow a pair, run, and return it via `CleanReturnAsync()` for reuse.
+`DisposeAsync()` is destructive — it destroys the pair and degrades pool performance.
+`PoolSettings` control pair lifecycle: `Destructive`, `Fresh`, `Connected`, `Dirty`, `NoLoadTestPrototypes`.
+Critical calculated properties:
+- `MustNotBeReused => Destructive || NoLoadTestPrototypes` — pair is destroyed after the test.
+- `MustBeNew => Fresh || NoLoadTestPrototypes` — pool creates a new pair instead of reusing.
+
 ## When to use
 
 Use this skill when needed:
@@ -21,26 +31,6 @@ Quality filter before transferring the pattern to work:
 - do not use fragments that contain TODO/problematic comments on the test topic;
 - if in doubt, choose a more recent and lower-level example from the engine.
 
-## Pool model: what is important to remember :)
-
-`PairSettings` sets the couple’s life policy:
-- `Destructive`: the test can “break” the pair.
-- `Fresh`: require a new pair.
-- `Connected`: whether an active client↔server session is needed.
-- `NoLoadTestPrototypes`: Don't load test prototypes (expensive and not reusable).
-- `Dirty`: disables fast-recycle.
-
-Critical calculated properties:
-
-```csharp
-public virtual bool MustNotBeReused => Destructive || NoLoadTestPrototypes;
-public virtual bool MustBeNew => Fresh || NoLoadTestPrototypes;
-```
-
-Consequence:
-- `MustBeNew == true` => the pool creates a new pair;
-- `MustNotBeReused == true` => the pair after the test is not returned to reuse.
-
 ## How `PoolManager` selects and prepares a pair
 
 The algorithm is essentially this:
@@ -51,10 +41,12 @@ The algorithm is essentially this:
 5. After the pair is issued, stabilization ticks and tick delta synchronization are run.
 
 Practical conclusion:
-- even after a “quick” return, immediate stability cannot be assumed;
+- even after a "quick" return, immediate stability cannot be assumed;
 - after critical operations, `RunTicksSync(...)` and `SyncTicks(...)` are always appropriate.
 
-## Lifecycle couples and return to the pool ⚠️
+**Order matters:** `RunTicksSync(N)` advances both sides by N ticks; `SyncTicks(targetDelta)` then aligns the remaining offset. Always call `SyncTicks` **after** `RunTicksSync`, not before.
+
+## Lifecycle couples and return to the pool
 
 Correct way:
 1. Take a pair.
@@ -87,8 +79,8 @@ Responsibilities cannot be mixed:
 ## Specificity of `PoolSettings` in content
 
 Setting options in content integration tests:
-- `InLobby = true` automatically requires connected state.
-- `DummyTicker` is used for an easier mode without full round-flow.
+- `InLobby = true` automatically requires connected state. It also affects `CanFastRecycle` eligibility.
+- `DummyTicker` is used for an easier mode without full round-flow. With `DummyTicker = true` (default), `GameTicker` does not tick — round-level assertions (`RunLevel`, `PlayerStatus`) are meaningless. Set `DummyTicker = false` explicitly when testing round-flow.
 - `Dirty = true` is needed if the test changes the state of the round, readiness, lobby phases, etc.
 - `AdminLogsEnabled` enable only when the test actually checks the admin logs.
 
@@ -104,6 +96,7 @@ Setting options in content integration tests:
 In production code this is done through `ClientFullInputCmdMessage` and `InputSystem.HandleInputCommand(...)`.
 
 ```csharp
+// Verify: InputSystem.HandleInputCommand — grep in Content.Shared
 // Emulation of pressing keybind in a client instance.
 var funcId = inputManager.NetworkBindMap.KeyFunctionID(ContentKeyFunctions.TryPullObject);
 var msg = new ClientFullInputCmdMessage(client.Timing.CurTick, client.Timing.TickFraction, funcId)
@@ -124,6 +117,7 @@ await client.WaitPost(() =>
 The standard way is to send `Down` + `Up` via `GUIBoundKeyEventArgs` and `DoGuiEvent(...)`:
 
 ```csharp
+// Verify: IIntegrationInstance.DoGuiEvent — grep in RobustToolbox
 // Pressed the button.
 await client.DoGuiEvent(control, downArgs);
 await pair.RunTicksSync(1);
@@ -135,9 +129,10 @@ await pair.RunTicksSync(1);
 
 ### 3) BUI message
 
-After `SendMessage(...)` they usually give additional ticks for round-trip client↔server:
+After `SendMessage(...)` they usually give additional ticks for round-trip client<->server:
 
 ```csharp
+// Verify: BoundUserInterface.SendMessage — grep in RobustToolbox
 await client.WaitPost(() => bui.SendMessage(msg));
 await pair.RunTicksSync(15); // handling reserve on both sides
 ```
@@ -149,24 +144,27 @@ For low-level interaction scenarios, use `UserInteraction(...)` inside `WaitPost
 ## Patterns
 
 - `await using var pair = await PoolManager.GetServerClient(settings);` + explicit `await pair.CleanReturnAsync();`
-- After critical steps: `RunTicksSync(...)` and when comparing server/client also `SyncTicks(targetDelta: ...)`.
+- After critical steps: `RunTicksSync(...)` and when comparing server/client also `SyncTicks(targetDelta: ...)`. Call `SyncTicks` **after** `RunTicksSync`.
 - Separation: `WaitPost` for actions, `WaitAssertion` for checks.
 - For special cases of global state (for example, registration of tile defs): `Pool = false`.
 - For non-standard prototypes: `ExtraPrototypes` or `[TestPrototypes]` instead of external mutable dependencies.
 
 ## Anti-patterns
 
-- Rely on `DisposeAsync()` and don't do `CleanReturnAsync()` 😬
+- Rely on `DisposeAsync()` and don't do `CleanReturnAsync()`.
 - Mix mutation and checks in one callback without discipline.
-- Check server/client without tick alignment and then catch the “random” flack.
-- Set `Dirty = true` “just in case” in every test.
+- Check server/client without tick alignment and then catch the "random" flack.
+- Set `Dirty = true` "just in case" in every test.
 - Use `NoLoadTestPrototypes` without real need (expensive way, no reuse).
+- Mutate CVars or IoC singletons without `Dirty = true` or `Pool = false`. The CVar state persists on the reused pair and causes ghost failures in subsequent tests.
+- Spawn entities without deleting them. Stale entities accumulate on the reused pair and cause side effects in later tests.
 
 ## Examples from actual code
 
 ### Example A: basic borrow/return via pool
 
 ```csharp
+// Verify: PoolManager.GetServerClient — grep CleanReturnAsync
 [Test]
 public async Task RoundScenario_Works()
 {
@@ -196,6 +194,7 @@ public async Task RoundScenario_Works()
 ### Example B: Correct separation of Post and Assertion
 
 ```csharp
+// Verify: IIntegrationInstance.WaitPost / WaitAssertion
 EntityUid entity = default;
 
 await server.WaitPost(() =>
@@ -214,6 +213,7 @@ await server.WaitAssertion(() =>
 ### Example C: manual server/client start for a special case
 
 ```csharp
+// Verify: StartServer/StartClient — grep Pool=false
 var serverOpts = new ServerIntegrationOptions
 {
     Pool = false,              // insulation, no reuse
@@ -233,9 +233,19 @@ Assert.DoesNotThrow(() => client.SetConnectTarget(server));
 await client.WaitPost(() => client.ResolveDependency<IClientNetManager>().ClientConnect(null!, 0, null!));
 ```
 
+## Extension rule
+
+When adding a new emulation pattern or anti-pattern:
+1. Verify the API call exists in the fork's current RobustToolbox (grep the class/method).
+2. Add `// Verify:` marker to every new code snippet.
+3. State triggering and non-triggering conditions.
+4. Keep `SKILL.md` under 300 lines — move deep details to `references/` if needed.
+
 ## Practical notes from the documentation
 
-- To speed up the test run, `COMPlus_gcServer=1` is useful (especially noticeable in integration tests).
-- In integration tests, user data is stored in in-memory FS and does not persist between runs.
+- To speed up the test run, `COMPlus_gcServer=1` [unverified] is useful (especially noticeable in integration tests). Check against current CI configuration.
+- In integration tests, user data is stored in in-memory FS and does not persist between runs [unverified].
 
 Use this as operational guidance, but check the CVar names and behavior against the current code.
+
+Verified against code state: 2026-08-20
