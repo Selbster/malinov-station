@@ -7,7 +7,8 @@ namespace Content.Server._MalinovStation.AIPlayers.LLM;
 /// The schema-validation boundary between a raw <see cref="LlmCognitiveDecision"/>'s Action/ActionParameters
 /// and a real <see cref="ActionProposal"/> (AI Players 0.3, spec section 6's "LLM → ActionProposal → Schema
 /// validation → ActionRegistry" flow). A closed switch over exactly the small set of actions the LLM is
-/// allowed to select this milestone - deliberately smaller than the full
+/// allowed to select this milestone (now including <see cref="UseInteractableAction"/>, spec section 16's
+/// first AI Interaction slice) - deliberately smaller than the full
 /// <see cref="Systems.AiActionRegistrySystem"/> catalog (e.g. <c>Talk</c>/<c>MoveTo</c> itself are registered
 /// and usable programmatically, but not directly LLM-selectable - <see cref="GoToKnownLocationAction"/> is how
 /// the LLM reaches the same underlying movement without ever handling raw coordinates). Only checks structural
@@ -47,6 +48,18 @@ public static class ActionProposalResolver
                 }
 
                 proposal = new ActionProposal(GoToKnownLocationAction.ActionName, new GoToKnownLocationActionParams(location));
+                failReason = null;
+                return true;
+
+            case UseInteractableAction.ActionName:
+                if (!decision.ActionParameters.TryGetValue("target", out var target) || string.IsNullOrWhiteSpace(target))
+                {
+                    proposal = null;
+                    failReason = $"{UseInteractableAction.ActionName} requires a non-empty \"target\" parameter.";
+                    return false;
+                }
+
+                proposal = new ActionProposal(UseInteractableAction.ActionName, new UseInteractableActionParams(target));
                 failReason = null;
                 return true;
 

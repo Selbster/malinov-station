@@ -172,6 +172,16 @@ public sealed partial class ContextBuilderSystem : EntitySystem
 
         var knownLocations = _memory.GetKnownLocationNames(uid, max: 5);
 
+        // AI Players 0.3, spec section 16: names resolved fresh off each live EntityUid, same convention as
+        // VisibleWorld above - this list is transient (InteractionOpportunitySystem's own scan), never memory,
+        // so there's nothing to look up but the entity itself.
+        var nearbyInteractables = TryComp<InteractionOpportunityComponent>(uid, out var interactionOpportunity)
+            ? interactionOpportunity.NearbyInteractables
+                .Where(e => !Deleted(e))
+                .Select(e => Comp<MetaDataComponent>(e).EntityName)
+                .ToList()
+            : new List<string>();
+
         return new CognitiveState(
             Comp<MetaDataComponent>(uid).EntityName,
             aiPlayer.Job?.Id ?? "Unknown",
@@ -186,7 +196,8 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             relevantMemories,
             knownFacts,
             beliefs,
-            knownLocations);
+            knownLocations,
+            nearbyInteractables);
     }
 
     /// <summary>

@@ -48,4 +48,5 @@ public sealed record CognitiveState(
     IReadOnlyList<string> RelevantMemories,
     IReadOnlyList<string> KnownFacts,
     IReadOnlyList<BeliefSummary> Beliefs,
-    IReadOnlyList<string> KnownLocations);
+    IReadOnlyList<string> KnownLocations,
+    IReadOnlyList<string> NearbyInteractables);

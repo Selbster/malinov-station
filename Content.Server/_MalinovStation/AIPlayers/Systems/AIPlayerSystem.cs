@@ -50,8 +50,9 @@ public sealed partial class AIPlayerSystem : EntitySystem
     /// existed) is unaffected - only <c>aiplayer_spawn_cognitive</c> passes true. When true, adds
     /// <see cref="CognitiveModeComponent"/> plus the cognitive-only overlay components
     /// (<see cref="IntentComponent"/>/<see cref="DesireComponent"/>/<see cref="EmotionComponent"/>/
-    /// <see cref="BeliefComponent"/>/<see cref="LandmarkPerceptionComponent"/>) - everything else about
-    /// spawning stays identical either way.
+    /// <see cref="BeliefComponent"/>/<see cref="LandmarkPerceptionComponent"/>/
+    /// <see cref="InteractionOpportunityComponent"/>) - everything else about spawning stays identical either
+    /// way.
     /// </param>
     /// <returns>The spawned entity, or null if spawning failed (e.g. no station/spawn point available).</returns>
     public EntityUid? SpawnAiPlayer(
@@ -106,6 +107,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
             AddComp<EmotionComponent>(mobUid);
             AddComp<BeliefComponent>(mobUid);
             AddComp<LandmarkPerceptionComponent>(mobUid);
+            AddComp<InteractionOpportunityComponent>(mobUid);
         }
 
         if (persistentId is not null)

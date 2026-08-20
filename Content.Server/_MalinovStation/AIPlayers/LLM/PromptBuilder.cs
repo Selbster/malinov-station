@@ -92,16 +92,16 @@ public static class PromptBuilder
     /// <paramref name="allowedGoals"/> is still the combined AIGoals/professional-goal whitelist (same list
     /// <see cref="Systems.LlmGatewaySystem.GetAllowedIntents"/> always computed) - it validates the "goal"
     /// parameter of the "PursueGoal" action, not "intention" (which is free-form and unvalidated). NOTE: the
-    /// three available actions described below (PursueGoal, ContinueActivity, GoToKnownLocation) must stay in
-    /// sync with <see cref="ActionProposalResolver"/>'s switch - acceptable to hardcode at this size, revisit
-    /// once the action catalog grows.</summary>
+    /// four available actions described below (PursueGoal, ContinueActivity, GoToKnownLocation,
+    /// UseInteractable) must stay in sync with <see cref="ActionProposalResolver"/>'s switch - acceptable to
+    /// hardcode at this size, revisit once the action catalog grows.</summary>
     public static string BuildCognitiveSystemPrompt(IReadOnlyCollection<string> allowedGoals)
     {
         return "You are the mind of a character aboard a space station in a sci-fi roleplaying game - not a script, " +
                "a person with their own desires, beliefs and feelings. You will be given your current needs, mood, " +
                "personality, what you're currently doing, what you currently want (your desires) and how strongly, " +
-               "who/what you can see, what you know for certain, things you've heard but aren't sure are true, and " +
-               "places you know how to get to. " +
+               "who/what you can see, what you know for certain, things you've heard but aren't sure are true, " +
+               "places you know how to get to, and nearby things you could interact with. " +
                "You only know what is listed below - anything not mentioned, you have no way of knowing. " +
                "Decide what you actually want to do right now, in character, and why, and pick ONE concrete " +
                "action to take toward it. " +
@@ -113,13 +113,16 @@ public static class PromptBuilder
                "\"priority\": <number 0.0 to 1.0>, " +
                "\"confidence\": <number 0.0 to 1.0, how sure you are this is the right call>, " +
                "\"reason\": \"<short in-character reason>\", " +
-               "\"action\": \"<one of: PursueGoal, ContinueActivity, GoToKnownLocation>\", " +
+               "\"action\": \"<one of: PursueGoal, ContinueActivity, GoToKnownLocation, UseInteractable>\", " +
                "\"parameters\": {\"goal\": \"<required only for PursueGoal - one of the allowed goals below>\", " +
-               "\"location\": \"<required only for GoToKnownLocation - one of the places you know below>\"}}. " +
+               "\"location\": \"<required only for GoToKnownLocation - one of the places you know below>\", " +
+               "\"target\": \"<required only for UseInteractable - one of the things you could interact with below>\"}}. " +
                "\"PursueGoal\" actively commits to one of your existing goals right now - use it when one of the " +
                "allowed goals below matches what you want to do. \"GoToKnownLocation\" walks you to a place you " +
                "know how to get to - use it ONLY for a place actually listed below, never one you merely guess " +
-               "the name of. \"ContinueActivity\" means keep doing what you're already doing, with no parameters. " +
+               "the name of. \"UseInteractable\" uses a nearby object like a switch - use it ONLY for something " +
+               "actually listed below, never one you merely guess the name of. \"ContinueActivity\" means keep " +
+               "doing what you're already doing, with no parameters. " +
                $"Allowed goals (for PursueGoal's \"goal\" parameter only): {string.Join(", ", allowedGoals)}. " +
                "Use exactly one of the allowed goals, spelled exactly as given.";
     }
@@ -195,6 +198,17 @@ public static class PromptBuilder
             sb.AppendLine("Places you know how to get to (for GoToKnownLocation's \"location\" parameter):");
             foreach (var location in context.KnownLocations)
                 sb.AppendLine($"- {location}");
+        }
+
+        if (context.NearbyInteractables.Count == 0)
+        {
+            sb.AppendLine("There is nothing nearby you could interact with right now.");
+        }
+        else
+        {
+            sb.AppendLine("Nearby things you could interact with (for UseInteractable's \"target\" parameter):");
+            foreach (var interactable in context.NearbyInteractables)
+                sb.AppendLine($"- {interactable}");
         }
 
         return sb.ToString();
