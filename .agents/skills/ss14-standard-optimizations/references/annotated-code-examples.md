@@ -42,6 +42,8 @@ while (chunkEnumerator.MoveNext(out var storageChunk))
         }
     }
 }
+
+// Verify: SharedStorageSystem.cs — grep GetItemShape(itemEnt)
 ```
 
 ## Example 2: `fieldDeltas + DirtyField` for point changes
@@ -49,55 +51,68 @@ while (chunkEnumerator.MoveNext(out var storageChunk))
 - Subsystem: proximity detector
 - Signature: `public override void Update(float frameTime)`
 - Layer: `shared`
-- Relevance: `2025-05`
+- Relevance: current
 
 ```csharp
-[AutoGenerateComponentState(fieldDeltas: true)]
+[RegisterComponent, NetworkedComponent]
+[AutoGenerateComponentState(fieldDeltas: true), AutoGenerateComponentPause]
 public sealed partial class ProximityDetectorComponent : Component
 {
-    [AutoNetworkedField] public TimeSpan NextUpdate = TimeSpan.Zero;
-    [AutoNetworkedField] public float Distance = float.PositiveInfinity;
-    [AutoNetworkedField] public EntityUid? Target;
+    [ViewVariables, AutoNetworkedField]
+    public EntityUid? Target;
+
+    [ViewVariables, AutoNetworkedField]
+    public float Distance = float.PositiveInfinity;
+
+    [DataField, AutoNetworkedField]
+    public TimeSpan UpdateCooldown = TimeSpan.FromSeconds(1);
+
+    [DataField(customTypeSerializer: typeof(TimeOffsetSerializer)), AutoNetworkedField, AutoPausedField]
+    public TimeSpan NextUpdate = TimeSpan.Zero;
 }
 
 public override void Update(float frameTime)
 {
     var query = EntityQueryEnumerator<ProximityDetectorComponent>();
+
     while (query.MoveNext(out var uid, out var component))
     {
         if (component.NextUpdate > _timing.CurTime)
             continue;
 
         component.NextUpdate += component.UpdateCooldown;
-        DirtyField(uid, component, nameof(ProximityDetectorComponent.NextUpdate));
-        // Only the actually changed field is dirty.
+        DirtyField(uid, component, nameof(ProximityDetectorComponent.NextUpdate)); // Only the changed field goes out.
+
+        if (!_toggle.IsActivated(uid))
+            continue;
+
+        UpdateTarget((uid, component));
     }
 }
+
+// Verify: ProximityDetectionSystem.cs + ProximityDetectorComponent.cs — grep DirtyField
 ```
 
 ## Example 3: cache `EntityQuery<T>` in `Initialize()`
 
-- Subsystem: proximity detector
+- Subsystem: shared disposal holder
 - Signature: `public override void Initialize()`
 - Layer: `shared`
-- Relevance: `2025-05`
+- Relevance: current
 
 ```csharp
 private EntityQuery<TransformComponent> _xformQuery;
 
 public override void Initialize()
 {
-    SubscribeLocalEvent<ProximityDetectorComponent, MapInitEvent>(OnMapInit);
-    _xformQuery = GetEntityQuery<TransformComponent>(); // We cache once.
+    _xformQuery = GetEntityQuery<TransformComponent>(); // Cache once per system lifetime.
 }
 
-private void UpdateTarget(Entity<ProximityDetectorComponent> detector)
-{
-    if (!_xformQuery.TryGetComponent(detector, out var transform))
-        return; // Quick early exit.
+// Later, in a hot path:
+if (!_xformQuery.TryGetComponent(entity, out var transform))
+    return; // Quick early exit without general-purpose lookups.
 
-    // ...further logic of target search...
-}
+// Verify: SharedDisposalHolderSystem.cs — grep _xformQuery
 ```
 
 ## Example 4: `ByRef record struct` for a frequent local event
@@ -123,9 +138,11 @@ private void Notify(EntityUid uid, bool active)
     var off = new ChargedMachineDeactivatedEvent();
     RaiseLocalEvent(uid, ref off);
 }
+
+// Verify: PowerChargeSystem.cs — grep ChargedMachineActivatedEvent
 ```
 
-## Example 5: reusing `ValueList` without per-personnel allocations
+## Example 5: reusing `ValueList` without per-frame allocations
 
 - Subsystem: visual effects
 - Signature: `public override void Update(float frameTime)`
@@ -151,6 +168,8 @@ public override void Update(float frameTime)
     foreach (var ent in _toRemove)
         RemComp<ColorFlashEffectComponent>(ent);
 }
+
+// Verify: ColorFlashEffectSystem.cs — grep RemComp<ColorFlashEffectComponent>
 ```
 
 ## Example 6: `ArrayPool<T>` + `ReadOnlySpan<T>` when sending
@@ -179,6 +198,8 @@ private void SendToConnections(ReadOnlySpan<DeviceNetworkComponent> connections,
         // We work with span without unnecessary copies of the list.
     }
 }
+
+// Verify: DeviceNetworkSystem.cs — grep ArrayPool<DeviceNetworkComponent>
 ```
 
 ## Example 7: `EntityQuery<T>` in the system API instead of repeating general checks
@@ -201,6 +222,8 @@ public bool HasTag(EntityUid uid, ProtoId<TagPrototype> tag)
     return _tagQuery.TryComp(uid, out var component) &&
            component.Tags.Contains(tag);
 }
+
+// Verify: TagSystem.cs — grep _tagQuery.TryComp
 ```
 
 ## Example 8: ordering components in a query by cardinality
@@ -217,6 +240,8 @@ public bool HasTag(EntityUid uid, ProtoId<TagPrototype> tag)
 // Practical conclusion:
 var query = EntityQueryEnumerator<ActiveTimerTriggerComponent, TimerTriggerComponent>();
 // First the rarer component to reduce the overlap.
+
+// Verify: RobustToolbox EntityManager.Components.cs — grep "smaller set of components"
 ```
 
 ## Example 9: incremental counter instead of state recalculation
@@ -227,20 +252,54 @@ var query = EntityQueryEnumerator<ActiveTimerTriggerComponent, TimerTriggerCompo
 - Relevance: `2024-10` (used in the current code 2025+)
 
 ```csharp
-if (gun.SelectedMode == SelectiveFire.Burst)
-    gun.BurstActivated = true;
-
-if (gun.BurstActivated)
+if (gun.Comp.SelectedMode == SelectiveFire.Burst)
 {
-    gun.BurstShotsCount += shots; // We support the unit incrementally.
+    gun.Comp.BurstActivated = true;
+}
+if (gun.Comp.BurstActivated)
+{
+    gun.Comp.BurstShotsCount += shots; // Incremental counter at the mutation site.
 
-    if (gun.BurstShotsCount >= gun.ShotsPerBurstModified)
+    if (gun.Comp.BurstShotsCount >= gun.Comp.ShotsPerBurstModified)
     {
-        gun.NextFire += TimeSpan.FromSeconds(gun.BurstCooldown);
-        gun.BurstActivated = false;
-        gun.BurstShotsCount = 0; // Reset when the burst window ends.
+        gun.Comp.NextFire += TimeSpan.FromSeconds(gun.Comp.BurstCooldown);
+        gun.Comp.BurstActivated = false;
+        gun.Comp.BurstShotsCount = 0; // Reset when the burst window ends.
     }
 }
+
+// Verify: SharedGunSystem.cs — grep BurstShotsCount
 ```
 
 Comment: the system does not “recalculate the shot history” to check the burst limit, but updates the counter at the point where the state changes.
+
+## Example 10: staggered per-entity timer instead of uniform sweeps
+
+- Subsystem: thirst
+- Signature: `public override void Update(float frameTime)`
+- Layer: `shared`
+- Relevance: current
+
+```csharp
+var query = EntityQueryEnumerator<ThirstComponent>();
+while (query.MoveNext(out var uid, out var thirst))
+{
+    if (_timing.CurTime < thirst.NextUpdateTime)
+        continue;
+
+    thirst.NextUpdateTime += thirst.UpdateRate; // Advance, don't reset: cadence stays stable under lag.
+
+    ModifyThirst(uid, thirst, -thirst.ActualDecayRate);
+    var calculatedThirstThreshold = GetThirstThreshold(thirst, thirst.CurrentThirst);
+
+    if (calculatedThirstThreshold == thirst.CurrentThirstThreshold)
+        continue;
+
+    thirst.CurrentThirstThreshold = calculatedThirstThreshold;
+    UpdateEffects(uid, thirst);
+}
+
+// Verify: ThirstSystem.cs — grep NextUpdateTime +=
+```
+
+Comment: the expensive threshold/alert body only runs once per interval per entity; entities created at different moments tick out of phase, so the load is spread across ticks without extra bookkeeping.
