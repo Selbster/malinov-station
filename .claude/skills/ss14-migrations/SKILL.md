@@ -1,6 +1,6 @@
 ---
 name: ss14-migrations
-description: Guide to Creating and Managing Database Migrations in SS14 (PostgreSQL and SQLite)
+description: Workflow for creating, verifying, and rolling back EF Core database migrations in SS14's dual SQLite/PostgreSQL setup - generating both contexts together, checking generated artifacts and snapshots, engine-specific type configuration, rollback, and upstream snapshot-conflict recovery. Use it when changing server-database models, adding tables or columns, or fixing server startup failures during migration apply.
 ---
 
 # Claude Bridge
