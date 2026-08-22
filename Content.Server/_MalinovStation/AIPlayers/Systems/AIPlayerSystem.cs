@@ -25,6 +25,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
     [Dependency] private NPCSystem _npc = default!;
     [Dependency] private PersonalitySystem _personality = default!;
     [Dependency] private AiPlayerPersistenceSystem _persistence = default!;
+    [Dependency] private LandmarkPerceptionSystem _landmarkPerception = default!;
     [Dependency] private IRobustRandom _random = default!;
 
     /// <summary>
@@ -51,8 +52,8 @@ public sealed partial class AIPlayerSystem : EntitySystem
     /// <see cref="CognitiveModeComponent"/> plus the cognitive-only overlay components
     /// (<see cref="IntentComponent"/>/<see cref="DesireComponent"/>/<see cref="EmotionComponent"/>/
     /// <see cref="BeliefComponent"/>/<see cref="LandmarkPerceptionComponent"/>/
-    /// <see cref="InteractionOpportunityComponent"/>) - everything else about spawning stays identical either
-    /// way.
+    /// <see cref="InteractionOpportunityComponent"/>/<see cref="ItemOpportunityComponent"/>) - everything else
+    /// about spawning stays identical either way.
     /// </param>
     /// <returns>The spawned entity, or null if spawning failed (e.g. no station/spawn point available).</returns>
     public EntityUid? SpawnAiPlayer(
@@ -98,6 +99,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
         AddComp<AiLodComponent>(mobUid);
         AddComp<RepairOpportunityComponent>(mobUid);
         AddComp<AiTraceStateComponent>(mobUid);
+        AddComp<DoorApproachComponent>(mobUid);
 
         if (cognitiveMode)
         {
@@ -108,6 +110,13 @@ public sealed partial class AIPlayerSystem : EntitySystem
             AddComp<BeliefComponent>(mobUid);
             AddComp<LandmarkPerceptionComponent>(mobUid);
             AddComp<InteractionOpportunityComponent>(mobUid);
+            AddComp<ItemOpportunityComponent>(mobUid);
+
+            // Pre-seed the station's real beacons as known landmarks (general "I already work here" layout
+            // knowledge, not live perception) so a cognitive AI doesn't have to rediscover its own workplace
+            // by wandering past every beacon first - see LandmarkPerceptionSystem.SeedKnownBeacons's own doc
+            // comment for why this doesn't violate the "no omniscience" discipline elsewhere in this AI.
+            _landmarkPerception.SeedKnownBeacons(mobUid, Transform(mobUid));
         }
 
         if (persistentId is not null)

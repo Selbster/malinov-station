@@ -19,6 +19,16 @@ public sealed partial class ConversationComponent : Component
     public ConversationState State = ConversationState.None;
 
     /// <summary>
+    /// AI Players 0.3, spec section 15's AI Social slice: why the initiator deliberately approached this
+    /// partner, if this conversation was started via the cognitive <c>TalkTo</c> action rather than
+    /// <see cref="Systems.SocialSystem"/>'s own reactive trigger. Only meaningful on the initiator's own
+    /// component, only for the opening line (see <see cref="Systems.SocialSystem.RequestLine"/>) - mirrors how
+    /// a rumor is opener-only.
+    /// </summary>
+    [ViewVariables]
+    public string? Reason;
+
+    /// <summary>
     /// How long after a conversation ends before this AI player will start (or be picked as a partner for)
     /// another one.
     /// </summary>

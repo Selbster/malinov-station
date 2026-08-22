@@ -182,6 +182,15 @@ public sealed partial class ContextBuilderSystem : EntitySystem
                 .ToList()
             : new List<string>();
 
+        // AI Players 0.3, spec section 15/18: same live-EntityUid-fresh-name convention as NearbyInteractables
+        // above - ItemOpportunitySystem's own scan, never memory.
+        var nearbyItems = TryComp<ItemOpportunityComponent>(uid, out var itemOpportunity)
+            ? itemOpportunity.NearbyItems
+                .Where(e => !Deleted(e))
+                .Select(e => Comp<MetaDataComponent>(e).EntityName)
+                .ToList()
+            : new List<string>();
+
         return new CognitiveState(
             Comp<MetaDataComponent>(uid).EntityName,
             aiPlayer.Job?.Id ?? "Unknown",
@@ -197,14 +206,15 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             knownFacts,
             beliefs,
             knownLocations,
-            nearbyInteractables);
+            nearbyInteractables,
+            nearbyItems);
     }
 
     /// <summary>
     /// Builds the context for one line of <paramref name="speaker"/>'s side of a conversation with
     /// <paramref name="partner"/>, or null if either is missing required components/has been deleted.
     /// </summary>
-    public DialogueContext? BuildDialogueContext(EntityUid speaker, EntityUid partner, string? partnerJustSaid, string? rumorToShare = null)
+    public DialogueContext? BuildDialogueContext(EntityUid speaker, EntityUid partner, string? partnerJustSaid, string? rumorToShare = null, string? reasonForApproaching = null)
     {
         if (Deleted(partner) || !TryComp<PersonalityComponent>(speaker, out var personality))
             return null;
@@ -222,7 +232,8 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             relationship.Fear,
             recent?.Content,
             partnerJustSaid,
-            rumorToShare);
+            rumorToShare,
+            reasonForApproaching);
     }
 
     /// <summary>

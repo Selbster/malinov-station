@@ -1,5 +1,7 @@
+using System.Linq;
 using System.Text;
 using Content.Server._MalinovStation.AIPlayers.Components;
+using Content.Server._MalinovStation.AIPlayers.Systems;
 using Content.Server.Administration;
 using Content.Server.Hands.Systems;
 using Content.Server.NPC.HTN;
@@ -18,6 +20,7 @@ namespace Content.Server._MalinovStation.AIPlayers.Commands;
 public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
 {
     [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private MemorySystem _memory = default!;
 
     public override string Command => "aiplayer_debug";
 
@@ -131,6 +134,37 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
 
             if (EntityManager.TryGetComponent<BeliefComponent>(uid, out var belief))
                 sb.AppendLine($"Beliefs: {belief.Beliefs.Count}/{belief.MaxBeliefs}");
+
+            // AI Players 0.3 - Navigation/Interaction/Inventory slices' live-perceived/remembered candidates,
+            // exactly what the cognitive prompt itself would see (see PromptBuilder.BuildCognitiveUserPrompt).
+            var knownLocations = _memory.GetKnownLocationNames(uid.Value);
+            sb.AppendLine(knownLocations.Count > 0
+                ? $"Known locations: {string.Join(", ", knownLocations)}"
+                : "Known locations: none");
+
+            if (EntityManager.TryGetComponent<InteractionOpportunityComponent>(uid, out var interactionOpportunity))
+            {
+                var names = interactionOpportunity.NearbyInteractables
+                    .Where(e => !EntityManager.Deleted(e))
+                    .Select(e => EntityManager.GetComponent<MetaDataComponent>(e).EntityName);
+                sb.AppendLine($"Nearby interactables: {(interactionOpportunity.NearbyInteractables.Count > 0 ? string.Join(", ", names) : "none")}");
+            }
+
+            if (EntityManager.TryGetComponent<ItemOpportunityComponent>(uid, out var itemOpportunity))
+            {
+                var names = itemOpportunity.NearbyItems
+                    .Where(e => !EntityManager.Deleted(e))
+                    .Select(e => EntityManager.GetComponent<MetaDataComponent>(e).EntityName);
+                sb.AppendLine($"Nearby items: {(itemOpportunity.NearbyItems.Count > 0 ? string.Join(", ", names) : "none")}");
+            }
+        }
+
+        if (EntityManager.TryGetComponent<ConversationComponent>(uid, out var conversation))
+        {
+            var partnerName = conversation.Partner is { } partner && !EntityManager.Deleted(partner)
+                ? EntityManager.GetComponent<MetaDataComponent>(partner).EntityName
+                : "none";
+            sb.AppendLine($"Conversation: state={conversation.State} partner={partnerName} reason={conversation.Reason ?? "none"}");
         }
 
         if (EntityManager.TryGetComponent<DangerComponent>(uid, out var danger))

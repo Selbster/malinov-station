@@ -78,6 +78,12 @@ public static class PromptBuilder
                 $"{context.SpeakerName} wants to tell {context.PartnerName} something important they witnessed: " +
                 $"\"{context.RumorToShare}\". Open with that, in character (e.g. \"Did you hear...\"), instead of small talk.");
         }
+        else if (!string.IsNullOrWhiteSpace(context.ReasonForApproaching))
+        {
+            sb.AppendLine(
+                $"{context.SpeakerName} deliberately came over to talk to {context.PartnerName} because: " +
+                $"{context.ReasonForApproaching}. Open by addressing that, in character, instead of generic small talk.");
+        }
         else
         {
             sb.AppendLine(context.LinePartnerJustSaid is null
@@ -92,16 +98,18 @@ public static class PromptBuilder
     /// <paramref name="allowedGoals"/> is still the combined AIGoals/professional-goal whitelist (same list
     /// <see cref="Systems.LlmGatewaySystem.GetAllowedIntents"/> always computed) - it validates the "goal"
     /// parameter of the "PursueGoal" action, not "intention" (which is free-form and unvalidated). NOTE: the
-    /// four available actions described below (PursueGoal, ContinueActivity, GoToKnownLocation,
-    /// UseInteractable) must stay in sync with <see cref="ActionProposalResolver"/>'s switch - acceptable to
-    /// hardcode at this size, revisit once the action catalog grows.</summary>
+    /// seven available actions described below (PursueGoal, ContinueActivity, GoToKnownLocation,
+    /// UseInteractable, PickUpItem, SearchArea, TalkTo) must stay in sync with
+    /// <see cref="ActionProposalResolver"/>'s switch - acceptable to hardcode at this size, revisit once the
+    /// action catalog grows.</summary>
     public static string BuildCognitiveSystemPrompt(IReadOnlyCollection<string> allowedGoals)
     {
         return "You are the mind of a character aboard a space station in a sci-fi roleplaying game - not a script, " +
                "a person with their own desires, beliefs and feelings. You will be given your current needs, mood, " +
                "personality, what you're currently doing, what you currently want (your desires) and how strongly, " +
                "who/what you can see, what you know for certain, things you've heard but aren't sure are true, " +
-               "places you know how to get to, and nearby things you could interact with. " +
+               "places you know how to get to, nearby things you could interact with, and nearby items you could " +
+               "pick up. " +
                "You only know what is listed below - anything not mentioned, you have no way of knowing. " +
                "Decide what you actually want to do right now, in character, and why, and pick ONE concrete " +
                "action to take toward it. " +
@@ -113,15 +121,24 @@ public static class PromptBuilder
                "\"priority\": <number 0.0 to 1.0>, " +
                "\"confidence\": <number 0.0 to 1.0, how sure you are this is the right call>, " +
                "\"reason\": \"<short in-character reason>\", " +
-               "\"action\": \"<one of: PursueGoal, ContinueActivity, GoToKnownLocation, UseInteractable>\", " +
+               "\"action\": \"<one of: PursueGoal, ContinueActivity, GoToKnownLocation, UseInteractable, PickUpItem, SearchArea, TalkTo>\", " +
                "\"parameters\": {\"goal\": \"<required only for PursueGoal - one of the allowed goals below>\", " +
                "\"location\": \"<required only for GoToKnownLocation - one of the places you know below>\", " +
-               "\"target\": \"<required only for UseInteractable - one of the things you could interact with below>\"}}. " +
+               "\"target\": \"<required only for UseInteractable, PickUpItem or TalkTo - the name of the thing " +
+               "to use, pick up, or the person to talk to>\", " +
+               "\"keyword\": \"<required only for SearchArea - what to look for>\"}}. " +
                "\"PursueGoal\" actively commits to one of your existing goals right now - use it when one of the " +
                "allowed goals below matches what you want to do. \"GoToKnownLocation\" walks you to a place you " +
                "know how to get to - use it ONLY for a place actually listed below, never one you merely guess " +
                "the name of. \"UseInteractable\" uses a nearby object like a switch - use it ONLY for something " +
-               "actually listed below, never one you merely guess the name of. \"ContinueActivity\" means keep " +
+               "actually listed below, never one you merely guess the name of. \"PickUpItem\" picks up a nearby " +
+               "loose item into your hand - use it ONLY for an item actually listed below, never one you merely " +
+               "guess the name of. \"SearchArea\" actively looks around right now for something matching a " +
+               "keyword that ISN'T already listed below - use it when you want something you don't currently " +
+               "see or know how to reach, e.g. to look for food when none is listed. \"TalkTo\" starts a real " +
+               "conversation with someone you can currently see - use it ONLY for someone actually listed among " +
+               "who you can see, never one you merely guess is nearby; your own \"reason\" field becomes why " +
+               "you're approaching them, and shapes what you actually say. \"ContinueActivity\" means keep " +
                "doing what you're already doing, with no parameters. " +
                $"Allowed goals (for PursueGoal's \"goal\" parameter only): {string.Join(", ", allowedGoals)}. " +
                "Use exactly one of the allowed goals, spelled exactly as given.";
@@ -209,6 +226,17 @@ public static class PromptBuilder
             sb.AppendLine("Nearby things you could interact with (for UseInteractable's \"target\" parameter):");
             foreach (var interactable in context.NearbyInteractables)
                 sb.AppendLine($"- {interactable}");
+        }
+
+        if (context.NearbyItems.Count == 0)
+        {
+            sb.AppendLine("There is nothing nearby you could pick up right now.");
+        }
+        else
+        {
+            sb.AppendLine("Nearby items you could pick up (for PickUpItem's \"target\" parameter):");
+            foreach (var item in context.NearbyItems)
+                sb.AppendLine($"- {item}");
         }
 
         return sb.ToString();

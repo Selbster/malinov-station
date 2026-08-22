@@ -90,11 +90,13 @@ public sealed partial class MemorySystem : EntitySystem
     /// <summary>
     /// The AI Navigation Controller's only way to "know" a location (spec: never a fresh omniscient query) -
     /// searches this entity's own <c>"landmark"</c>-sourced memories (written by
-    /// <see cref="LandmarkPerceptionSystem"/> when it actually perceives a station beacon) for one whose
+    /// <see cref="LandmarkPerceptionSystem"/> when it actually perceives a station beacon) or
+    /// <c>"search-result"</c>-sourced memories (written by <see cref="Actions.SearchAreaAction"/> when it
+    /// actively looks for something and finds it - AI Players 0.3's AI Search slice) for one whose
     /// <see cref="AiMemory.Subject"/> matches <paramref name="nameHint"/>, and returns its remembered
     /// <see cref="AiMemory.Location"/>. Matching is a loose case-insensitive substring check in either
     /// direction, so a slightly-off LLM-proposed hint ("kitchen" vs "Kitchen area") still resolves. Returns
-    /// null if this AI has never perceived anywhere by that name.
+    /// null if this AI has never perceived/found anywhere by that name.
     /// </summary>
     public EntityCoordinates? FindKnownLocation(EntityUid uid, string nameHint, MemoryComponent? memory = null)
     {
@@ -102,7 +104,7 @@ public sealed partial class MemorySystem : EntitySystem
             return null;
 
         return memory.Memories
-            .Where(m => m.Source == "landmark" && m.Location is not null && m.Subject is { } subject &&
+            .Where(m => (m.Source == "landmark" || m.Source == "search-result") && m.Location is not null && m.Subject is { } subject &&
                 (subject.Contains(nameHint, StringComparison.OrdinalIgnoreCase) ||
                  nameHint.Contains(subject, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(m => m.Importance)
@@ -112,7 +114,8 @@ public sealed partial class MemorySystem : EntitySystem
     }
 
     /// <summary>
-    /// Every distinct place name this AI currently remembers, strongest/most-recent first - surfaced to the
+    /// Every distinct place/thing name this AI currently remembers (landmarks it has perceived, or things a
+    /// previous <see cref="Actions.SearchAreaAction"/> found), strongest/most-recent first - surfaced to the
     /// LLM (see <see cref="Systems.ContextBuilderSystem.BuildCognitiveState"/>) so it only ever proposes a
     /// "GoToKnownLocation" hint that <see cref="FindKnownLocation"/> can actually resolve.
     /// </summary>
@@ -122,7 +125,7 @@ public sealed partial class MemorySystem : EntitySystem
             return Array.Empty<string>();
 
         return memory.Memories
-            .Where(m => m.Source == "landmark" && m.Subject is not null)
+            .Where(m => (m.Source == "landmark" || m.Source == "search-result") && m.Subject is not null)
             .OrderByDescending(m => m.Importance)
             .ThenByDescending(m => m.Timestamp)
             .Select(m => m.Subject!)

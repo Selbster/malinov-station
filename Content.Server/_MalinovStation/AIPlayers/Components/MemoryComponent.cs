@@ -52,8 +52,11 @@ public sealed partial class MemoryComponent : Component
     public List<AiMemory> Memories = new();
 
     /// <summary>
-    /// Once exceeded, the least important (then oldest) memory is dropped to make room.
+    /// Once exceeded, the least important (then oldest) memory is dropped to make room. Raised from the
+    /// original 200 - pre-seeding every station beacon as a known landmark at spawn
+    /// (LandmarkPerceptionSystem.SeedKnownBeacons) alone can use a real chunk of a small cap, before any
+    /// actual play-derived memories accumulate on top.
     /// </summary>
     [DataField]
-    public int MaxMemories = 200;
+    public int MaxMemories = 1500;
 }

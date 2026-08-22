@@ -158,4 +158,125 @@ public sealed class ActionProposalResolverTest
         var useParams = (UseInteractableActionParams)proposal.Parameters;
         Assert.That(useParams.Target, Is.EqualTo("Light Switch"));
     }
+
+    [Test]
+    public void TryResolve_PickUpItemMissingTargetParameter_Fails()
+    {
+        var ok = ActionProposalResolver.TryResolve(MakeDecision(PickUpItemAction.ActionName), out var proposal, out var failReason);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ok, Is.False);
+            Assert.That(proposal, Is.Null);
+            Assert.That(failReason, Does.Contain("target"));
+        });
+    }
+
+    [Test]
+    public void TryResolve_PickUpItemBlankTargetParameter_Fails()
+    {
+        var decision = MakeDecision(PickUpItemAction.ActionName, new Dictionary<string, string> { ["target"] = "   " });
+        var ok = ActionProposalResolver.TryResolve(decision, out var proposal, out var failReason);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ok, Is.False);
+            Assert.That(proposal, Is.Null);
+            Assert.That(failReason, Is.Not.Null.And.Not.Empty);
+        });
+    }
+
+    [Test]
+    public void TryResolve_PickUpItemValid_ReturnsCorrectParams()
+    {
+        var decision = MakeDecision(PickUpItemAction.ActionName, new Dictionary<string, string> { ["target"] = "Wrench" });
+        var ok = ActionProposalResolver.TryResolve(decision, out var proposal, out var failReason);
+
+        Assert.That(ok, Is.True, failReason);
+        Assert.That(proposal!.ActionName, Is.EqualTo(PickUpItemAction.ActionName));
+        var pickUpParams = (PickUpItemActionParams)proposal.Parameters;
+        Assert.That(pickUpParams.Target, Is.EqualTo("Wrench"));
+    }
+
+    [Test]
+    public void TryResolve_SearchAreaMissingKeywordParameter_Fails()
+    {
+        var ok = ActionProposalResolver.TryResolve(MakeDecision(SearchAreaAction.ActionName), out var proposal, out var failReason);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ok, Is.False);
+            Assert.That(proposal, Is.Null);
+            Assert.That(failReason, Does.Contain("keyword"));
+        });
+    }
+
+    [Test]
+    public void TryResolve_SearchAreaBlankKeywordParameter_Fails()
+    {
+        var decision = MakeDecision(SearchAreaAction.ActionName, new Dictionary<string, string> { ["keyword"] = "   " });
+        var ok = ActionProposalResolver.TryResolve(decision, out var proposal, out var failReason);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ok, Is.False);
+            Assert.That(proposal, Is.Null);
+            Assert.That(failReason, Is.Not.Null.And.Not.Empty);
+        });
+    }
+
+    [Test]
+    public void TryResolve_SearchAreaValid_ReturnsCorrectParams()
+    {
+        var decision = MakeDecision(SearchAreaAction.ActionName, new Dictionary<string, string> { ["keyword"] = "food" });
+        var ok = ActionProposalResolver.TryResolve(decision, out var proposal, out var failReason);
+
+        Assert.That(ok, Is.True, failReason);
+        Assert.That(proposal!.ActionName, Is.EqualTo(SearchAreaAction.ActionName));
+        var searchParams = (SearchAreaActionParams)proposal.Parameters;
+        Assert.That(searchParams.Keyword, Is.EqualTo("food"));
+    }
+
+    [Test]
+    public void TryResolve_TalkToMissingTargetParameter_Fails()
+    {
+        var ok = ActionProposalResolver.TryResolve(MakeDecision(TalkToAction.ActionName), out var proposal, out var failReason);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ok, Is.False);
+            Assert.That(proposal, Is.Null);
+            Assert.That(failReason, Does.Contain("target"));
+        });
+    }
+
+    [Test]
+    public void TryResolve_TalkToBlankTargetParameter_Fails()
+    {
+        var decision = MakeDecision(TalkToAction.ActionName, new Dictionary<string, string> { ["target"] = "   " });
+        var ok = ActionProposalResolver.TryResolve(decision, out var proposal, out var failReason);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ok, Is.False);
+            Assert.That(proposal, Is.Null);
+            Assert.That(failReason, Is.Not.Null.And.Not.Empty);
+        });
+    }
+
+    [Test]
+    public void TryResolve_TalkToValid_ReturnsCorrectParamsIncludingDecisionReason()
+    {
+        var decision = MakeDecision(TalkToAction.ActionName, new Dictionary<string, string> { ["target"] = "Sarah" });
+        var ok = ActionProposalResolver.TryResolve(decision, out var proposal, out var failReason);
+
+        Assert.That(ok, Is.True, failReason);
+        Assert.That(proposal!.ActionName, Is.EqualTo(TalkToAction.ActionName));
+        var talkToParams = (TalkToActionParams)proposal.Parameters;
+        Assert.Multiple(() =>
+        {
+            Assert.That(talkToParams.Target, Is.EqualTo("Sarah"));
+            Assert.That(talkToParams.Reason, Is.EqualTo(decision.Reason));
+        });
+    }
 }

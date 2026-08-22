@@ -3,6 +3,7 @@ using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server.Pinpointer;
 using Content.Shared.Interaction;
 using Content.Shared.Physics;
+using Content.Shared.Pinpointer;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
 
@@ -75,5 +76,48 @@ public sealed partial class LandmarkPerceptionSystem : EntitySystem
             participants: new[] { beaconUid },
             location: Transform(beaconUid).Coordinates,
             subject: text);
+    }
+
+    /// <summary>
+    /// One-shot pre-seed of every real station beacon's landmark memory at spawn time, called from
+    /// <see cref="AIPlayerSystem.SpawnAiPlayer"/> - unlike <see cref="Scan"/> above (discovered gradually by
+    /// actually walking near each one), this gives a cognitive AI player the general station layout knowledge
+    /// a real, already-employed station worker would reasonably have on day one, instead of making them
+    /// rediscover their own workplace from scratch. Distinct from this AI's "no omniscience" discipline
+    /// elsewhere (e.g. <see cref="PerceptionComponent"/> never seeing an unperceived event): that principle is
+    /// about dynamic, real-time information (what just happened), not static geography a real employee already
+    /// knows (where the kitchen is) - so this deliberately bypasses the line-of-sight gate <see cref="Scan"/>
+    /// itself still enforces for anything discovered during play.
+    /// </summary>
+    public void SeedKnownBeacons(EntityUid uid, TransformComponent xform)
+    {
+        var mapId = xform.MapID;
+
+        var query = EntityQueryEnumerator<ConfigurableNavMapBeaconComponent, NavMapBeaconComponent, TransformComponent>();
+        while (query.MoveNext(out var beaconUid, out _, out var navBeacon, out var beaconXform))
+        {
+            if (!navBeacon.Enabled || string.IsNullOrWhiteSpace(navBeacon.Text))
+                continue;
+
+            if (beaconXform.MapID != mapId)
+                continue;
+
+            var text = navBeacon.Text;
+
+            if (TryComp<MemoryComponent>(uid, out var memory) &&
+                memory.Memories.Any(m => m.Source == "landmark" && m.Participants.Contains(beaconUid)))
+            {
+                continue;
+            }
+
+            _memory.AddMemory(
+                uid,
+                content: $"You already know your way to \"{text}\".",
+                importance: 0.25f,
+                source: "landmark",
+                participants: new[] { beaconUid },
+                location: beaconXform.Coordinates,
+                subject: text);
+        }
     }
 }

@@ -4,7 +4,7 @@
 # 5's MoveTo action), then altruism (HelpInjured), then professional work (RepairMachine, Milestone 11 - a
 # professional AI attempts a real repair before flopping down to rest, unless Fatigue is already past
 # RestCompound's own 0.75 threshold), then self-care (Rest, driven by NeedsComponent.Fatigue), falling back
-# to wandering (IdleCompound) when nothing is urgent.
+# to wandering (AIPlayerIdleCompound, memory-biased - see its own comment below) when nothing is urgent.
 #
 # Milestone 1: this top-to-bottom order is a coarse safety net, not the real arbitrator. Flee/HelpInjured/
 # RepairMachine/Rest each additionally require CurrentGoalPrecondition (owner.GoalComponent.CurrentGoal), so
@@ -35,7 +35,51 @@
           task: RestCompound
     - tasks:
         - !type:HTNCompoundTask
-          task: IdleCompound
+          task: AIPlayerIdleCompound
+
+# AI-player-specific replacement for vanilla IdleCompound (Resources/Prototypes/NPCs/idle.yml, shared by
+# every NPC in the game - never edited directly). Identical two-branch shape (resume waiting / pick a spot
+# and wait there), except the "pick a spot" step tries a remembered place first
+# (PickRememberedOrAccessibleOperator) so idle wandering looks purposeful rather than uniformly random, per
+# live playtest feedback - falling back to the same accessible-random-point behaviour vanilla uses whenever
+# there's nothing remembered yet (e.g. a freshly-spawned or legacy AI player).
+- type: htnCompound
+  id: AIPlayerIdleCompound
+  branches:
+    - tasks:
+        - !type:HTNPrimitiveTask
+          operator: !type:WaitOperator
+            key: IdleTime
+          preconditions:
+            - !type:KeyExistsPrecondition
+              key: IdleTime
+
+    - preconditions:
+        - !type:BuckledPrecondition
+          isBuckled: false
+        - !type:PulledPrecondition
+          isPulled: false
+      tasks:
+        - !type:HTNPrimitiveTask
+          operator: !type:PickRememberedOrAccessibleOperator
+            rangeKey: IdleRange
+
+        - !type:HTNPrimitiveTask
+          operator: !type:MoveToOperator
+            pathfindInPlanning: false
+
+        - !type:HTNPrimitiveTask
+          operator: !type:RandomOperator
+            targetKey: IdleTime
+            minKey: MinimumIdleTime
+            maxKey: MaximumIdleTime
+
+        - !type:HTNPrimitiveTask
+          operator: !type:WaitOperator
+            key: IdleTime
+          preconditions:
+            - !type:KeyExistsPrecondition
+              key: IdleTime
 
 # Milestone 7: reacts to being attacked (DangerComponent.ThreatSource, set by DangerSystem on
 # DamageChangedEvent). Picks a point away from the threat and walks there; HTN's constant replanning keeps
@@ -174,3 +218,9 @@
           operator: !type:InteractWithOperator
             targetKey: RepairTarget
             expectDoAfter: true
+
+        # Turns the welder back off and puts it away (belt/backpack/pocket) instead of leaving it lit and
+        # in-hand indefinitely - the inverse of ActivateHeldToolOperator above, see its own doc comment.
+        - !type:HTNPrimitiveTask
+          operator: !type:DeactivateAndStowToolOperator
+            quality: Welding

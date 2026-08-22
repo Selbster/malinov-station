@@ -80,7 +80,7 @@ public sealed partial class SocialSystem : EntitySystem
             if (partner is null)
                 continue;
 
-            StartConversation(uid, partner.Value);
+            TryInitiateConversation(uid, partner.Value);
         }
     }
 
@@ -106,21 +106,30 @@ public sealed partial class SocialSystem : EntitySystem
         return null;
     }
 
-    private void StartConversation(EntityUid a, EntityUid b)
+    /// <summary>
+    /// Starts a bounded greeting exchange between <paramref name="initiator"/> and <paramref name="partner"/> -
+    /// the single shared entry point both this system's own reactive <see cref="Update"/> loop and the
+    /// cognitive <c>TalkTo</c> action call into (spec section 15's AI Social slice), mirroring
+    /// <see cref="GoalSystem.TrySetExternalGoal"/>'s own "one shared write path for reflex and deliberate
+    /// callers alike" precedent. <paramref name="reason"/> is null for the reactive trigger (it never has one
+    /// to give) and the LLM's own stated reason when a cognitive AI deliberately approaches someone.
+    /// </summary>
+    public void TryInitiateConversation(EntityUid initiator, EntityUid partner, string? reason = null)
     {
-        var convA = Comp<ConversationComponent>(a);
-        var convB = Comp<ConversationComponent>(b);
+        var convA = Comp<ConversationComponent>(initiator);
+        var convB = Comp<ConversationComponent>(partner);
 
-        convA.Partner = b;
+        convA.Partner = partner;
         convA.IsInitiator = true;
         convA.State = ConversationState.AwaitingOpeningLine;
+        convA.Reason = reason;
 
         // convB.State stays None until A actually speaks - it's just reserved via Partner so nothing else
         // starts a second conversation with it in the meantime.
-        convB.Partner = a;
+        convB.Partner = initiator;
         convB.IsInitiator = false;
 
-        RequestLine(a, partnerJustSaid: null);
+        RequestLine(initiator, partnerJustSaid: null);
     }
 
     private void RequestLine(EntityUid speaker, string? partnerJustSaid)
@@ -133,10 +142,12 @@ public sealed partial class SocialSystem : EntitySystem
             return;
         }
 
-        // Only the opening line can carry a rumor - keeps the exchange simple and bounded.
+        // Only the opening line can carry a rumor or a deliberate reason - keeps the exchange simple and
+        // bounded.
         var rumor = partnerJustSaid is null ? FindRumorToShare(speaker, partner) : null;
+        var reason = partnerJustSaid is null ? conversation.Reason : null;
 
-        var context = _contextBuilder.BuildDialogueContext(speaker, partner, partnerJustSaid, rumor?.Content);
+        var context = _contextBuilder.BuildDialogueContext(speaker, partner, partnerJustSaid, rumor?.Content, reason);
         if (context is null)
         {
             EndConversation(speaker);
@@ -296,6 +307,7 @@ public sealed partial class SocialSystem : EntitySystem
 
         conversation.Partner = null;
         conversation.State = ConversationState.None;
+        conversation.Reason = null;
         conversation.CooldownUntil = _timing.CurTime + TimeSpan.FromSeconds(conversation.PostConversationCooldownSeconds);
     }
 

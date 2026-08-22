@@ -11,6 +11,11 @@ namespace Content.Server._MalinovStation.AIPlayers.LLM;
 /// Non-null when the speaker has something important and unshared to relay instead of small talk (Milestone
 /// 7's rumor spreading - see <see cref="Systems.SocialSystem"/>).
 /// </param>
+/// <param name="ReasonForApproaching">
+/// Non-null when a cognitive AI deliberately started this conversation via the <c>TalkTo</c> action (spec
+/// section 15's AI Social slice) rather than <see cref="Systems.SocialSystem"/>'s own reactive trigger -
+/// the LLM's own stated reason for approaching, opener-only like <see cref="RumorToShare"/>.
+/// </param>
 public sealed record DialogueContext(
     string SpeakerName,
     string SpeakerPersonalitySummary,
@@ -21,4 +26,5 @@ public sealed record DialogueContext(
     float Fear,
     string? RelevantMemory,
     string? LinePartnerJustSaid,
-    string? RumorToShare = null);
+    string? RumorToShare = null,
+    string? ReasonForApproaching = null);

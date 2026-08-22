@@ -8,7 +8,9 @@ namespace Content.Server._MalinovStation.AIPlayers.LLM;
 /// and a real <see cref="ActionProposal"/> (AI Players 0.3, spec section 6's "LLM → ActionProposal → Schema
 /// validation → ActionRegistry" flow). A closed switch over exactly the small set of actions the LLM is
 /// allowed to select this milestone (now including <see cref="UseInteractableAction"/>, spec section 16's
-/// first AI Interaction slice) - deliberately smaller than the full
+/// first AI Interaction slice; <see cref="PickUpItemAction"/>, spec section 15/18's first AI Inventory slice;
+/// <see cref="SearchAreaAction"/>, spec section 15's first AI Search slice; and <see cref="TalkToAction"/>,
+/// spec section 15's first AI Social slice) - deliberately smaller than the full
 /// <see cref="Systems.AiActionRegistrySystem"/> catalog (e.g. <c>Talk</c>/<c>MoveTo</c> itself are registered
 /// and usable programmatically, but not directly LLM-selectable - <see cref="GoToKnownLocationAction"/> is how
 /// the LLM reaches the same underlying movement without ever handling raw coordinates). Only checks structural
@@ -60,6 +62,42 @@ public static class ActionProposalResolver
                 }
 
                 proposal = new ActionProposal(UseInteractableAction.ActionName, new UseInteractableActionParams(target));
+                failReason = null;
+                return true;
+
+            case PickUpItemAction.ActionName:
+                if (!decision.ActionParameters.TryGetValue("target", out var pickUpTarget) || string.IsNullOrWhiteSpace(pickUpTarget))
+                {
+                    proposal = null;
+                    failReason = $"{PickUpItemAction.ActionName} requires a non-empty \"target\" parameter.";
+                    return false;
+                }
+
+                proposal = new ActionProposal(PickUpItemAction.ActionName, new PickUpItemActionParams(pickUpTarget));
+                failReason = null;
+                return true;
+
+            case SearchAreaAction.ActionName:
+                if (!decision.ActionParameters.TryGetValue("keyword", out var keyword) || string.IsNullOrWhiteSpace(keyword))
+                {
+                    proposal = null;
+                    failReason = $"{SearchAreaAction.ActionName} requires a non-empty \"keyword\" parameter.";
+                    return false;
+                }
+
+                proposal = new ActionProposal(SearchAreaAction.ActionName, new SearchAreaActionParams(keyword));
+                failReason = null;
+                return true;
+
+            case TalkToAction.ActionName:
+                if (!decision.ActionParameters.TryGetValue("target", out var talkToTarget) || string.IsNullOrWhiteSpace(talkToTarget))
+                {
+                    proposal = null;
+                    failReason = $"{TalkToAction.ActionName} requires a non-empty \"target\" parameter.";
+                    return false;
+                }
+
+                proposal = new ActionProposal(TalkToAction.ActionName, new TalkToActionParams(talkToTarget, decision.Reason));
                 failReason = null;
                 return true;
 

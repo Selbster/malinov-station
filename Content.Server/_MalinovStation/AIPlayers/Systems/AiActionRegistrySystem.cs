@@ -1,8 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
 using Content.Server._MalinovStation.AIPlayers.Actions;
 using Content.Server.Chat.Systems;
+using Content.Shared.Hands.EntitySystems;
 using Content.Shared.Interaction;
 using Content.Shared.Mobs.Systems;
+using Robust.Shared.Containers;
+using Robust.Shared.GameObjects;
 using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
@@ -23,6 +26,10 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     [Dependency] private GoalSystem _goal = default!;
     [Dependency] private MemorySystem _memory = default!;
     [Dependency] private SharedInteractionSystem _interaction = default!;
+    [Dependency] private SharedHandsSystem _hands = default!;
+    [Dependency] private EntityLookupSystem _lookup = default!;
+    [Dependency] private SharedContainerSystem _container = default!;
+    [Dependency] private SocialSystem _social = default!;
 
     private readonly Dictionary<string, IAiAction> _actions = new();
 
@@ -40,6 +47,9 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
         Register(new ContinueActivityAction());
         Register(new GoToKnownLocationAction(_entManager, _mobState, _memory));
         Register(new UseInteractableAction(_entManager, _interaction, _mobState));
+        Register(new PickUpItemAction(_entManager, _hands, _interaction, _mobState));
+        Register(new SearchAreaAction(_entManager, _lookup, _interaction, _container, _memory, _mobState));
+        Register(new TalkToAction(_entManager, _social, _mobState));
     }
 
     private void Register(IAiAction action)

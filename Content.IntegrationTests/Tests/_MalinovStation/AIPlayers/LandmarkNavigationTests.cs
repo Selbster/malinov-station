@@ -126,6 +126,61 @@ public sealed class LandmarkNavigationTests : GameTest
         });
     }
 
+    /// <summary>
+    /// SeedKnownBeacons pre-loads every real station beacon that already exists at spawn time as a known
+    /// landmark - unlike Scan's own passive, LOS-gated discovery, this deliberately doesn't require the AI
+    /// to have ever perceived the beacon: a real station worker already knows the general layout on day one.
+    /// The beacon here is spawned BEFORE the AI player (order matters - this is a one-shot spawn-time seed,
+    /// not a continuous scan), far enough away that Scan's own LOS/radius gate would never have found it -
+    /// proving this really is the seed path, not a coincidental passive discovery.
+    /// </summary>
+    [Test]
+    public async Task SpawnAiPlayer_SeedsKnownBeaconsAlreadyOnTheMap_RegardlessOfDistance()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        var station = await StartRoundAndGetStation(pair);
+
+        EntityUid aiPlayer = default;
+        EntityUid beacon = default;
+
+        await server.WaitPost(() =>
+        {
+            // The station entity's own Transform isn't necessarily on the same map as where characters
+            // actually spawn (it's an organisational container, not a point on the playable grid) - spawn a
+            // disposable AI first purely to get a real, on-grid coordinate reference to place the beacon at,
+            // matching the same-map guarantee every other test in this file gets for free by spawning its
+            // beacon relative to an already-real AI player's own coordinates.
+            var scratchAi = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station)!.Value;
+            var coords = server.EntMan.GetComponent<TransformComponent>(scratchAi).Coordinates;
+            server.EntMan.DeleteEntity(scratchAi);
+
+            beacon = server.EntMan.SpawnEntity(TestBeacon, coords.Offset(new Vector2(500, 500)));
+
+            aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station, cognitiveMode: true)!.Value;
+        });
+
+        await server.WaitAssertion(() =>
+        {
+            var memory = server.EntMan.GetComponent<MemoryComponent>(aiPlayer);
+            var landmark = memory.Memories.SingleOrDefault(m => m.Source == "landmark" && m.Participants.Contains(beacon));
+
+            Assert.That(landmark, Is.Not.Null,
+                "A real beacon already on the map when the AI spawns should be pre-seeded as a known landmark immediately, with no scan/wait needed.");
+            Assert.That(landmark!.Subject, Is.EqualTo(BeaconText));
+
+            var known = server.System<MemorySystem>().FindKnownLocation(aiPlayer, BeaconText);
+            Assert.That(known, Is.Not.Null, "The pre-seeded landmark should be resolvable through the same MemorySystem rails GoToKnownLocation already uses.");
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.EntMan.DeleteEntity(aiPlayer);
+            server.EntMan.DeleteEntity(beacon);
+        });
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
     [Test]
     public async Task LandmarkPerceptionSystem_BeaconWithinRangeAndLos_WritesLandmarkMemory()
     {
