@@ -1,6 +1,6 @@
 ---
 name: ss14-graphics-shaders
-description: An in-depth practical guide to SS14 and SWSL shaders: syntax, presets, built-in variables/functions, parameters, debugging and architectural solutions. Use it for tasks about shader prototype, uniform, light_mode/blend_mode, stencil, compatibility and GPU effects.
+description: An in-depth practical guide to SS14 and SWSL shaders: syntax, presets, built-in variables/functions, parameters, prototype YAML (kind/params/stencil), debugging and architectural solutions. Use it for tasks about shader prototypes, uniforms, light_mode/blend_mode, stencil setup, compatibility and GPU effects.
 ---
 
 # Claude Bridge

@@ -1,6 +1,6 @@
 ---
 name: ss14-graphics-sprite-system
-description: An in-depth practical guide to SpriteSystem in Space Station 14: lifecycle, full API for groups of methods, working with layers and layer-map, practical patterns and anti-patterns. Use it when developing dynamic sprites, visualizer systems and refactoring outdated SpriteComponent calls.
+description: An in-depth practical guide to SpriteSystem in Space Station 14: lifecycle, goal-grouped API map, working with layers and layer-map, practical patterns and anti-patterns. Use it when developing dynamic sprites, visualizer systems and refactoring outdated SpriteComponent calls.
 ---
 
 # Claude Bridge
