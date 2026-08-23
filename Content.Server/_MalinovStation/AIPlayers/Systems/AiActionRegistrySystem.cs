@@ -110,7 +110,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     {
         if (!_actions.TryGetValue(actionName, out var action))
         {
-            failReason = $"Unknown action \"{actionName}\".";
+            failReason = $"Неизвестное действие «{actionName}».";
             return false;
         }
 

@@ -62,8 +62,8 @@ public sealed partial class DangerSystem : EntitySystem
         _memory.AddMemory(
             uid,
             content: origin is { } attacker && !isSelfInflicted
-                ? $"Was attacked by {Comp<MetaDataComponent>(attacker).EntityName}!"
-                : "Was hurt!",
+                ? $"На меня напал(а) {Comp<MetaDataComponent>(attacker).EntityName}!"
+                : "Мне больно!",
             importance: 0.7f,
             source: "danger",
             participants: origin is { } o ? new[] { o } : null,

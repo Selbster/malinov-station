@@ -336,7 +336,7 @@ public sealed class AiInventoryTests : GameTest
             var ok = actions.TryDoAction(aiPlayer, PickUpItemAction.ActionName, new PickUpItemActionParams("Nonexistent Thing"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("nothing nearby"));
+            Assert.That(reason, Does.Contain("Поблизости нет ничего"));
             Assert.That(IsHeldByAi(pair, aiPlayer, item), Is.False);
         });
 
@@ -383,7 +383,7 @@ public sealed class AiInventoryTests : GameTest
             var ok = actions.TryDoAction(aiPlayer, PickUpItemAction.ActionName, new PickUpItemActionParams(ItemName), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("hands are full"));
+            Assert.That(reason, Does.Contain("руки заняты"));
             Assert.That(IsHeldByAi(pair, aiPlayer, item), Is.False);
         });
 
@@ -432,7 +432,7 @@ public sealed class AiInventoryTests : GameTest
             var ok = actions.TryDoAction(aiPlayer, PickUpItemAction.ActionName, new PickUpItemActionParams(ItemName), out var reason);
 
             Assert.That(ok, Is.False, "CanDo should re-verify proximity fresh, not trust the stale scan.");
-            Assert.That(reason, Does.Contain("close enough"));
+            Assert.That(reason, Does.Contain("недостаточно близко"));
             Assert.That(IsHeldByAi(pair, aiPlayer, item), Is.False);
         });
 

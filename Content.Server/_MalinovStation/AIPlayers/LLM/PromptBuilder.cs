@@ -54,42 +54,51 @@ public static class PromptBuilder
         return sb.ToString();
     }
 
+    /// <summary>AI Players 0.5: Russian-first - the dialogue LLM role's system prompt. JSON key ("line") and
+    /// speaker/character identifiers stay English (technical IDs); the instructional prose and the requested
+    /// output content are Russian.</summary>
     public static string BuildDialogueSystemPrompt()
     {
-        return "You are voicing one character's single line of dialogue in a short, casual exchange between " +
-               "two NPCs aboard a space station in a sci-fi roleplaying game. Keep it brief (one sentence), " +
-               "in character, consistent with their personality and how they feel about the other character. " +
-               "Respond with ONLY a single JSON object, no other text, of the exact form: {\"line\": \"<what they say>\"}.";
+        return "Ты озвучиваешь одну реплику персонажа в коротком, непринуждённом обмене репликами между двумя " +
+               "NPC на космической станции в научно-фантастической ролевой игре. Держись кратко (одно " +
+               "предложение), в характере персонажа, в соответствии с его личностью и отношением к собеседнику. " +
+               "Ответь ТОЛЬКО одним JSON-объектом, без другого текста, строго такого вида: " +
+               "{\"line\": \"<что персонаж говорит>\"}. " +
+               "ВАЖНО: значение поля \"line\" должно быть написано ТОЛЬКО на русском языке, ни одного слова " +
+               "на английском.";
     }
 
     public static string BuildDialogueUserPrompt(DialogueContext context)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Speaker: {context.SpeakerName}. Notable personality traits: {context.SpeakerPersonalitySummary}.");
+        sb.AppendLine($"Говорящий: {context.SpeakerName}. Заметные черты личности: {context.SpeakerPersonalitySummary}.");
         sb.AppendLine(
-            $"Talking to: {context.PartnerName} (trust {context.Trust:0.00}, respect {context.Respect:0.00}, " +
-            $"friendship {context.Friendship:0.00}, fear {context.Fear:0.00}).");
+            $"Собеседник: {context.PartnerName} (доверие {context.Trust:0.00}, уважение {context.Respect:0.00}, " +
+            $"дружба {context.Friendship:0.00}, страх {context.Fear:0.00}).");
 
         if (!string.IsNullOrWhiteSpace(context.RelevantMemory))
-            sb.AppendLine($"Last thing {context.SpeakerName} remembers about {context.PartnerName}: {context.RelevantMemory}");
+            sb.AppendLine($"Последнее, что {context.SpeakerName} помнит про {context.PartnerName}: {context.RelevantMemory}");
 
         if (!string.IsNullOrWhiteSpace(context.RumorToShare))
         {
             sb.AppendLine(
-                $"{context.SpeakerName} wants to tell {context.PartnerName} something important they witnessed: " +
-                $"\"{context.RumorToShare}\". Open with that, in character (e.g. \"Did you hear...\"), instead of small talk.");
+                $"{context.SpeakerName} хочет рассказать {context.PartnerName} кое-что важное, чему стал(а) " +
+                $" свидетелем: \"{context.RumorToShare}\". Начни разговор именно с этого, в характере " +
+                "персонажа (например, \"Ты слышал(а)...\"), а не с обычной болтовни.");
         }
         else if (!string.IsNullOrWhiteSpace(context.ReasonForApproaching))
         {
             sb.AppendLine(
-                $"{context.SpeakerName} deliberately came over to talk to {context.PartnerName} because: " +
-                $"{context.ReasonForApproaching}. Open by addressing that, in character, instead of generic small talk.");
+                $"{context.SpeakerName} специально подошёл (подошла) поговорить с {context.PartnerName} по причине: " +
+                $"{context.ReasonForApproaching}. Начни разговор именно с этого, в характере персонажа, а не с " +
+                "обычной болтовни.");
         }
         else
         {
             sb.AppendLine(context.LinePartnerJustSaid is null
-                ? $"{context.SpeakerName} is starting the conversation with a brief greeting or check-in."
-                : $"{context.PartnerName} just said: \"{context.LinePartnerJustSaid}\". {context.SpeakerName} should give a short, natural reply.");
+                ? $"{context.SpeakerName} начинает разговор с короткого приветствия или вопроса, как дела."
+                : $"{context.PartnerName} только что сказал(а): \"{context.LinePartnerJustSaid}\". {context.SpeakerName} " +
+                  "должен (должна) коротко и естественно ответить.");
         }
 
         return sb.ToString();
@@ -149,100 +158,100 @@ public static class PromptBuilder
     public static string BuildCognitiveUserPrompt(CognitiveState context)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Character: {context.Name}, job: {context.Job}.");
-        sb.AppendLine($"Notable personality traits: {context.PersonalitySummary}.");
+        sb.AppendLine($"Персонаж: {context.Name}, профессия: {context.Job}.");
+        sb.AppendLine($"Заметные черты личности: {context.PersonalitySummary}.");
         sb.AppendLine(
-            $"Needs (0 = fine, 1 = critical): Fatigue={context.Needs.Fatigue:0.00}, Stress={context.Needs.Stress:0.00}, " +
-            $"Safety={context.Needs.Safety:0.00}, SocialNeed={context.Needs.SocialNeed:0.00}, " +
-            $"Hungry={context.Needs.IsHungry}, Thirsty={context.Needs.IsThirsty}.");
+            $"Потребности (0 = всё хорошо, 1 = критично): Усталость={context.Needs.Fatigue:0.00}, Стресс={context.Needs.Stress:0.00}, " +
+            $"Безопасность={context.Needs.Safety:0.00}, Общение={context.Needs.SocialNeed:0.00}, " +
+            $"Голоден={context.Needs.IsHungry}, Хочет пить={context.Needs.IsThirsty}.");
         sb.AppendLine(
-            $"Mood (0 = none, 1 = intense): Fear={context.Emotion.Fear:0.00}, Anger={context.Emotion.Anger:0.00}, " +
-            $"Sadness={context.Emotion.Sadness:0.00}, Anxiety={context.Emotion.Anxiety:0.00}, " +
-            $"Joy={context.Emotion.Joy:0.00}, Confidence={context.Emotion.Confidence:0.00}.");
-        sb.AppendLine($"Currently doing: {context.CurrentActivity}.");
+            $"Настроение (0 = нет, 1 = сильное): Страх={context.Emotion.Fear:0.00}, Злость={context.Emotion.Anger:0.00}, " +
+            $"Грусть={context.Emotion.Sadness:0.00}, Тревога={context.Emotion.Anxiety:0.00}, " +
+            $"Радость={context.Emotion.Joy:0.00}, Уверенность={context.Emotion.Confidence:0.00}.");
+        sb.AppendLine($"Сейчас делаешь: {context.CurrentActivity}.");
 
         if (context.Busy is { } busy)
         {
             sb.AppendLine(string.IsNullOrWhiteSpace(busy.Reason)
-                ? $"You are currently committed to: {busy.Action}."
-                : $"You are currently committed to: {busy.Action} (because {busy.Reason}).");
+                ? $"Ты сейчас занят: {busy.Action}."
+                : $"Ты сейчас занят: {busy.Action} (потому что {busy.Reason}).");
         }
 
         if (context.CurrentDesires.Count == 0)
         {
-            sb.AppendLine("You don't currently want anything in particular.");
+            sb.AppendLine("Сейчас тебе особо ничего не хочется.");
         }
         else
         {
-            sb.AppendLine("What you currently want, strongest first:");
+            sb.AppendLine("Чего ты сейчас хочешь, от сильнейшего к слабому:");
             foreach (var desire in context.CurrentDesires)
-                sb.AppendLine($"- {desire.Name} (strength {desire.Priority:0.00}) - {desire.Reason}");
+                sb.AppendLine($"- {desire.Name} (сила {desire.Priority:0.00}) — {desire.Reason}");
         }
 
         if (context.VisibleWorld.Count == 0)
         {
-            sb.AppendLine("You do not currently see anyone else nearby.");
+            sb.AppendLine("Сейчас рядом никого не видно.");
         }
         else
         {
-            sb.AppendLine("You can currently see:");
+            sb.AppendLine("Сейчас ты видишь:");
             foreach (var character in context.VisibleWorld)
             {
-                sb.Append($"- {character.Name} (trust {character.Trust:0.00}, respect {character.Respect:0.00}, ");
-                sb.Append($"friendship {character.Friendship:0.00}, fear {character.Fear:0.00}, anger {character.Anger:0.00}, loyalty {character.Loyalty:0.00})");
+                sb.Append($"- {character.Name} (доверие {character.Trust:0.00}, уважение {character.Respect:0.00}, ");
+                sb.Append($"дружба {character.Friendship:0.00}, страх {character.Fear:0.00}, злость {character.Anger:0.00}, лояльность {character.Loyalty:0.00})");
                 if (!string.IsNullOrWhiteSpace(character.RelevantMemory))
-                    sb.Append($" - last memory: {character.RelevantMemory}");
+                    sb.Append($" — последнее воспоминание: {character.RelevantMemory}");
                 sb.AppendLine();
             }
         }
 
         if (context.KnownFacts.Count == 0)
         {
-            sb.AppendLine("You don't know anything else worth mentioning right now.");
+            sb.AppendLine("Больше тебе сейчас нечего сказать.");
         }
         else
         {
-            sb.AppendLine("Things you know for certain:");
+            sb.AppendLine("Что ты знаешь наверняка:");
             foreach (var fact in context.KnownFacts)
                 sb.AppendLine($"- {fact}");
         }
 
         if (context.Beliefs.Count > 0)
         {
-            sb.AppendLine("Things you've heard but aren't sure are true:");
+            sb.AppendLine("Что ты слышал(а), но не уверен, что это правда:");
             foreach (var belief in context.Beliefs)
-                sb.AppendLine($"- {belief.Content} (confidence {belief.Confidence:0.00}, from {belief.Source})");
+                sb.AppendLine($"- {belief.Content} (уверенность {belief.Confidence:0.00}, источник: {belief.Source})");
         }
 
         if (context.KnownLocations.Count == 0)
         {
-            sb.AppendLine("You don't know how to get to anywhere in particular right now.");
+            sb.AppendLine("Сейчас ты никуда конкретно не знаешь дороги.");
         }
         else
         {
-            sb.AppendLine("Places you know how to get to (for GoToKnownLocation's \"location\" parameter):");
+            sb.AppendLine("Места, куда ты знаешь дорогу (для параметра \"location\" действия GoToKnownLocation):");
             foreach (var location in context.KnownLocations)
                 sb.AppendLine($"- {location}");
         }
 
         if (context.NearbyInteractables.Count == 0)
         {
-            sb.AppendLine("There is nothing nearby you could interact with right now.");
+            sb.AppendLine("Рядом сейчас нет ничего, с чем можно взаимодействовать.");
         }
         else
         {
-            sb.AppendLine("Nearby things you could interact with (for UseInteractable's \"target\" parameter):");
+            sb.AppendLine("Что рядом можно использовать (для параметра \"target\" действия UseInteractable):");
             foreach (var interactable in context.NearbyInteractables)
                 sb.AppendLine($"- {interactable}");
         }
 
         if (context.NearbyItems.Count == 0)
         {
-            sb.AppendLine("There is nothing nearby you could pick up right now.");
+            sb.AppendLine("Рядом сейчас нечего подобрать.");
         }
         else
         {
-            sb.AppendLine("Nearby items you could pick up (for PickUpItem's \"target\" parameter):");
+            sb.AppendLine("Что рядом можно подобрать (для параметра \"target\" действия PickUpItem):");
             foreach (var item in context.NearbyItems)
                 sb.AppendLine($"- {item}");
         }
@@ -257,33 +266,34 @@ public static class PromptBuilder
     /// currently-possible action are ever offered.</summary>
     public static string BuildIntentSystemPrompt(IReadOnlyCollection<string> allowedGoals, IReadOnlyCollection<string> eligibleCategories)
     {
-        return "You are the mind of a character aboard a space station in a sci-fi roleplaying game - not a script, " +
-               "a person with their own desires, beliefs and feelings. You will be given your current needs, mood, " +
-               "personality, what you're currently doing, what you currently want (your desires) and how strongly, " +
-               "who/what you can see, what you know for certain, things you've heard but aren't sure are true, " +
-               "places you know how to get to, nearby things you could interact with, and nearby items you could " +
-               "pick up. " +
-               "You only know what is listed below - anything not mentioned, you have no way of knowing. " +
-               "Decide what you actually want to do right now, in character, and why, and pick ONE broad category " +
-               "of action that makes sense toward it - you'll be asked to pick the specific concrete action " +
-               "afterward, so you don't need to name one yet. " +
-               "Respond with ONLY a single JSON object, no other text, of the exact form: " +
-               "{\"desire\": \"<which of your current desires this commits to>\", " +
-               "\"intention\": \"<a short free-form description of what you want, e.g. find_food, meet_person, " +
-               "help_person, finish_repair, investigate_event, find_safe_location, avoid_security, obtain_item, " +
-               "rest, escape_danger - not required to match any specific game mechanic>\", " +
-               "\"priority\": <number 0.0 to 1.0>, " +
-               "\"confidence\": <number 0.0 to 1.0, how sure you are this is the right call>, " +
-               "\"reason\": \"<short in-character reason>\", " +
-               "\"category\": \"<one of the categories below>\"}. " +
-               $"Categories you can currently act on: {string.Join(", ", eligibleCategories)}. " +
-               $"\"{AiActionCategories.Movement}\" is going somewhere; \"{AiActionCategories.Work}\" is committing " +
-               "to an ongoing task, using or picking something up, or actively searching for something you don't " +
-               $"already see; \"{AiActionCategories.Social}\" is starting a real conversation with someone you can " +
-               $"see; \"{AiActionCategories.General}\" means continuing to do whatever you're already doing, with " +
-               "no other change. " +
-               $"If you want to actively commit to one of your existing goals, that lives under \"{AiActionCategories.Work}\" " +
-               $"- the allowed goals are: {string.Join(", ", allowedGoals)}.";
+        return "Ты — разум персонажа космической станции в научно-фантастической ролевой игре, не сценарий, " +
+               "а личность со своими желаниями, убеждениями и чувствами. Ты всегда думаешь и отвечаешь на " +
+               "русском языке. Тебе дадут твои текущие потребности, " +
+               "настроение, черты личности, чем ты сейчас занят, чего ты сейчас хочешь (твои желания) и насколько " +
+               "сильно, кого/что ты видишь, что ты знаешь наверняка, что слышал, но не уверен, правда ли это, " +
+               "куда ты знаешь дорогу, что рядом можно использовать и что рядом можно подобрать. " +
+               "Ты знаешь только то, что перечислено ниже — обо всём остальном тебе неоткуда узнать. " +
+               "Реши, чего ты на самом деле хочешь добиться прямо сейчас, в характере персонажа, и почему, и " +
+               "выбери ОДНУ широкую категорию действия, которая для этого подходит — конкретное действие тебя " +
+               "попросят выбрать следующим шагом, поэтому называть его пока не нужно. " +
+               "Ответь ТОЛЬКО одним JSON-объектом, без другого текста, строго такого вида: " +
+               "{\"desire\": \"<какое из твоих текущих желаний удовлетворяет это решение>\", " +
+               "\"intention\": \"<краткое свободное описание того, чего ты хочешь, например find_food, " +
+               "meet_person, help_person, finish_repair, investigate_event, find_safe_location, avoid_security, " +
+               "obtain_item, rest, escape_danger — не обязано совпадать с конкретной игровой механикой>\", " +
+               "\"priority\": <число от 0.0 до 1.0>, " +
+               "\"confidence\": <число от 0.0 до 1.0, насколько ты уверен, что это правильное решение>, " +
+               "\"reason\": \"<краткая причина в характере персонажа>\", " +
+               "\"category\": \"<одна из категорий ниже>\"}. " +
+               "Поля \"intention\" и \"reason\" пиши на русском языке. " +
+               $"Категории, в которых ты сейчас можешь действовать: {string.Join(", ", eligibleCategories)}. " +
+               $"«{AiActionCategories.Movement}» — куда-то пойти; «{AiActionCategories.Work}» — взяться за " +
+               "текущую задачу, использовать или подобрать что-то, либо активно искать то, чего ты пока не " +
+               $"видишь; «{AiActionCategories.Social}» — начать настоящий разговор с тем, кого ты видишь; " +
+               $"«{AiActionCategories.General}» — продолжать делать то же самое, что и сейчас, ничего не меняя. " +
+               $"Если хочешь активно взяться за одну из своих существующих целей, это относится к «{AiActionCategories.Work}» " +
+               $"— разрешённые цели: {string.Join(", ", allowedGoals)}. " +
+               "ВАЖНО: поля \"intention\" и \"reason\" пиши ТОЛЬКО на русском языке, ни одного слова на английском.";
     }
 
     /// <summary>Same underlying character/world state as the old single-call cognitive prompt - the hierarchical
@@ -298,35 +308,39 @@ public static class PromptBuilder
     {
         var sb = new StringBuilder();
         sb.AppendLine(
-            $"You already decided you want to act within the \"{category}\" category. Now pick ONE concrete " +
-            "action from the list below that best accomplishes it, and the parameters it needs. Respond with " +
-            "ONLY a single JSON object, no other text, of the exact form: " +
-            "{\"action\": \"<one of the action names below>\", \"parameters\": {...see each action's own " +
-            "parameter below}, \"reason\": \"<short in-character reason for this specific pick>\"}.");
-        sb.AppendLine("Available actions:");
+            $"Ты уже решил(а), что хочешь действовать в категории «{category}». Теперь выбери ОДНО конкретное " +
+            "действие из списка ниже, которое лучше всего этому соответствует, и нужные для него параметры. " +
+            "Ответь ТОЛЬКО одним JSON-объектом, без другого текста, строго такого вида: " +
+            "{\"action\": \"<одно из названий действий ниже>\", \"parameters\": {...см. параметры каждого " +
+            "действия ниже}, \"reason\": \"<краткая причина в характере персонажа именно для этого выбора>\"}. " +
+            "Поле \"reason\" пиши на русском языке.");
+        sb.AppendLine("Доступные действия:");
 
         foreach (var action in eligibleActions)
             sb.AppendLine($"- \"{action.Name}\": {action.Description} {ParameterHint(action.Name)}");
 
         sb.AppendLine(
-            "Use ONLY a target/location/keyword actually listed in what follows below, never one you merely " +
-            "guess the name of - an action needing a parameter you don't have a real value for isn't actually " +
-            "available right now, even if its name is listed above.");
+            "Используй ТОЛЬКО target/location/keyword, реально указанный ниже, никогда не придумывай " +
+            "название сам — действие, для которого у тебя нет реального значения нужного параметра, на " +
+            "самом деле недоступно прямо сейчас, даже если его название есть в списке выше.");
+        sb.AppendLine(
+            "ВАЖНО: поле \"reason\" пиши ТОЛЬКО на русском языке, ни одного слова на английском.");
 
         return sb.ToString();
     }
 
     /// <summary>The parameter each LLM-selectable action needs, if any - kept here rather than on
-    /// <see cref="IAiAction"/> itself since it's prompt-formatting, not action metadata.</summary>
+    /// <see cref="IAiAction"/> itself since it's prompt-formatting, not action metadata. Parameter key names
+    /// ("goal", "location", "target", "keyword") stay English (technical IDs) - only the hint text is Russian.</summary>
     private static string ParameterHint(string actionName) => actionName switch
     {
-        "PursueGoal" => "(parameters: {\"goal\": \"<one of the allowed goals>\"})",
-        "GoToKnownLocation" => "(parameters: {\"location\": \"<one of the places you know>\"})",
-        "UseInteractable" => "(parameters: {\"target\": \"<name of the nearby interactable>\"})",
-        "PickUpItem" => "(parameters: {\"target\": \"<name of the nearby item>\"})",
-        "SearchArea" => "(parameters: {\"keyword\": \"<what to look for>\"})",
-        "TalkTo" => "(parameters: {\"target\": \"<name of the person you can see>\"})",
-        _ => "(no parameters)",
+        "PursueGoal" => "(параметры: {\"goal\": \"<одна из разрешённых целей>\"})",
+        "GoToKnownLocation" => "(параметры: {\"location\": \"<одно из известных тебе мест>\"})",
+        "UseInteractable" => "(параметры: {\"target\": \"<название ближайшего объекта для взаимодействия>\"})",
+        "PickUpItem" => "(параметры: {\"target\": \"<название ближайшего предмета>\"})",
+        "SearchArea" => "(параметры: {\"keyword\": \"<что искать>\"})",
+        "TalkTo" => "(параметры: {\"target\": \"<имя человека, которого ты видишь>\"})",
+        _ => "(без параметров)",
     };
 
     /// <summary>Prepends what was already decided in stage one, then reuses the same candidate-list formatting
@@ -335,7 +349,7 @@ public static class PromptBuilder
     public static string BuildActionSelectionUserPrompt(CognitiveState context, LlmIntentDecision intent)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"You already decided: \"{intent.Intention}\" (category: {intent.Category}, reason: {intent.Reason}).");
+        sb.AppendLine($"Ты уже решил(а): «{intent.Intention}» (категория: {intent.Category}, причина: {intent.Reason}).");
         sb.Append(BuildCognitiveUserPrompt(context));
         return sb.ToString();
     }

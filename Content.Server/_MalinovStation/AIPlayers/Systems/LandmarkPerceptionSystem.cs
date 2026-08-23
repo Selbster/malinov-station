@@ -70,7 +70,7 @@ public sealed partial class LandmarkPerceptionSystem : EntitySystem
 
         _memory.AddMemory(
             uid,
-            content: $"There's a place nearby called \"{text}\".",
+            content: $"Неподалёку есть место под названием «{text}».",
             importance: 0.25f,
             source: "landmark",
             participants: new[] { beaconUid },
@@ -112,7 +112,7 @@ public sealed partial class LandmarkPerceptionSystem : EntitySystem
 
             _memory.AddMemory(
                 uid,
-                content: $"You already know your way to \"{text}\".",
+                content: $"Ты уже знаешь дорогу к «{text}».",
                 importance: 0.25f,
                 source: "landmark",
                 participants: new[] { beaconUid },

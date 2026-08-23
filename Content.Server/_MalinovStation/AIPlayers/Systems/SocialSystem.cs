@@ -274,7 +274,7 @@ public sealed partial class SocialSystem : EntitySystem
 
     private static string BuildFallbackRumorLine(AiMemory rumor)
     {
-        return $"Did you hear? {rumor.Content}";
+        return $"Ты слышал(а)? {rumor.Content}";
     }
 
     private void RecordExchange(EntityUid speaker, EntityUid listener, string line)
@@ -284,7 +284,7 @@ public sealed partial class SocialSystem : EntitySystem
 
         _memory.AddMemory(
             speaker,
-            content: $"Talked with {Comp<MetaDataComponent>(listener).EntityName}: \"{line}\"",
+            content: $"Поговорил(а) с {Comp<MetaDataComponent>(listener).EntityName}: \"{line}\"",
             importance: 0.1f,
             source: "conversation",
             participants: new[] { listener },

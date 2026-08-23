@@ -34,7 +34,7 @@ public sealed class MoveToAction : IAiAction
     }
 
     public string Name => "MoveTo";
-    public string Description => "Walk to a specific location, interrupting routine behaviour until arrival.";
+    public string Description => "Дойти до конкретного места, прервав рутинное поведение до прибытия.";
     public string Category => AiActionCategories.Movement;
     public bool IsExtended => true;
 
@@ -47,19 +47,19 @@ public sealed class MoveToAction : IAiAction
     {
         if (parameters is not MoveToActionParams)
         {
-            failReason = $"{Name} requires {nameof(MoveToActionParams)}.";
+            failReason = $"{Name} требует {nameof(MoveToActionParams)}.";
             return false;
         }
 
         if (!_entManager.TryGetComponent<HTNComponent>(uid, out _))
         {
-            failReason = "Entity is not HTN-driven.";
+            failReason = "Сущность не управляется через HTN.";
             return false;
         }
 
         if (_mobState.IsIncapacitated(uid))
         {
-            failReason = "Entity is incapacitated.";
+            failReason = "Сущность недееспособна.";
             return false;
         }
 

@@ -225,7 +225,7 @@ public sealed class AiSearchTests : GameTest
             var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams("nonexistent keyword"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("didn't find"));
+            Assert.That(reason, Does.Contain("не нашёл"));
             Assert.That(SearchResultMemoryCount(pair, aiPlayer), Is.EqualTo(0));
         });
 
@@ -258,7 +258,7 @@ public sealed class AiSearchTests : GameTest
             var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams("anything"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("didn't find"));
+            Assert.That(reason, Does.Contain("не нашёл"));
         });
 
         await server.WaitPost(() => server.EntMan.DeleteEntity(aiPlayer));

@@ -33,7 +33,7 @@ public sealed class PickUpItemAction : IAiAction
     }
 
     public string Name => ActionName;
-    public string Description => "Pick up a nearby loose item you can currently see into an empty hand.";
+    public string Description => "Подобрать ближайший незакреплённый предмет, который ты сейчас видишь, в свободную руку.";
     public string Category => AiActionCategories.Work;
     public bool IsExtended => false;
 
@@ -49,44 +49,44 @@ public sealed class PickUpItemAction : IAiAction
     {
         if (parameters is not PickUpItemActionParams pickUp)
         {
-            failReason = $"{Name} requires {nameof(PickUpItemActionParams)}.";
+            failReason = $"{Name} требует {nameof(PickUpItemActionParams)}.";
             return false;
         }
 
         if (_mobState.IsIncapacitated(uid))
         {
-            failReason = "Entity is incapacitated.";
+            failReason = "Сущность недееспособна.";
             return false;
         }
 
         if (!_entManager.TryGetComponent<ItemOpportunityComponent>(uid, out var opportunity))
         {
-            failReason = "Entity has no awareness of nearby items.";
+            failReason = "Сущность не замечает предметы поблизости.";
             return false;
         }
 
         if (FindCandidate(uid, opportunity, pickUp.Target) is not { } target)
         {
-            failReason = $"There's nothing nearby called \"{pickUp.Target}\" I could pick up.";
+            failReason = $"Поблизости нет ничего под названием «{pickUp.Target}», что я мог (могла) бы подобрать.";
             return false;
         }
 
         if (_entManager.Deleted(target) ||
             !_interaction.InRangeUnobstructed(uid, target, opportunity.ScanRadius, CollisionGroup.Opaque))
         {
-            failReason = "That's not close enough anymore.";
+            failReason = "Это уже недостаточно близко.";
             return false;
         }
 
         if (!_hands.TryGetEmptyHand(uid, out _))
         {
-            failReason = "My hands are full.";
+            failReason = "Мои руки заняты.";
             return false;
         }
 
         if (!_hands.CanPickupAnyHand(uid, target, checkActionBlocker: true, showPopup: false))
         {
-            failReason = "I can't pick that up.";
+            failReason = "Я не могу это подобрать.";
             return false;
         }
 

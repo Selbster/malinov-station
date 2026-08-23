@@ -32,7 +32,7 @@ public sealed class PursueGoalAction : IAiAction
     }
 
     public string Name => ActionName;
-    public string Description => "Commit to actively pursuing one of the AI's existing reflexive goals right now.";
+    public string Description => "Взяться прямо сейчас за одну из своих существующих рефлекторных целей.";
     public string Category => AiActionCategories.Work;
     public bool IsExtended => true;
 
@@ -45,19 +45,19 @@ public sealed class PursueGoalAction : IAiAction
     {
         if (parameters is not PursueGoalActionParams pursue)
         {
-            failReason = $"{Name} requires {nameof(PursueGoalActionParams)}.";
+            failReason = $"{Name} требует {nameof(PursueGoalActionParams)}.";
             return false;
         }
 
         if (!_entManager.TryGetComponent<GoalComponent>(uid, out _))
         {
-            failReason = "Entity is not a valid AI player.";
+            failReason = "Сущность не является корректным AI-игроком.";
             return false;
         }
 
         if (!_goal.IsKnownGoalName(pursue.GoalName))
         {
-            failReason = $"Unknown goal \"{pursue.GoalName}\".";
+            failReason = $"Неизвестная цель «{pursue.GoalName}».";
             return false;
         }
 

@@ -43,6 +43,19 @@
 # (PickRememberedOrAccessibleOperator) so idle wandering looks purposeful rather than uniformly random, per
 # live playtest feedback - falling back to the same accessible-random-point behaviour vanilla uses whenever
 # there's nothing remembered yet (e.g. a freshly-spawned or legacy AI player).
+#
+# pathfindInPlanning: true (AI Players 0.5 - unlike the other MoveToOperator steps in this file, but the same
+# reasoning as FleeCompound above) matters here for the same class of reason: PickRememberedOrAccessibleOperator
+# deliberately never excludes a remembered pick just because it might be unreachable (see that operator's own
+# doc comment) - SeedKnownBeacons remembers every station beacon regardless of access at spawn, so a low-access
+# job on a real map can end up with several permanently-unreachable candidates in the weighted pool. A live run
+# during that milestone showed this degrade from "occasional failure" into MoveToOperator failing on nearly
+# every single Idle replan (a real thrash, not the rare re-roll the operator's doc comment describes) once
+# pathfindInPlanning: false let each bad pick get committed to and walked toward before failing reactively.
+# With this flag, an unreachable pick fails fast at planning time instead - this branch simply produces no
+# plan that cycle and HTN's own replan cadence tries again a moment later (same "always finishes eventually"
+# philosophy), at the cost of losing AiTraceSystem's PlanAborted signal for this specific branch (see
+# ForcedMoveCompound's comment below for the general trade-off this flag makes).
 - type: htnCompound
   id: AIPlayerIdleCompound
   branches:
@@ -66,7 +79,7 @@
 
         - !type:HTNPrimitiveTask
           operator: !type:MoveToOperator
-            pathfindInPlanning: false
+            pathfindInPlanning: true
 
         - !type:HTNPrimitiveTask
           operator: !type:RandomOperator

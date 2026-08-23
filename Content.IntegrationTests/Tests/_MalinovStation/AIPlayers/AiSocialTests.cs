@@ -194,7 +194,7 @@ public sealed class AiSocialTests : GameTest
             var ok = actions.TryDoAction(a, TalkToAction.ActionName, new TalkToActionParams(NameOf(pair, b), "hi"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("already in the middle"));
+            Assert.That(reason, Does.Contain("уже веду разговор"));
         });
 
         await server.WaitPost(() =>
@@ -230,7 +230,7 @@ public sealed class AiSocialTests : GameTest
             var ok = actions.TryDoAction(a, TalkToAction.ActionName, new TalkToActionParams(NameOf(pair, b), "hi"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("don't see anyone nearby"));
+            Assert.That(reason, Does.Contain("не вижу поблизости никого"));
         });
 
         await server.WaitPost(() =>
@@ -271,7 +271,7 @@ public sealed class AiSocialTests : GameTest
             var ok = actions.TryDoAction(a, TalkToAction.ActionName, new TalkToActionParams(NameOf(pair, b), "hi"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("busy right now"));
+            Assert.That(reason, Does.Contain("сейчас занят"));
         });
 
         await server.WaitPost(() =>
@@ -302,7 +302,7 @@ public sealed class AiSocialTests : GameTest
             var ok = actions.TryDoAction(a, TalkToAction.ActionName, new TalkToActionParams(NameOf(pair, b), "hi"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("isn't someone I can talk to"));
+            Assert.That(reason, Does.Contain("так поговорить не получится"));
         });
 
         await server.WaitPost(() =>

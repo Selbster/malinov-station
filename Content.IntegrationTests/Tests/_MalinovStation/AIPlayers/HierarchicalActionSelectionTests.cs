@@ -185,7 +185,7 @@ public sealed class HierarchicalActionSelectionTests : GameTest
     {
         var prompt = PromptBuilder.BuildIntentSystemPrompt(new[] { "Rest" }, new[] { AiActionCategories.General });
 
-        Assert.That(prompt, Does.Contain($"Categories you can currently act on: {AiActionCategories.General}."),
+        Assert.That(prompt, Does.Contain($"Категории, в которых ты сейчас можешь действовать: {AiActionCategories.General}."),
             "Should offer exactly the eligible categories passed in, not the full catalog.");
     }
 

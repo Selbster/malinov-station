@@ -115,7 +115,7 @@ public sealed partial class PerceptionSystem : EntitySystem
         var name = Comp<MetaDataComponent>(other).EntityName;
         _memory.AddMemory(
             uid,
-            content: $"Saw {name} nearby.",
+            content: $"Увидел(а) {name} поблизости.",
             importance: 0.02f,
             source: "perception",
             participants: new[] { other },

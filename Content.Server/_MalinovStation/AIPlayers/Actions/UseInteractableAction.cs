@@ -29,7 +29,7 @@ public sealed class UseInteractableAction : IAiAction
     }
 
     public string Name => ActionName;
-    public string Description => "Use a nearby interactable object you can currently see, e.g. a switch.";
+    public string Description => "Использовать ближайший объект для взаимодействия, который ты сейчас видишь, например рычаг.";
     public string Category => AiActionCategories.Work;
     public bool IsExtended => false;
 
@@ -44,32 +44,32 @@ public sealed class UseInteractableAction : IAiAction
     {
         if (parameters is not UseInteractableActionParams use)
         {
-            failReason = $"{Name} requires {nameof(UseInteractableActionParams)}.";
+            failReason = $"{Name} требует {nameof(UseInteractableActionParams)}.";
             return false;
         }
 
         if (_mobState.IsIncapacitated(uid))
         {
-            failReason = "Entity is incapacitated.";
+            failReason = "Сущность недееспособна.";
             return false;
         }
 
         if (!_entManager.TryGetComponent<InteractionOpportunityComponent>(uid, out var opportunity))
         {
-            failReason = "Entity has no awareness of nearby interactables.";
+            failReason = "Сущность не замечает объекты для взаимодействия поблизости.";
             return false;
         }
 
         if (FindCandidate(uid, opportunity, use.Target) is not { } target)
         {
-            failReason = $"There's nothing nearby called \"{use.Target}\" I could interact with.";
+            failReason = $"Поблизости нет ничего под названием «{use.Target}», с чем я мог (могла) бы взаимодействовать.";
             return false;
         }
 
         if (_entManager.Deleted(target) ||
             !_interaction.InRangeUnobstructed(uid, target, opportunity.ScanRadius, CollisionGroup.Opaque))
         {
-            failReason = "That's not close enough anymore.";
+            failReason = "Это уже недостаточно близко.";
             return false;
         }
 

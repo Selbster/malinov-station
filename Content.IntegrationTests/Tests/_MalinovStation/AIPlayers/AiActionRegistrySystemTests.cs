@@ -89,7 +89,7 @@ public sealed class AiActionRegistrySystemTests : GameTest
             var ok = actions.TryDoAction(aiPlayer!.Value, "HackTheMainframe", new TalkActionParams("uh oh"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("Unknown action"));
+            Assert.That(reason, Does.Contain("Неизвестное действие"));
         });
 
         await server.WaitPost(() =>

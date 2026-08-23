@@ -12,7 +12,7 @@ public sealed class ContinueActivityAction : IAiAction
     public const string ActionName = "ContinueActivity";
 
     public string Name => ActionName;
-    public string Description => "Confirm the current activity - no change.";
+    public string Description => "Подтвердить текущее занятие — ничего не менять.";
     public string Category => AiActionCategories.General;
     public bool IsExtended => false;
 
@@ -25,7 +25,7 @@ public sealed class ContinueActivityAction : IAiAction
     {
         if (parameters is not ContinueActivityActionParams)
         {
-            failReason = $"{Name} requires {nameof(ContinueActivityActionParams)}.";
+            failReason = $"{Name} требует {nameof(ContinueActivityActionParams)}.";
             return false;
         }
 

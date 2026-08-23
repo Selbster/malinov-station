@@ -385,7 +385,7 @@ public sealed class LandmarkNavigationTests : GameTest
             var ok = actions.TryDoAction(aiPlayer, "GoToKnownLocation", new GoToKnownLocationActionParams("Nonexistent Place"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("don't know"));
+            Assert.That(reason, Does.Contain("не знаю места"));
 
             var htn = server.EntMan.GetComponent<HTNComponent>(aiPlayer);
             Assert.That(htn.Blackboard.TryGetValue<EntityCoordinates>(MoveToAction.ForcedDestinationKey, out _, server.EntMan), Is.False);

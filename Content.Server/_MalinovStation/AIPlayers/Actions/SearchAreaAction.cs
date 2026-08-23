@@ -55,7 +55,7 @@ public sealed class SearchAreaAction : IAiAction
     }
 
     public string Name => ActionName;
-    public string Description => "Actively look around for something nearby matching a keyword.";
+    public string Description => "Активно осмотреться в поисках чего-то поблизости по ключевому слову.";
     public string Category => AiActionCategories.Work;
     public bool IsExtended => false;
 
@@ -68,19 +68,19 @@ public sealed class SearchAreaAction : IAiAction
     {
         if (parameters is not SearchAreaActionParams search)
         {
-            failReason = $"{Name} requires {nameof(SearchAreaActionParams)}.";
+            failReason = $"{Name} требует {nameof(SearchAreaActionParams)}.";
             return false;
         }
 
         if (_mobState.IsIncapacitated(uid))
         {
-            failReason = "Entity is incapacitated.";
+            failReason = "Сущность недееспособна.";
             return false;
         }
 
         if (FindMatch(uid, search.Keyword) is null)
         {
-            failReason = $"I looked around but didn't find anything nearby matching \"{search.Keyword}\".";
+            failReason = $"Я осмотрелся (осмотрелась), но не нашёл (не нашла) поблизости ничего подходящего под «{search.Keyword}».";
             return false;
         }
 
@@ -99,7 +99,7 @@ public sealed class SearchAreaAction : IAiAction
 
         _memory.AddMemory(
             uid,
-            content: $"After looking around, found something called \"{match.Name}\" nearby.",
+            content: $"Осмотревшись, нашёл (нашла) поблизости нечто под названием «{match.Name}».",
             importance: 0.3f,
             source: "search-result",
             participants: new[] { match.Uid },

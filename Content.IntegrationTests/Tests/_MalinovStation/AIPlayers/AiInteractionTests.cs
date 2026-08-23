@@ -348,7 +348,7 @@ public sealed class AiInteractionTests : GameTest
             var ok = actions.TryDoAction(aiPlayer, UseInteractableAction.ActionName, new UseInteractableActionParams("Nonexistent Thing"), out var reason);
 
             Assert.That(ok, Is.False);
-            Assert.That(reason, Does.Contain("nothing nearby"));
+            Assert.That(reason, Does.Contain("Поблизости нет ничего"));
             Assert.That(server.EntMan.GetComponent<SignalSwitchComponent>(uiSwitch).State, Is.EqualTo(stateBefore));
         });
 
@@ -401,7 +401,7 @@ public sealed class AiInteractionTests : GameTest
             var ok = actions.TryDoAction(aiPlayer, UseInteractableAction.ActionName, new UseInteractableActionParams(SwitchName), out var reason);
 
             Assert.That(ok, Is.False, "CanDo should re-verify proximity fresh, not trust the stale scan.");
-            Assert.That(reason, Does.Contain("close enough"));
+            Assert.That(reason, Does.Contain("недостаточно близко"));
             Assert.That(server.EntMan.GetComponent<SignalSwitchComponent>(uiSwitch).State, Is.EqualTo(stateBefore));
         });
 

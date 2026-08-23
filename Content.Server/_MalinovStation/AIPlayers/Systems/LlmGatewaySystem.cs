@@ -576,12 +576,17 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// (1) write <see cref="IntentComponent"/> unconditionally - the AI's self-reported intent persists
     /// regardless of whether the concrete action attempt below succeeds; (2) resolve the raw proposed
     /// action/parameters into a validated <see cref="ActionProposal"/> (structural validation - known action
-    /// name, required parameters present); (3) run it through <see cref="AiActionRegistrySystem.TryDoAction"/>
-    /// (semantic validation - e.g. an unknown goal name inside <c>PursueGoal</c> - happens in the action's own
-    /// CanDo). A failure at either (2) or (3) is real feedback, not a silent drop: (2) means the LLM's output
-    /// itself was malformed (<see cref="AiTraceSystem.LlmFailure"/>, no memory write); (3) means the AI
-    /// proposed something well-formed but wrong (<see cref="AiTraceSystem.ActionFailed"/>, which writes an
-    /// outcome memory and forces a fast re-reflection).
+    /// name, required parameters present); (3) AI Players 0.5: confirm the resolved action is still one of
+    /// <see cref="AiActionRegistrySystem.GetEligibleActions"/> - previously only the two real production
+    /// callers (<see cref="HandleCompletedIntentRequest"/>'s skip case, <see cref="HandleCompletedActionSelectionRequest"/>)
+    /// happened to check this before calling in; this makes it a property of the boundary itself, so no future
+    /// caller (this method is public) can apply a decision the eligibility pre-filter never actually offered;
+    /// (4) run it through <see cref="AiActionRegistrySystem.TryDoAction"/> (semantic validation - e.g. an
+    /// unknown goal name inside <c>PursueGoal</c> - happens in the action's own CanDo). A failure at (2), (3)
+    /// or (4) is real feedback, not a silent drop: (2)/(3) mean the LLM's output itself was malformed or stale
+    /// (<see cref="AiTraceSystem.LlmFailure"/>, no memory write); (4) means the AI proposed something
+    /// well-formed and eligible but wrong (<see cref="AiTraceSystem.ActionFailed"/>, which writes an outcome
+    /// memory and forces a fast re-reflection).
     /// </summary>
     public bool TryApplyCognitiveDecision(EntityUid uid, LlmCognitiveDecision decision)
     {
@@ -598,6 +603,13 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         {
             _sawmill.Warning($"LLM proposed an invalid action for {ToPrettyString(uid)}: {resolveFailReason}");
             _trace.LlmFailure(uid, "InvalidActionProposal");
+            return false;
+        }
+
+        if (!_actionRegistry.GetEligibleActions(uid).Any(a => a.Name == proposal.ActionName))
+        {
+            _sawmill.Warning($"LLM proposed action \"{proposal.ActionName}\" for {ToPrettyString(uid)}, which isn't currently eligible.");
+            _trace.LlmFailure(uid, "ActionNotEligible");
             return false;
         }
 

@@ -35,40 +35,44 @@ public sealed class TalkAction : IAiAction
     }
 
     public string Name => "Talk";
-    public string Description => "Say something out loud, in character.";
+    public string Description => "Сказать что-то вслух, в характере персонажа.";
     public string Category => AiActionCategories.Social;
     public bool IsExtended => false;
 
-    public bool IsEligible(EntityUid uid)
-    {
-        return !_mobState.IsIncapacitated(uid) &&
-            (!_entManager.TryGetComponent<TalkCooldownComponent>(uid, out var cooldown) ||
-             _timing.CurTime - cooldown.LastTalkAt >= TimeSpan.FromSeconds(CooldownSeconds));
-    }
+    /// <summary>
+    /// AI Players 0.5: always false. "Talk" is invoked internally by <see cref="Systems.SocialSystem"/> (via
+    /// a direct <see cref="Systems.AiActionRegistrySystem.TryDoAction"/> call, bypassing eligibility entirely)
+    /// and was never one of the actions <see cref="LLM.ActionProposalResolver"/> accepts from the LLM - see
+    /// <see cref="Actions.TalkToAction"/> for the LLM-selectable equivalent. Before this fix it could still
+    /// pass eligibility and appear as a real choice in the Action Selection prompt's Social category, so the
+    /// LLM could pick "Talk" and have it rejected downstream as an invalid action proposal - confirmed live
+    /// against a real Ollama model during this milestone's runtime validation.
+    /// </summary>
+    public bool IsEligible(EntityUid uid) => false;
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {
         if (parameters is not TalkActionParams talk)
         {
-            failReason = $"{Name} requires {nameof(TalkActionParams)}.";
+            failReason = $"{Name} требует {nameof(TalkActionParams)}.";
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(talk.Text))
         {
-            failReason = "Text must not be empty.";
+            failReason = "Текст не должен быть пустым.";
             return false;
         }
 
         if (talk.Text.Length > MaxLength)
         {
-            failReason = $"Text exceeds the {MaxLength} character limit.";
+            failReason = $"Текст превышает лимит в {MaxLength} символов.";
             return false;
         }
 
         if (_mobState.IsIncapacitated(uid))
         {
-            failReason = "Entity is incapacitated.";
+            failReason = "Сущность недееспособна.";
             return false;
         }
 
@@ -77,7 +81,7 @@ public sealed class TalkAction : IAiAction
         if (_entManager.TryGetComponent<TalkCooldownComponent>(uid, out var cooldown) &&
             _timing.CurTime - cooldown.LastTalkAt < TimeSpan.FromSeconds(CooldownSeconds))
         {
-            failReason = "Talking too soon after the last line.";
+            failReason = "Слишком рано для новой реплики после предыдущей.";
             return false;
         }
 

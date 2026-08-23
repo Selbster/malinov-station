@@ -30,7 +30,7 @@ public sealed class TalkToAction : IAiAction
     }
 
     public string Name => ActionName;
-    public string Description => "Start a real conversation with someone you can currently see.";
+    public string Description => "Начать настоящий разговор с тем, кого ты сейчас видишь.";
     public string Category => AiActionCategories.Social;
     public bool IsExtended => false;
 
@@ -69,49 +69,49 @@ public sealed class TalkToAction : IAiAction
     {
         if (parameters is not TalkToActionParams talkTo)
         {
-            failReason = $"{Name} requires {nameof(TalkToActionParams)}.";
+            failReason = $"{Name} требует {nameof(TalkToActionParams)}.";
             return false;
         }
 
         if (_mobState.IsIncapacitated(uid))
         {
-            failReason = "Entity is incapacitated.";
+            failReason = "Сущность недееспособна.";
             return false;
         }
 
         if (!_entManager.TryGetComponent<ConversationComponent>(uid, out var ownConversation))
         {
-            failReason = "Entity has no way to hold a conversation.";
+            failReason = "У сущности нет возможности вести разговор.";
             return false;
         }
 
         if (ownConversation.State != ConversationState.None || ownConversation.Partner != null)
         {
-            failReason = "I'm already in the middle of a conversation.";
+            failReason = "Я уже веду разговор.";
             return false;
         }
 
         if (!_entManager.TryGetComponent<PerceptionComponent>(uid, out var perception) || perception.LastObservation is not { } observation)
         {
-            failReason = "I don't see anyone to talk to.";
+            failReason = "Мне не с кем поговорить - я никого не вижу.";
             return false;
         }
 
         if (FindTarget(observation, talkTo.Target) is not { } target)
         {
-            failReason = $"I don't see anyone nearby called \"{talkTo.Target}\".";
+            failReason = $"Я не вижу поблизости никого под именем «{talkTo.Target}».";
             return false;
         }
 
         if (!_entManager.TryGetComponent<ConversationComponent>(target, out var targetConversation))
         {
-            failReason = $"{_entManager.GetComponent<MetaDataComponent>(target).EntityName} isn't someone I can talk to like that.";
+            failReason = $"С {_entManager.GetComponent<MetaDataComponent>(target).EntityName} так поговорить не получится.";
             return false;
         }
 
         if (targetConversation.State != ConversationState.None || targetConversation.Partner != null)
         {
-            failReason = $"{_entManager.GetComponent<MetaDataComponent>(target).EntityName} is busy right now.";
+            failReason = $"{_entManager.GetComponent<MetaDataComponent>(target).EntityName} сейчас занят(а).";
             return false;
         }
 

@@ -33,7 +33,7 @@ public sealed class GoToKnownLocationAction : IAiAction
     }
 
     public string Name => ActionName;
-    public string Description => "Walk to a place you remember by name, interrupting routine behaviour until arrival.";
+    public string Description => "Дойти до места, которое ты помнишь по названию, прервав рутинное поведение до прибытия.";
     public string Category => AiActionCategories.Movement;
     public bool IsExtended => true;
 
@@ -48,25 +48,25 @@ public sealed class GoToKnownLocationAction : IAiAction
     {
         if (parameters is not GoToKnownLocationActionParams goTo)
         {
-            failReason = $"{Name} requires {nameof(GoToKnownLocationActionParams)}.";
+            failReason = $"{Name} требует {nameof(GoToKnownLocationActionParams)}.";
             return false;
         }
 
         if (!_entManager.TryGetComponent<HTNComponent>(uid, out _))
         {
-            failReason = "Entity is not HTN-driven.";
+            failReason = "Сущность не управляется через HTN.";
             return false;
         }
 
         if (_mobState.IsIncapacitated(uid))
         {
-            failReason = "Entity is incapacitated.";
+            failReason = "Сущность недееспособна.";
             return false;
         }
 
         if (_memory.FindKnownLocation(uid, goTo.LocationHint) is null)
         {
-            failReason = $"I don't know of any place called \"{goTo.LocationHint}\".";
+            failReason = $"Я не знаю места под названием «{goTo.LocationHint}».";
             return false;
         }
 

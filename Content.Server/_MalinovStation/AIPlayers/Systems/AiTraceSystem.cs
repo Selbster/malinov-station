@@ -164,7 +164,7 @@ public sealed partial class AiTraceSystem : EntitySystem
         // zero memory writes of its own.
         if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
         {
-            var content = $"Tried to {goal} but made no progress and gave up.";
+            var content = $"Попытался (попыталась) {goal}, но не продвинулся (продвинулась) и бросил(а) это.";
             _memory.AddMemory(uid, content: content,
                 importance: MemoryImportanceScorer.Score("outcome", emotionalWeight: -0.2f, content: content),
                 source: "outcome", emotionalWeight: -0.2f);
@@ -218,7 +218,7 @@ public sealed partial class AiTraceSystem : EntitySystem
 
         if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
         {
-            var content = $"Was in the middle of {goal} when {byGoal} became more urgent.";
+            var content = $"Был(а) на середине {goal}, когда {byGoal} стало важнее.";
             _memory.AddMemory(uid, content: content,
                 importance: MemoryImportanceScorer.Score("outcome", content: content),
                 source: "outcome");
@@ -263,7 +263,7 @@ public sealed partial class AiTraceSystem : EntitySystem
 
         if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
         {
-            var content = $"Attempted {action} but it failed: {reason}.";
+            var content = $"Попытался (попыталась) выполнить {action}, но не вышло: {reason}.";
             _memory.AddMemory(uid, content: content,
                 importance: MemoryImportanceScorer.Score("outcome", emotionalWeight: -0.1f, content: content),
                 source: "outcome", emotionalWeight: -0.1f);
@@ -282,7 +282,7 @@ public sealed partial class AiTraceSystem : EntitySystem
                 {
                     _belief.AddBelief(uid,
                         subject: action,
-                        content: $"{action} might not be reliable right now - it's failed the same way {count} times in a row ({reason}).",
+                        content: $"{action}, похоже, сейчас ненадёжно — не получилось одинаково уже {count} раза подряд ({reason}).",
                         confidence: 0.6f,
                         source: "repeated-failure");
                 }

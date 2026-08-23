@@ -6,6 +6,7 @@ using Content.IntegrationTests.Fixtures;
 using Content.IntegrationTests.Pair;
 using Content.Server._MalinovStation.AIPlayers.Actions;
 using Content.Server._MalinovStation.AIPlayers.Components;
+using Content.Server._MalinovStation.AIPlayers.LLM;
 using Content.Server._MalinovStation.AIPlayers.Perception;
 using Content.Server._MalinovStation.AIPlayers.Systems;
 using Content.Server.GameTicking;
@@ -344,6 +345,49 @@ public sealed class ActionEligibilityTests : GameTest
             server.EntMan.DeleteEntity(aiPlayer);
             server.EntMan.DeleteEntity(partner);
         });
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
+    /// <summary>
+    /// AI Players 0.5: <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/> now enforces eligibility
+    /// itself as a structural invariant, rather than relying on every caller to have already checked
+    /// <see cref="AiActionRegistrySystem.GetEligibleActions"/> first (previously only the two real production
+    /// callers inside <see cref="LlmGatewaySystem"/> happened to do that - see that method's own doc comment).
+    /// A hand-built decision naming an action that isn't currently eligible must be rejected right at this
+    /// boundary, not just discovered downstream via the action's own CanDo. Reuses
+    /// <see cref="TalkToAction_IneligibleAlone_EligibleWithAFreeVisiblePartner"/>'s "nobody visible" setup.
+    /// </summary>
+    [Test]
+    public async Task TryApplyCognitiveDecision_IneligibleAction_IsRejectedAtTheBoundary()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        var station = await StartRoundAndGetStation(pair);
+
+        EntityUid aiPlayer = default;
+
+        await server.WaitAssertion(() =>
+        {
+            aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station, cognitiveMode: true)!.Value;
+
+            var registry = server.System<AiActionRegistrySystem>();
+            Assert.That(registry.GetEligibleActions(aiPlayer).Select(a => a.Name), Does.Not.Contain(TalkToAction.ActionName),
+                "Test setup: TalkTo should not be eligible with nobody visible.");
+
+            var gateway = server.System<LlmGatewaySystem>();
+            var decision = new LlmCognitiveDecision(
+                "boredom", "chat_with_someone", 0.5f, 0.5f, "fancied a chat",
+                TalkToAction.ActionName, new Dictionary<string, string> { ["target"] = "Nobody In Particular" });
+
+            Assert.That(gateway.TryApplyCognitiveDecision(aiPlayer, decision), Is.False,
+                "An action that isn't currently eligible should be rejected even if it's otherwise well-formed.");
+
+            var intent = server.EntMan.GetComponent<IntentComponent>(aiPlayer);
+            Assert.That(intent.Name, Is.EqualTo("chat_with_someone"),
+                "IntentComponent should still update - eligibility only gates the concrete action attempt, same as every other TryApplyCognitiveDecision failure mode.");
+        });
+
+        await server.WaitPost(() => server.EntMan.DeleteEntity(aiPlayer));
         await server.WaitPost(() => server.System<GameTicker>().RestartRound());
     }
 

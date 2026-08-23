@@ -60,7 +60,7 @@ public sealed partial class ComfortInjuredOperator : HTNOperator
         {
             _memory.AddMemory(
                 owner,
-                content: $"Checked on {_entManager.GetComponent<MetaDataComponent>(injured).EntityName}, who was badly hurt.",
+                content: $"Проверил(а), как там {_entManager.GetComponent<MetaDataComponent>(injured).EntityName} — тому (той) сильно досталось.",
                 importance: 0.3f,
                 source: "danger",
                 participants: new[] { injured },
