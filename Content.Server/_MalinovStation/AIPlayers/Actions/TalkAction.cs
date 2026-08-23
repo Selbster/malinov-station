@@ -36,6 +36,15 @@ public sealed class TalkAction : IAiAction
 
     public string Name => "Talk";
     public string Description => "Say something out loud, in character.";
+    public string Category => AiActionCategories.Social;
+    public bool IsExtended => false;
+
+    public bool IsEligible(EntityUid uid)
+    {
+        return !_mobState.IsIncapacitated(uid) &&
+            (!_entManager.TryGetComponent<TalkCooldownComponent>(uid, out var cooldown) ||
+             _timing.CurTime - cooldown.LastTalkAt >= TimeSpan.FromSeconds(CooldownSeconds));
+    }
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {

@@ -100,6 +100,10 @@ public sealed partial class AIPlayerSystem : EntitySystem
         AddComp<RepairOpportunityComponent>(mobUid);
         AddComp<AiTraceStateComponent>(mobUid);
         AddComp<DoorApproachComponent>(mobUid);
+        // AI Players 0.4 Milestone 5: unconditional like DoorApproachComponent above - only ever populated by
+        // an IAiAction.IsExtended action (cognitive-only today), but a legacy AI player having it too costs
+        // nothing and keeps the busy-state framework available if a future legacy-usable action needs it.
+        AddComp<AiBusyStateComponent>(mobUid);
 
         if (cognitiveMode)
         {

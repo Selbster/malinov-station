@@ -191,6 +191,12 @@ public sealed partial class ContextBuilderSystem : EntitySystem
                 .ToList()
             : new List<string>();
 
+        // AI Players 0.4 Milestone 5: null unless actually mid-commitment (AiBusyStateComponent.CurrentAction
+        // is only ever populated for an IsExtended action - see AiActionRegistrySystem.TryDoAction).
+        var busy = TryComp<AiBusyStateComponent>(uid, out var busyComp) && busyComp.CurrentAction is { } currentAction
+            ? new CognitiveBusyState(currentAction, busyComp.Reason)
+            : null;
+
         return new CognitiveState(
             Comp<MetaDataComponent>(uid).EntityName,
             aiPlayer.Job?.Id ?? "Unknown",
@@ -207,7 +213,8 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             beliefs,
             knownLocations,
             nearbyInteractables,
-            nearbyItems);
+            nearbyItems,
+            busy);
     }
 
     /// <summary>

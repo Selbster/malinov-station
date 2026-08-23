@@ -19,6 +19,12 @@ public sealed record CognitivePerceivedCharacter(
 /// <summary>One belief, as surfaced to the LLM - see <see cref="AiBelief"/> for the full record this is summarized from.</summary>
 public sealed record BeliefSummary(string Content, float Confidence, string Source);
 
+/// <summary>AI Players 0.4 Milestone 5: what the AI is currently committed to, if anything - see
+/// <see cref="Components.AiBusyStateComponent"/>. Lets the Cognitive LLM role reason "I am currently doing X
+/// because Y" (spec's repair-generator example) instead of only seeing <see cref="CognitiveState.CurrentActivity"/>'s
+/// reflex-layer goal name.</summary>
+public sealed record CognitiveBusyState(string Action, string Reason);
+
 /// <summary>
 /// A cognitive-mode AI player's compact view of itself and its situation - the LLM Cognitive Layer's input
 /// (spec section 4/8). Extends what <see cref="AiContext"/> already assembles (identity, personality, needs,
@@ -50,4 +56,5 @@ public sealed record CognitiveState(
     IReadOnlyList<BeliefSummary> Beliefs,
     IReadOnlyList<string> KnownLocations,
     IReadOnlyList<string> NearbyInteractables,
-    IReadOnlyList<string> NearbyItems);
+    IReadOnlyList<string> NearbyItems,
+    CognitiveBusyState? Busy);

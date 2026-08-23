@@ -34,6 +34,15 @@ public sealed class GoToKnownLocationAction : IAiAction
 
     public string Name => ActionName;
     public string Description => "Walk to a place you remember by name, interrupting routine behaviour until arrival.";
+    public string Category => AiActionCategories.Movement;
+    public bool IsExtended => true;
+
+    public bool IsEligible(EntityUid uid)
+    {
+        return _entManager.HasComponent<HTNComponent>(uid) &&
+            !_mobState.IsIncapacitated(uid) &&
+            _memory.GetKnownLocationNames(uid).Count > 0;
+    }
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {

@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Content.Server._MalinovStation.AIPlayers.Actions;
+using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server.Chat.Systems;
 using Content.Shared.Hands.EntitySystems;
 using Content.Shared.Interaction;
@@ -58,11 +59,54 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     }
 
     /// <summary>
+    /// AI Players 0.4 Milestone 2: every registered action whose <see cref="IAiAction.IsEligible"/> currently
+    /// returns true for <paramref name="uid"/> - the deterministic pre-filter run before the Cognitive LLM
+    /// role is even asked anything, so an actor is never offered (and never has to discover post-hoc via a
+    /// CanDo rejection) an action it plainly cannot attempt right now.
+    /// </summary>
+    public IReadOnlyList<IAiAction> GetEligibleActions(EntityUid uid)
+    {
+        var eligible = new List<IAiAction>();
+        foreach (var action in _actions.Values)
+        {
+            if (action.IsEligible(uid))
+                eligible.Add(action);
+        }
+
+        return eligible;
+    }
+
+    /// <summary>
+    /// The distinct <see cref="AiActionCategories"/> with at least one currently-eligible action for
+    /// <paramref name="uid"/> - what the Cognitive LLM role's prompt is built from
+    /// (see <see cref="LLM.PromptBuilder.BuildCognitiveSystemPrompt"/>), instead of the fixed "all categories
+    /// always" set.
+    /// </summary>
+    public IReadOnlySet<string> GetEligibleCategories(EntityUid uid)
+    {
+        var categories = new HashSet<string>();
+        foreach (var action in GetEligibleActions(uid))
+            categories.Add(action.Category);
+
+        return categories;
+    }
+
+    /// <summary>
     /// Looks up <paramref name="actionName"/>, runs its CanDo check, and performs it if that passes.
     /// Returns false (with a reason) for an unknown action name, a failed precondition, or mismatched
     /// parameters - the caller is never able to bypass validation.
     /// </summary>
-    public bool TryDoAction(EntityUid uid, string actionName, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
+    public bool TryDoAction(EntityUid uid, string actionName, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason) =>
+        TryDoAction(uid, actionName, parameters, reason: string.Empty, out failReason);
+
+    /// <summary>
+    /// AI Players 0.4 Milestone 5: same as the 4-argument overload, but also records <paramref name="reason"/>
+    /// onto <see cref="AiBusyStateComponent"/> for an <see cref="IAiAction.IsExtended"/> action that succeeds -
+    /// the LLM's own stated reason for this specific commitment (e.g. "need it for the repair"), not just the
+    /// action's static <see cref="IAiAction.Description"/>, so <see cref="Systems.ContextBuilderSystem"/> can
+    /// surface "I am currently doing X because Y" back to the Cognitive LLM role.
+    /// </summary>
+    public bool TryDoAction(EntityUid uid, string actionName, IAiActionParams parameters, string reason, [NotNullWhen(false)] out string? failReason)
     {
         if (!_actions.TryGetValue(actionName, out var action))
         {
@@ -74,6 +118,15 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
             return false;
 
         action.Do(uid, parameters);
+
+        if (action.IsExtended && _entManager.TryGetComponent<AiBusyStateComponent>(uid, out var busy))
+        {
+            busy.CurrentAction = action.Name;
+            busy.StartedAt = _timing.CurTime;
+            busy.Reason = reason;
+            busy.InterruptionNoticed = false;
+        }
+
         failReason = null;
         return true;
     }

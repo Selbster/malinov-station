@@ -34,4 +34,16 @@ public sealed partial class AiTraceStateComponent : Component
     /// </summary>
     [ViewVariables]
     public string? LastInterruptedGoal;
+
+    /// <summary>
+    /// AI Players 0.4 Milestone 12: how many times in a row the same "{action}|{reason}" combination has
+    /// failed via <see cref="Systems.AiTraceSystem.ActionFailed"/> - once a key crosses
+    /// <see cref="Systems.AiTraceSystem.ConsecutiveFailuresBeforeBelief"/>, that's a pattern worth actually
+    /// believing something about (spec's "Kitchen inaccessible -&gt; Kitchen may not be a reliable food
+    /// source" example), not just another one-off outcome memory. Never reset on success - a little staleness
+    /// here is harmless, and there's no reliable signal linking a later success back to a specific earlier
+    /// failure reason to reset against.
+    /// </summary>
+    [ViewVariables]
+    public Dictionary<string, int> ConsecutiveActionFailures = new();
 }

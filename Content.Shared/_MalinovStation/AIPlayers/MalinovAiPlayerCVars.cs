@@ -31,8 +31,33 @@ public sealed class MalinovAiPlayerCVars : CVars
     public static readonly CVarDef<string> AiPlayersLlmModel =
         CVarDef.Create("ai_players.llm.model", string.Empty, CVar.SERVERONLY);
 
+    /// <summary>
+    /// AI Players 0.4 Milestone 4: per-<see cref="LLM.LlmRole"/> model overrides. Each defaults to empty,
+    /// meaning "fall back to <see cref="AiPlayersLlmModel"/>" - so an existing deployment that never sets these
+    /// keeps using one model for everything, exactly as before, while a deployment that wants
+    /// CognitiveDecision on a larger model and ActionSelection/Dialogue on smaller/faster ones can do so
+    /// without any code change. See <c>HttpLlmClient</c>'s role-to-model resolution.
+    /// </summary>
+    public static readonly CVarDef<string> AiPlayersLlmModelCognitiveDecision =
+        CVarDef.Create("ai_players.llm.model.cognitive_decision", string.Empty, CVar.SERVERONLY);
+
+    public static readonly CVarDef<string> AiPlayersLlmModelActionSelection =
+        CVarDef.Create("ai_players.llm.model.action_selection", string.Empty, CVar.SERVERONLY);
+
+    public static readonly CVarDef<string> AiPlayersLlmModelMemoryEvaluation =
+        CVarDef.Create("ai_players.llm.model.memory_evaluation", string.Empty, CVar.SERVERONLY);
+
+    public static readonly CVarDef<string> AiPlayersLlmModelDialogue =
+        CVarDef.Create("ai_players.llm.model.dialogue", string.Empty, CVar.SERVERONLY);
+
+    /// <summary>
+    /// Raised from an original 8s: a live test against a local qwen3:1.7b (thinking enabled by default even
+    /// at that size) via Ollama saw every single cognitive-decision request - the heaviest prompt built, with
+    /// Desires/Beliefs/Memory/nearby items all included - hit this timeout and get cancelled, so the AI never
+    /// got a real decision the entire run. Still trivially overridable per-deployment for a fast remote API.
+    /// </summary>
     public static readonly CVarDef<float> AiPlayersLlmTimeoutSeconds =
-        CVarDef.Create("ai_players.llm.timeout_seconds", 8f, CVar.SERVERONLY);
+        CVarDef.Create("ai_players.llm.timeout_seconds", 30f, CVar.SERVERONLY);
 
     /// <summary>
     /// Caps how many LLM requests may be in flight across all AI players at once.
@@ -75,4 +100,14 @@ public sealed class MalinovAiPlayerCVars : CVars
     /// </summary>
     public static readonly CVarDef<int> AiPlayersPersistenceMaxMemories =
         CVarDef.Create("ai_players.persistence.max_memories", 20, CVar.SERVERONLY);
+
+    /// <summary>
+    /// AI Players 0.4 Milestone 9: half-life (in seconds) for a memory's effective importance to decay by
+    /// half, computed at retrieval time only - the stored <c>AiMemory.Importance</c> itself is never mutated
+    /// (spec: "do not simply delete old memories immediately"). 1800s (30 minutes) by default - long enough
+    /// that a memory stays meaningfully influential for a good chunk of a round, short enough that something
+    /// from hours ago genuinely fades relative to something fresh.
+    /// </summary>
+    public static readonly CVarDef<float> AiPlayersMemoryDecayHalfLifeSeconds =
+        CVarDef.Create("ai_players.memory.decay_half_life_seconds", 1800f, CVar.SERVERONLY);
 }

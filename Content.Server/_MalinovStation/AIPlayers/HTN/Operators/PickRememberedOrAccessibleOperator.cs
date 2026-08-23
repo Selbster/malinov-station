@@ -6,6 +6,7 @@ using Content.Server.NPC;
 using Content.Server.NPC.HTN;
 using Content.Server.NPC.HTN.PrimitiveTasks;
 using Content.Server.NPC.Pathfinding;
+using Robust.Shared.Map;
 using Robust.Shared.Random;
 
 namespace Content.Server._MalinovStation.AIPlayers.HTN.Operators;
@@ -27,6 +28,14 @@ namespace Content.Server._MalinovStation.AIPlayers.HTN.Operators;
 /// same "always finishes, a legitimate outcome, not a bug" philosophy <c>ActivateHeldToolOperator</c>'s own
 /// doc comment establishes elsewhere in this tree, and never a worse guarantee than an idle AI occasionally
 /// re-rolling where to wander.
+///
+/// The pick among remembered places is weighted toward nearer ones (weight <c>1 / (1 + distance)</c>), not
+/// uniform: <see cref="Systems.LandmarkPerceptionSystem.SeedKnownBeacons"/> puts every station beacon in
+/// memory at spawn regardless of distance, so a uniform pick here would send idle wandering across the whole
+/// station roughly as often as next door - live playtest showed exactly that, as a cluster of repeated
+/// MoveToOperator "PlanAborted" failures right after an Idle replan (a distant pick crossing more doors/access
+/// checks than the fallback flood-fill's inherently-local, guaranteed-reachable point ever would). A distant
+/// place stays reachable (never fully excluded, just rarer) - this is a bias, not a hard range cutoff.
 /// </summary>
 public sealed partial class PickRememberedOrAccessibleOperator : HTNOperator
 {
@@ -77,10 +86,38 @@ public sealed partial class PickRememberedOrAccessibleOperator : HTNOperator
         if (knownLocations.Count == 0)
             return null;
 
-        var name = _random.Pick(knownLocations);
-        if (_memory.FindKnownLocation(owner, name) is not { } destination)
+        if (!_entManager.TryGetComponent<TransformComponent>(owner, out var ownerXform))
             return null;
 
-        return new Dictionary<string, object> { { TargetCoordinates, destination } };
+        var ownerCoords = ownerXform.Coordinates;
+
+        var candidates = new List<(EntityCoordinates Coordinates, float Weight)>();
+        foreach (var name in knownLocations)
+        {
+            if (_memory.FindKnownLocation(owner, name) is not { } destination)
+                continue;
+
+            // Same-map distance only; a location TryDistance can't compare (different map) still gets picked
+            // sometimes rather than silently excluded - falls back to the same weight a nearby pick would get.
+            var weight = ownerCoords.TryDistance(_entManager, destination, out var distance)
+                ? 1f / (1f + distance)
+                : 1f;
+
+            candidates.Add((destination, weight));
+        }
+
+        if (candidates.Count == 0)
+            return null;
+
+        var totalWeight = candidates.Sum(c => c.Weight);
+        var roll = _random.NextFloat() * totalWeight;
+        foreach (var candidate in candidates)
+        {
+            roll -= candidate.Weight;
+            if (roll <= 0f)
+                return new Dictionary<string, object> { { TargetCoordinates, candidate.Coordinates } };
+        }
+
+        return new Dictionary<string, object> { { TargetCoordinates, candidates[^1].Coordinates } };
     }
 }

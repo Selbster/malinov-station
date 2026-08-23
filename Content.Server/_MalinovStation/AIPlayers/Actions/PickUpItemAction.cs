@@ -34,6 +34,16 @@ public sealed class PickUpItemAction : IAiAction
 
     public string Name => ActionName;
     public string Description => "Pick up a nearby loose item you can currently see into an empty hand.";
+    public string Category => AiActionCategories.Work;
+    public bool IsExtended => false;
+
+    public bool IsEligible(EntityUid uid)
+    {
+        return !_mobState.IsIncapacitated(uid) &&
+            _entManager.TryGetComponent<ItemOpportunityComponent>(uid, out var opportunity) &&
+            opportunity.NearbyItems.Count > 0 &&
+            _hands.TryGetEmptyHand(uid, out _);
+    }
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {

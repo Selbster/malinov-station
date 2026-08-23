@@ -56,6 +56,13 @@ public sealed class SearchAreaAction : IAiAction
 
     public string Name => ActionName;
     public string Description => "Actively look around for something nearby matching a keyword.";
+    public string Category => AiActionCategories.Work;
+    public bool IsExtended => false;
+
+    /// <summary>Eligibility can only check ambient state here - unlike every other action's opportunity
+    /// component, there's no passive candidate list to check ahead of time without a keyword already chosen
+    /// (see this class's own doc comment), so "not incapacitated" is the whole precondition.</summary>
+    public bool IsEligible(EntityUid uid) => !_mobState.IsIncapacitated(uid);
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {

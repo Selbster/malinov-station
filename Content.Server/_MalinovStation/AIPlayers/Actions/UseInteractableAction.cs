@@ -30,6 +30,15 @@ public sealed class UseInteractableAction : IAiAction
 
     public string Name => ActionName;
     public string Description => "Use a nearby interactable object you can currently see, e.g. a switch.";
+    public string Category => AiActionCategories.Work;
+    public bool IsExtended => false;
+
+    public bool IsEligible(EntityUid uid)
+    {
+        return !_mobState.IsIncapacitated(uid) &&
+            _entManager.TryGetComponent<InteractionOpportunityComponent>(uid, out var opportunity) &&
+            opportunity.NearbyInteractables.Count > 0;
+    }
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {

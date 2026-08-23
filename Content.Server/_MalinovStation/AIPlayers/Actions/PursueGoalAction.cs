@@ -33,6 +33,13 @@ public sealed class PursueGoalAction : IAiAction
 
     public string Name => ActionName;
     public string Description => "Commit to actively pursuing one of the AI's existing reflexive goals right now.";
+    public string Category => AiActionCategories.Work;
+    public bool IsExtended => true;
+
+    public bool IsEligible(EntityUid uid)
+    {
+        return _entManager.HasComponent<GoalComponent>(uid);
+    }
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {

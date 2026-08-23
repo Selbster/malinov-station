@@ -31,6 +31,39 @@ public sealed class TalkToAction : IAiAction
 
     public string Name => ActionName;
     public string Description => "Start a real conversation with someone you can currently see.";
+    public string Category => AiActionCategories.Social;
+    public bool IsExtended => false;
+
+    public bool IsEligible(EntityUid uid)
+    {
+        if (_mobState.IsIncapacitated(uid))
+            return false;
+
+        if (!_entManager.TryGetComponent<ConversationComponent>(uid, out var ownConversation) ||
+            ownConversation.State != ConversationState.None || ownConversation.Partner != null)
+        {
+            return false;
+        }
+
+        if (!_entManager.TryGetComponent<PerceptionComponent>(uid, out var perception) || perception.LastObservation is not { } observation)
+            return false;
+
+        // Not just "can I see anyone" - at least one visible character must actually be free to talk, same
+        // check CanDo/FindTarget would eventually make for a specific pick, done here without a name hint.
+        foreach (var candidate in observation.VisibleCharacters)
+        {
+            if (_entManager.Deleted(candidate))
+                continue;
+
+            if (_entManager.TryGetComponent<ConversationComponent>(candidate, out var targetConversation) &&
+                targetConversation.State == ConversationState.None && targetConversation.Partner == null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {

@@ -35,6 +35,13 @@ public sealed class MoveToAction : IAiAction
 
     public string Name => "MoveTo";
     public string Description => "Walk to a specific location, interrupting routine behaviour until arrival.";
+    public string Category => AiActionCategories.Movement;
+    public bool IsExtended => true;
+
+    public bool IsEligible(EntityUid uid)
+    {
+        return _entManager.HasComponent<HTNComponent>(uid) && !_mobState.IsIncapacitated(uid);
+    }
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)
     {

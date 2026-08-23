@@ -1,4 +1,5 @@
 using System.Text;
+using Content.Server._MalinovStation.AIPlayers.Actions;
 using Content.Server._MalinovStation.AIPlayers.Components;
 
 namespace Content.Server._MalinovStation.AIPlayers.LLM;
@@ -160,6 +161,13 @@ public static class PromptBuilder
             $"Joy={context.Emotion.Joy:0.00}, Confidence={context.Emotion.Confidence:0.00}.");
         sb.AppendLine($"Currently doing: {context.CurrentActivity}.");
 
+        if (context.Busy is { } busy)
+        {
+            sb.AppendLine(string.IsNullOrWhiteSpace(busy.Reason)
+                ? $"You are currently committed to: {busy.Action}."
+                : $"You are currently committed to: {busy.Action} (because {busy.Reason}).");
+        }
+
         if (context.CurrentDesires.Count == 0)
         {
             sb.AppendLine("You don't currently want anything in particular.");
@@ -239,6 +247,96 @@ public static class PromptBuilder
                 sb.AppendLine($"- {item}");
         }
 
+        return sb.ToString();
+    }
+
+    /// <summary>AI Players 0.4 Milestone 3: the hierarchical decision's first stage - deliberately does NOT
+    /// enumerate concrete actions or their parameters (spec: "the first cognitive decision should NOT need to
+    /// enumerate every concrete action on the station"). <paramref name="eligibleCategories"/> comes from
+    /// <see cref="Systems.AiActionRegistrySystem.GetEligibleCategories"/> - only categories with at least one
+    /// currently-possible action are ever offered.</summary>
+    public static string BuildIntentSystemPrompt(IReadOnlyCollection<string> allowedGoals, IReadOnlyCollection<string> eligibleCategories)
+    {
+        return "You are the mind of a character aboard a space station in a sci-fi roleplaying game - not a script, " +
+               "a person with their own desires, beliefs and feelings. You will be given your current needs, mood, " +
+               "personality, what you're currently doing, what you currently want (your desires) and how strongly, " +
+               "who/what you can see, what you know for certain, things you've heard but aren't sure are true, " +
+               "places you know how to get to, nearby things you could interact with, and nearby items you could " +
+               "pick up. " +
+               "You only know what is listed below - anything not mentioned, you have no way of knowing. " +
+               "Decide what you actually want to do right now, in character, and why, and pick ONE broad category " +
+               "of action that makes sense toward it - you'll be asked to pick the specific concrete action " +
+               "afterward, so you don't need to name one yet. " +
+               "Respond with ONLY a single JSON object, no other text, of the exact form: " +
+               "{\"desire\": \"<which of your current desires this commits to>\", " +
+               "\"intention\": \"<a short free-form description of what you want, e.g. find_food, meet_person, " +
+               "help_person, finish_repair, investigate_event, find_safe_location, avoid_security, obtain_item, " +
+               "rest, escape_danger - not required to match any specific game mechanic>\", " +
+               "\"priority\": <number 0.0 to 1.0>, " +
+               "\"confidence\": <number 0.0 to 1.0, how sure you are this is the right call>, " +
+               "\"reason\": \"<short in-character reason>\", " +
+               "\"category\": \"<one of the categories below>\"}. " +
+               $"Categories you can currently act on: {string.Join(", ", eligibleCategories)}. " +
+               $"\"{AiActionCategories.Movement}\" is going somewhere; \"{AiActionCategories.Work}\" is committing " +
+               "to an ongoing task, using or picking something up, or actively searching for something you don't " +
+               $"already see; \"{AiActionCategories.Social}\" is starting a real conversation with someone you can " +
+               $"see; \"{AiActionCategories.General}\" means continuing to do whatever you're already doing, with " +
+               "no other change. " +
+               $"If you want to actively commit to one of your existing goals, that lives under \"{AiActionCategories.Work}\" " +
+               $"- the allowed goals are: {string.Join(", ", allowedGoals)}.";
+    }
+
+    /// <summary>Same underlying character/world state as the old single-call cognitive prompt - the hierarchical
+    /// decision's first stage needs the same information to decide "what do I want," just isn't asked to name a
+    /// concrete action from it yet.</summary>
+    public static string BuildIntentUserPrompt(CognitiveState context) => BuildCognitiveUserPrompt(context);
+
+    /// <summary>AI Players 0.4 Milestone 3: the hierarchical decision's second stage. Only ever built from
+    /// <paramref name="eligibleActions"/> actually eligible in <paramref name="category"/> right now - the LLM
+    /// is never shown an action name it could pick and then have rejected.</summary>
+    public static string BuildActionSelectionSystemPrompt(string category, IReadOnlyList<IAiAction> eligibleActions)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(
+            $"You already decided you want to act within the \"{category}\" category. Now pick ONE concrete " +
+            "action from the list below that best accomplishes it, and the parameters it needs. Respond with " +
+            "ONLY a single JSON object, no other text, of the exact form: " +
+            "{\"action\": \"<one of the action names below>\", \"parameters\": {...see each action's own " +
+            "parameter below}, \"reason\": \"<short in-character reason for this specific pick>\"}.");
+        sb.AppendLine("Available actions:");
+
+        foreach (var action in eligibleActions)
+            sb.AppendLine($"- \"{action.Name}\": {action.Description} {ParameterHint(action.Name)}");
+
+        sb.AppendLine(
+            "Use ONLY a target/location/keyword actually listed in what follows below, never one you merely " +
+            "guess the name of - an action needing a parameter you don't have a real value for isn't actually " +
+            "available right now, even if its name is listed above.");
+
+        return sb.ToString();
+    }
+
+    /// <summary>The parameter each LLM-selectable action needs, if any - kept here rather than on
+    /// <see cref="IAiAction"/> itself since it's prompt-formatting, not action metadata.</summary>
+    private static string ParameterHint(string actionName) => actionName switch
+    {
+        "PursueGoal" => "(parameters: {\"goal\": \"<one of the allowed goals>\"})",
+        "GoToKnownLocation" => "(parameters: {\"location\": \"<one of the places you know>\"})",
+        "UseInteractable" => "(parameters: {\"target\": \"<name of the nearby interactable>\"})",
+        "PickUpItem" => "(parameters: {\"target\": \"<name of the nearby item>\"})",
+        "SearchArea" => "(parameters: {\"keyword\": \"<what to look for>\"})",
+        "TalkTo" => "(parameters: {\"target\": \"<name of the person you can see>\"})",
+        _ => "(no parameters)",
+    };
+
+    /// <summary>Prepends what was already decided in stage one, then reuses the same candidate-list formatting
+    /// the first stage's prompt used - the second stage needs to see the same known-locations/nearby-items/
+    /// nearby-interactables/visible-people lists to actually fill in a real parameter value.</summary>
+    public static string BuildActionSelectionUserPrompt(CognitiveState context, LlmIntentDecision intent)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"You already decided: \"{intent.Intention}\" (category: {intent.Category}, reason: {intent.Reason}).");
+        sb.Append(BuildCognitiveUserPrompt(context));
         return sb.ToString();
     }
 }

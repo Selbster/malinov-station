@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Content.Server._MalinovStation.AIPlayers.Actions;
 
 namespace Content.Server._MalinovStation.AIPlayers.LLM;
 
@@ -19,7 +20,21 @@ public interface ILlmClient
 
     Task<string?> GenerateLineAsync(DialogueContext context, CancellationToken cancellationToken);
 
-    /// <summary>AI Players 2.0 Milestone 1: the LLM Cognitive Layer's decision, from a full
-    /// <see cref="CognitiveState"/> rather than the narrower <see cref="AiContext"/>.</summary>
+    /// <summary>AI Players 2.0 Milestone 1's original single-call combined decision. No production caller left
+    /// as of AI Players 0.4 (see <see cref="CognitiveResponseParser"/>'s own doc comment for why it's kept
+    /// anyway) - <see cref="DecideIntentAsync"/>/<see cref="SelectActionAsync"/> are what
+    /// <see cref="Systems.LlmGatewaySystem"/> actually drives now.</summary>
     Task<LlmCognitiveDecision?> DecideCognitiveAsync(CognitiveState context, IReadOnlyCollection<string> allowedIntents, CancellationToken cancellationToken);
+
+    /// <summary>AI Players 0.4 Milestone 3: the hierarchical decision's first stage - "what do I want, which
+    /// category of action makes sense." <paramref name="eligibleCategories"/> is the deterministic pre-filter
+    /// (see <see cref="Systems.AiActionRegistrySystem.GetEligibleCategories"/>) - the LLM only ever sees
+    /// categories with at least one currently-possible action.</summary>
+    Task<LlmIntentDecision?> DecideIntentAsync(CognitiveState context, IReadOnlyCollection<string> allowedIntents, IReadOnlyCollection<string> eligibleCategories, CancellationToken cancellationToken);
+
+    /// <summary>AI Players 0.4 Milestone 3: the hierarchical decision's second stage - "given these eligible
+    /// actions, which one best accomplishes the intent." Only ever called when there's a genuine choice among
+    /// <paramref name="eligibleActions"/> (see <see cref="Systems.LlmGatewaySystem.TryApplyCognitiveDecision"/>
+    /// for the single-eligible-action skip case).</summary>
+    Task<LlmActionSelectionDecision?> SelectActionAsync(CognitiveState context, LlmIntentDecision intent, IReadOnlyList<IAiAction> eligibleActions, CancellationToken cancellationToken);
 }

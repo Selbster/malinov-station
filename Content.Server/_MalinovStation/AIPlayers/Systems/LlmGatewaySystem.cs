@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Content.Server._MalinovStation.AIPlayers.Actions;
 using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server._MalinovStation.AIPlayers.LLM;
 using Content.Server._MalinovStation.AIPlayers.Perception;
@@ -69,11 +70,20 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     private readonly Dictionary<EntityUid, (Task<string?> Task, Action<EntityUid, string?> OnComplete)> _pendingLines = new();
     private readonly List<EntityUid> _finishedLinesBuffer = new();
 
-    /// <summary>AI Players 2.0 Milestone 1: same shape as <see cref="_pending"/>, but for cognitive decisions
-    /// - shares <see cref="_lastRequestAt"/>/<see cref="_inFlight"/> with the legacy path rather than
-    /// tracking a second budget, since an entity is never both cognitive and legacy.</summary>
-    private readonly Dictionary<EntityUid, (Task<LlmCognitiveDecision?> Task, TimeSpan StartedAt)> _pendingCognitive = new();
-    private readonly List<EntityUid> _finishedCognitiveBuffer = new();
+    /// <summary>AI Players 0.4 Milestone 3: the hierarchical decision's first stage - shares
+    /// <see cref="_lastRequestAt"/>/<see cref="_inFlight"/> with the legacy path rather than tracking a
+    /// separate budget, since an entity is never both cognitive and legacy.</summary>
+    private readonly Dictionary<EntityUid, (Task<LlmIntentDecision?> Task, TimeSpan StartedAt)> _pendingIntent = new();
+    private readonly List<EntityUid> _finishedIntentBuffer = new();
+
+    /// <summary>The hierarchical decision's second stage - only ever populated from within
+    /// <see cref="HandleCompletedIntentRequest"/> once stage one resolves with a category that has a genuine
+    /// choice among its eligible actions (see <see cref="TryRequestCognitiveDecision"/>'s doc comment for the
+    /// single-eligible-action skip case that never reaches this dictionary at all). Carries the stage-one
+    /// <see cref="LlmIntentDecision"/> forward so both results can be synthesized back into one
+    /// <see cref="LlmCognitiveDecision"/> once stage two also resolves.</summary>
+    private readonly Dictionary<EntityUid, (Task<LlmActionSelectionDecision?> Task, TimeSpan StartedAt, LlmIntentDecision Intent)> _pendingActionSelection = new();
+    private readonly List<EntityUid> _finishedActionSelectionBuffer = new();
 
     public override void Initialize()
     {
@@ -154,17 +164,19 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     }
 
     /// <summary>
-    /// Whether a cognitive decision request for this entity is currently in flight.
+    /// Whether a cognitive decision (either hierarchical stage) is currently in flight for this entity.
     /// </summary>
-    public bool HasPendingCognitiveRequest(EntityUid uid) => _pendingCognitive.ContainsKey(uid);
+    public bool HasPendingCognitiveRequest(EntityUid uid) => _pendingIntent.ContainsKey(uid) || _pendingActionSelection.ContainsKey(uid);
 
     /// <summary>
-    /// AI Players 2.0 Milestone 1: same gating as <see cref="TryRequestDecision"/> (disabled, Background LOD,
-    /// already-pending, cooldown, concurrency budget), plus the cognitive-mode master switch, using a
-    /// <see cref="CognitiveState"/> instead of the narrower <see cref="AiContext"/>. Shares the same
-    /// <see cref="_lastRequestAt"/> cooldown dict and <see cref="_inFlight"/> budget as the legacy path - an
-    /// entity is never both cognitive and legacy, so there's no real collision, and this keeps the whole
-    /// gateway under one shared concurrency cap rather than two independent ones that could double-spend it.
+    /// AI Players 0.4 Milestone 3: kicks off the hierarchical decision's first stage. Same gating as before
+    /// (disabled, Background LOD, already-pending, cooldown, concurrency budget, cognitive-mode master
+    /// switch), using a <see cref="CognitiveState"/> instead of the narrower <see cref="AiContext"/>. Shares
+    /// the same <see cref="_lastRequestAt"/> cooldown dict and <see cref="_inFlight"/> budget as the legacy
+    /// path - an entity is never both cognitive and legacy. A genuine second HTTP call (Action Selection) may
+    /// follow once this stage resolves - see <see cref="HandleCompletedIntentRequest"/> - but that
+    /// continuation reuses this same in-flight decision rather than re-entering this method's gating, so it
+    /// can never be blocked by this entity's own cooldown mid-decision.
     /// </summary>
     public bool TryRequestCognitiveDecision(EntityUid uid)
     {
@@ -174,7 +186,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         if (_lod.IsBackground(uid))
             return false;
 
-        if (_pendingCognitive.ContainsKey(uid))
+        if (HasPendingCognitiveRequest(uid))
             return false;
 
         if (_lastRequestAt.TryGetValue(uid, out var last) &&
@@ -190,12 +202,14 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         if (context is null)
             return false;
 
+        var eligibleCategories = _actionRegistry.GetEligibleCategories(uid);
+
         _lastRequestAt[uid] = _timing.CurTime;
         _inFlight++;
         LlmRequestsMetric.Inc();
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
-        _pendingCognitive[uid] = (_client.DecideCognitiveAsync(context, GetAllowedIntents(), cts.Token), _timing.CurTime);
+        _pendingIntent[uid] = (_client.DecideIntentAsync(context, GetAllowedIntents(), eligibleCategories, cts.Token), _timing.CurTime);
         return true;
     }
 
@@ -240,7 +254,8 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         base.Update(frameTime);
 
         UpdatePendingDecisions();
-        UpdatePendingCognitiveDecisions();
+        UpdatePendingIntentDecisions();
+        UpdatePendingActionSelections();
         UpdatePendingLines();
         UpdateReflectionTriggers(frameTime);
     }
@@ -289,41 +304,51 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         }
     }
 
-    private void UpdatePendingCognitiveDecisions()
+    private void UpdatePendingIntentDecisions()
     {
-        if (_pendingCognitive.Count == 0)
+        if (_pendingIntent.Count == 0)
             return;
 
-        _finishedCognitiveBuffer.Clear();
-        foreach (var (uid, entry) in _pendingCognitive)
+        _finishedIntentBuffer.Clear();
+        foreach (var (uid, entry) in _pendingIntent)
         {
             if (entry.Task.IsCompleted)
-                _finishedCognitiveBuffer.Add(uid);
+                _finishedIntentBuffer.Add(uid);
         }
 
-        foreach (var uid in _finishedCognitiveBuffer)
+        foreach (var uid in _finishedIntentBuffer)
         {
-            var entry = _pendingCognitive[uid];
-            _pendingCognitive.Remove(uid);
+            var entry = _pendingIntent[uid];
+            _pendingIntent.Remove(uid);
             _inFlight--;
 
             LlmDecisionLatencyMetric.Observe((_timing.CurTime - entry.StartedAt).TotalSeconds);
-            HandleCompletedCognitiveRequest(uid, entry.Task);
+            HandleCompletedIntentRequest(uid, entry.Task);
         }
     }
 
-    private void HandleCompletedCognitiveRequest(EntityUid uid, Task<LlmCognitiveDecision?> task)
+    /// <summary>
+    /// AI Players 0.4 Milestone 3: the hierarchical decision's first stage resolved. On any failure, this is
+    /// exactly the same graceful failure the old single-call path had - no state changed, nothing left
+    /// pending. On success: writes <see cref="IntentComponent"/> immediately and unconditionally (the same
+    /// "the AI still wanted it even if the concrete action then fails" invariant <see cref="IntentComponent"/>'s
+    /// own doc comment establishes, now extended one step earlier - the AI can "want" something even before
+    /// it's figured out which concrete action gets there). Then either applies a synthesized decision directly
+    /// (the sole-eligible-action skip case - no second HTTP call for a choice that was never real, spec
+    /// Milestone 2's "use LLM reasoning only when the question is genuinely cognitive") or kicks off stage two.
+    /// </summary>
+    private void HandleCompletedIntentRequest(EntityUid uid, Task<LlmIntentDecision?> task)
     {
         if (task.IsFaulted)
         {
-            _sawmill.Warning($"LLM cognitive request for {ToPrettyString(uid)} threw: {task.Exception?.GetBaseException().Message}");
+            _sawmill.Warning($"LLM intent request for {ToPrettyString(uid)} threw: {task.Exception?.GetBaseException().Message}");
             _trace.LlmFailure(uid, "RequestThrew");
             return;
         }
 
         if (task.IsCanceled)
         {
-            _sawmill.Debug($"LLM cognitive request for {ToPrettyString(uid)} timed out or was cancelled.");
+            _sawmill.Debug($"LLM intent request for {ToPrettyString(uid)} timed out or was cancelled.");
             _trace.LlmFailure(uid, "TimeoutOrCancelled");
             return;
         }
@@ -334,14 +359,119 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         var result = task.Result;
 #pragma warning restore RA0004
 
-        if (result is not { } decision)
+        if (result is not { } intent)
         {
-            _sawmill.Debug($"LLM returned no usable cognitive decision for {ToPrettyString(uid)}.");
+            _sawmill.Debug($"LLM returned no usable intent decision for {ToPrettyString(uid)}.");
             _trace.LlmFailure(uid, "NoUsableDecision");
             return;
         }
 
-        TryApplyCognitiveDecision(uid, decision);
+        if (Deleted(uid) || !TryComp<IntentComponent>(uid, out var intentComp))
+            return;
+
+        intentComp.Name = intent.Intention;
+        intentComp.Priority = Math.Clamp(intent.Priority, 0f, 1f);
+        intentComp.Confidence = Math.Clamp(intent.Confidence, 0f, 1f);
+        intentComp.DesireServed = intent.Desire;
+        intentComp.ChosenAt = _timing.CurTime;
+
+        var eligibleInCategory = _actionRegistry.GetEligibleActions(uid).Where(a => a.Category == intent.Category).ToList();
+
+        if (eligibleInCategory.Count == 0)
+        {
+            _sawmill.Warning($"LLM proposed category \"{intent.Category}\" for {ToPrettyString(uid)}, which has no eligible actions right now.");
+            _trace.LlmFailure(uid, "NoEligibleActionsInCategory");
+            return;
+        }
+
+        if (eligibleInCategory.Count == 1 && eligibleInCategory[0].Name == ContinueActivityAction.ActionName)
+        {
+            TryApplyCognitiveDecision(uid, new LlmCognitiveDecision(
+                intent.Desire, intent.Intention, intent.Priority, intent.Confidence, intent.Reason,
+                ContinueActivityAction.ActionName, new Dictionary<string, string>()));
+            return;
+        }
+
+        var context = _contextBuilder.BuildCognitiveState(uid);
+        if (context is null)
+            return;
+
+        _inFlight++;
+        LlmRequestsMetric.Inc();
+
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
+        _pendingActionSelection[uid] = (_client.SelectActionAsync(context, intent, eligibleInCategory, cts.Token), _timing.CurTime, intent);
+    }
+
+    private void UpdatePendingActionSelections()
+    {
+        if (_pendingActionSelection.Count == 0)
+            return;
+
+        _finishedActionSelectionBuffer.Clear();
+        foreach (var (uid, entry) in _pendingActionSelection)
+        {
+            if (entry.Task.IsCompleted)
+                _finishedActionSelectionBuffer.Add(uid);
+        }
+
+        foreach (var uid in _finishedActionSelectionBuffer)
+        {
+            var entry = _pendingActionSelection[uid];
+            _pendingActionSelection.Remove(uid);
+            _inFlight--;
+
+            LlmDecisionLatencyMetric.Observe((_timing.CurTime - entry.StartedAt).TotalSeconds);
+            HandleCompletedActionSelectionRequest(uid, entry.Task, entry.Intent);
+        }
+    }
+
+    /// <summary>
+    /// AI Players 0.4 Milestone 3: the hierarchical decision's second stage resolved. Intent was already
+    /// written when stage one completed (see <see cref="HandleCompletedIntentRequest"/>) - a failure here
+    /// only means the concrete action never got chosen/executed, exactly like a failed proposal in the old
+    /// single-call path.
+    /// </summary>
+    private void HandleCompletedActionSelectionRequest(EntityUid uid, Task<LlmActionSelectionDecision?> task, LlmIntentDecision intent)
+    {
+        if (task.IsFaulted)
+        {
+            _sawmill.Warning($"LLM action selection request for {ToPrettyString(uid)} threw: {task.Exception?.GetBaseException().Message}");
+            _trace.LlmFailure(uid, "RequestThrew");
+            return;
+        }
+
+        if (task.IsCanceled)
+        {
+            _sawmill.Debug($"LLM action selection request for {ToPrettyString(uid)} timed out or was cancelled.");
+            _trace.LlmFailure(uid, "TimeoutOrCancelled");
+            return;
+        }
+
+#pragma warning disable RA0004
+        var result = task.Result;
+#pragma warning restore RA0004
+
+        if (result is not { } selection)
+        {
+            _sawmill.Debug($"LLM returned no usable action selection for {ToPrettyString(uid)}.");
+            _trace.LlmFailure(uid, "NoUsableDecision");
+            return;
+        }
+
+        // Re-checked fresh rather than trusting the eligible list stage two was originally offered - the same
+        // "CanDo/Do never trust an earlier scan" convention every IAiAction already follows, since eligibility
+        // can genuinely change during the round-trip (e.g. someone else picked up the same item).
+        if (!_actionRegistry.GetEligibleActions(uid).Any(a => a.Name == selection.Action && a.Category == intent.Category))
+        {
+            _sawmill.Warning($"LLM selected action \"{selection.Action}\" for {ToPrettyString(uid)}, which wasn't among the eligible actions it was offered.");
+            _trace.LlmFailure(uid, "ActionNotEligible");
+            return;
+        }
+
+        TryApplyCognitiveDecision(uid, new LlmCognitiveDecision(
+            intent.Desire, intent.Intention, intent.Priority, intent.Confidence, selection.Reason,
+            selection.Action, selection.ActionParameters));
     }
 
     private void UpdatePendingLines()
@@ -471,7 +601,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
             return false;
         }
 
-        if (!_actionRegistry.TryDoAction(uid, proposal.ActionName, proposal.Parameters, out var doFailReason))
+        if (!_actionRegistry.TryDoAction(uid, proposal.ActionName, proposal.Parameters, decision.Reason, out var doFailReason))
         {
             _trace.ActionFailed(uid, proposal.ActionName, doFailReason);
             return false;

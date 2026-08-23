@@ -36,6 +36,11 @@ public sealed partial class AiTraceSystem : EntitySystem
 
     [Dependency] private ILogManager _logManager = default!;
     [Dependency] private MemorySystem _memory = default!;
+    [Dependency] private BeliefSystem _belief = default!;
+
+    /// <summary>AI Players 0.4 Milestone 12: how many consecutive identical action failures before it becomes
+    /// a Belief instead of just another outcome memory - see <see cref="AiTraceStateComponent.ConsecutiveActionFailures"/>.</summary>
+    public const int ConsecutiveFailuresBeforeBelief = 3;
 
     private ISawmill _sawmill = default!;
 
@@ -159,7 +164,10 @@ public sealed partial class AiTraceSystem : EntitySystem
         // zero memory writes of its own.
         if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
         {
-            _memory.AddMemory(uid, content: $"Tried to {goal} but made no progress and gave up.", importance: 0.3f, source: "outcome", emotionalWeight: -0.2f);
+            var content = $"Tried to {goal} but made no progress and gave up.";
+            _memory.AddMemory(uid, content: content,
+                importance: MemoryImportanceScorer.Score("outcome", emotionalWeight: -0.2f, content: content),
+                source: "outcome", emotionalWeight: -0.2f);
             // AI Players 0.3: a failed goal is exactly the kind of outcome that should shorten the wait until
             // the AI reconsiders (spec's "current intent invalidated" trigger), same precedent as
             // DangerSystem forcing GoalComponent.ReconsiderAccumulator to 0 on a new attack.
@@ -210,7 +218,10 @@ public sealed partial class AiTraceSystem : EntitySystem
 
         if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
         {
-            _memory.AddMemory(uid, content: $"Was in the middle of {goal} when {byGoal} became more urgent.", importance: 0.25f, source: "outcome");
+            var content = $"Was in the middle of {goal} when {byGoal} became more urgent.";
+            _memory.AddMemory(uid, content: content,
+                importance: MemoryImportanceScorer.Score("outcome", content: content),
+                source: "outcome");
             cognitive.ReflectionAccumulator = 0f;
         }
     }
@@ -252,8 +263,30 @@ public sealed partial class AiTraceSystem : EntitySystem
 
         if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
         {
-            _memory.AddMemory(uid, content: $"Attempted {action} but it failed: {reason}.", importance: 0.2f, source: "outcome", emotionalWeight: -0.1f);
+            var content = $"Attempted {action} but it failed: {reason}.";
+            _memory.AddMemory(uid, content: content,
+                importance: MemoryImportanceScorer.Score("outcome", emotionalWeight: -0.1f, content: content),
+                source: "outcome", emotionalWeight: -0.1f);
             cognitive.ReflectionAccumulator = 0f;
+
+            // AI Players 0.4 Milestone 12: repeated failure of the exact same thing is a pattern worth
+            // actually believing something about, not just another one-off outcome memory.
+            if (TryComp<AiTraceStateComponent>(uid, out var state))
+            {
+                var key = $"{action}|{reason}";
+                state.ConsecutiveActionFailures.TryGetValue(key, out var count);
+                count++;
+                state.ConsecutiveActionFailures[key] = count;
+
+                if (count == ConsecutiveFailuresBeforeBelief)
+                {
+                    _belief.AddBelief(uid,
+                        subject: action,
+                        content: $"{action} might not be reliable right now - it's failed the same way {count} times in a row ({reason}).",
+                        confidence: 0.6f,
+                        source: "repeated-failure");
+                }
+            }
         }
     }
 
