@@ -1,51 +1,67 @@
 ---
 name: ss14-graphics-animation-player
-description: A deep practical guide to entity animations using the AnimationPlayerSystem in SS14: lifecycle, API, track types, keyframes/interpolation/easing, completion events, patterns and anti-patterns for production code.
+description: A deep practical guide to entity animations using the AnimationPlayerSystem in SS14: lifecycle, API, track types, keyframes/interpolation/easing, completion events, production patterns and anti-patterns. Use it when a visual must change over time under local client control — tweens, RSI flicks, timed effects — or when choosing between animating and discrete GenericVisualizer mapping.
 ---
 
 # Animations via AnimationPlayer in SS14
 
-This skill only covers entity animations via `AnimationPlayerSystem` :)
-UI animations (`Control.PlayAnimation`) and shader/overlay effects are handled in separate skills.
+Scope: entity animations through `AnimationPlayerSystem` only. UI animations (`Control.PlayAnimation`) are out of
+scope; discrete visual-state mapping belongs to `ss14-graphics-generic-visualizer-appearance`, low-level sprite
+work to `ss14-graphics-sprite-system`, sound specifiers to `ss14-audio-system-api`.
+
+## Reading order
+
+1. This file top-to-bottom: runtime facts -> API -> track selection -> examples.
+2. Extended catalog: `references/examples.md` (flick + light pulse, manual loops, sound tracks, color flash).
+
+Source of truth: RobustToolbox client code wins over docs; verify every API against HEAD before reuse.
+
+An animation is a local client-side timeline of an effect, not network business logic.
+
+> **Single most important pattern**: guard every repeatable `Play` with `HasRunningAnimation(uid, key)` and branch
+> on `args.Finished` in every `AnimationCompletedEvent` handler. Unguarded `Play` throws on a duplicate key;
+> ignoring `Finished` restarts loops right after a forced stop.
 
 ## When to use
 
-Choose `AnimationPlayerSystem` when needed:
+Use `AnimationPlayerSystem` when a visual must change **over time** under local client control:
 
-- smoothly change the properties of components over time (`SpriteComponent`, `TransformComponent`, `PointLightComponent`, etc.);
-- run flick animations of RSI states by layers;
-- synchronize visual and sound in one timeline;
-- handle completion/interruption of animation through events.
+- smooth property tweens (`SpriteComponent`, `TransformComponent`, `PointLightComponent`, ...);
+- RSI state flicks on a layer along a timeline;
+- synchronized "visual + sound" inside one timeline;
+- completion/interruption handled through events.
 
-Don't use it for static visual states without time: this is the normal `SpriteSystem`/`GenericVisualizer` zone.
+Triggering condition: the effect has duration and phases.
+Non-triggering condition: a discrete `data -> layer/state/color` mapping with no timeline — use `GenericVisualizer`
+(sibling skill) instead of animating.
 
 ## Mental model
 
-1. You create `Animation` (`Length` + list `AnimationTracks`).
-2. You play it through `AnimationPlayerSystem.Play(...)` under the unique `key`.
-3. The system moves the playback every frame and applies the track values.
-4. Upon completion, `AnimationCompletedEvent` (`Finished = true`) arrives.
-5. When manually stopping `Stop(...)` also comes `AnimationCompletedEvent`, but `Finished = false`.
+1. Build an `Animation` (`Length` + list of `AnimationTracks`).
+2. Play it via `AnimationPlayerSystem.Play(...)` under a unique string `key`.
+3. The system advances playback every frame and applies track values.
+4. Natural completion raises `AnimationCompletedEvent` with `Finished = true`.
+5. Manual `Stop(...)` raises the same event, but with `Finished = false`.
 
-Idea: animation is a local timeline of the effect, not network business logic :)
+## Client/server boundary and runtime facts
 
-## Important client/server boundary
-
-- `AnimationPlayerComponent` — client entity of the visual.
-- On the server, this component is ignored by the component factory.
-- The server reports the state, the client decides when and how to visually animate.
+- `AnimationPlayerComponent` exists only in Robust.Client; the server never registers it.
+- `Play(uid, ...)` auto-adds `AnimationPlayerComponent` via `EnsureComp`;
+  prefer passing `(uid, component)` explicitly when the component already exists.
+- `FrameUpdate` skips paused entities: animations freeze while paused and resume on unpause.
+- Debug builds log an error if the entity lacks the animated component (the animation aborts),
+  and warn when an `[AutoNetworkedField]` property of a networked component is animated
+  (every frame dirties that component -> network spam).
 
 ## API parsing `AnimationPlayerSystem`
 
 ### Launch
 
 - `Play(EntityUid uid, Animation animation, string key)`
-- `Play(Entity<AnimationPlayerComponent> ent, Animation animation, string key)`
+- `Play(Entity<AnimationPlayerComponent> ent, Animation animation, string key)` — preferred
+- Obsolete `Play(EntityUid, AnimationPlayerComponent?, Animation, string)` — do not use in new code.
 
-Practice:
-
-- use stable key constants;
-- before `Play` check `HasRunningAnimation` if the key may be repeated.
+Practice: stable key constants; guard with `HasRunningAnimation` before replaying a possibly active key.
 
 ### Checking running
 
@@ -57,106 +73,98 @@ Practice:
 
 - `Stop(Entity<AnimationPlayerComponent?> entity, string key)`
 - `Stop(EntityUid uid, AnimationPlayerComponent? component, string key)`
+- Obsolete `Stop(AnimationPlayerComponent, string)` — do not use in new code.
 
-The stop triggers a completion event with `Finished = false`.
+Stopping removes playback immediately and raises `AnimationCompletedEvent(Finished = false)`.
 
 ### Events
 
-- `AnimationStartedEvent`
-- `AnimationCompletedEvent`
-  - `Key`
-  - `Finished` (natural termination or forced)
+- `AnimationStartedEvent { Uid, AnimationPlayer, Key }`
+- `AnimationCompletedEvent { Uid, AnimationPlayer, Key, Finished }`
+
+Both are raised locally on the entity bus, client-side only
+(start from `Play`, completion from `FrameUpdate`); subscribe from client systems.
+
+// Verify: RobustToolbox/Robust.Client/GameObjects/EntitySystems/AnimationPlayerSystem.cs — grep Play( / HasRunningAnimation / Stop(
 
 ## Structure `Animation`
 
-- `Length`: total playback length.
-- `AnimationTracks`: several tracks run synchronously.
+- `Length`: total duration; must cover the sum of all track keyframe deltas.
+- `AnimationTracks`: several tracks run synchronously on one shared timeline.
 
-Rule: `Length` must cover all the necessary key phases of the tracks.
+Cache reusable animations in `static readonly` fields. Playback state lives in a separate
+playback object created per play, so one cached instance can play concurrently on many entities.
 
-## Types of tracks and when to take which one
+## Track types and when to take which one
 
 ### `AnimationTrackComponentProperty`
 
-Changes the component property by keyframes.
+Animates a component property by keyframes.
+Fields: `ComponentType = typeof(...)`, `Property = nameof(...)`, `KeyFrames`,
+optional `InterpolationMode` (default `Linear`).
 
-Required fields:
+Use for client-side properties: `SpriteComponent.Scale/Offset/Color/Rotation`,
+`TransformComponent.LocalPosition`, `PointLightComponent.AnimatedRadius/AnimatedEnable/Rotation`, ...
 
-- `ComponentType = typeof(...)`
-- `Property = nameof(...)`
-- `KeyFrames`
-- optional `InterpolationMode`
+Extension point: if the target component implements `IAnimationProperties`, values arrive through its
+`SetAnimatableProperty(Property, value)` instead of reflection — useful for custom animatable state.
 
-Use for:
-
-- `SpriteComponent.Scale/Offset/Color/Rotation`;
-- `TransformComponent.LocalPosition`;
-- `PointLightComponent.AnimatedRadius/AnimatedEnable/Rotation`, etc.
+Never target properties marked `[AutoNetworkedField]` on networked components — see runtime facts above.
 
 ### `AnimationTrackSpriteFlick`
 
-Controls the RSI-state of the layer over time.
-
-Required fields:
-
-- `LayerKey` (usually layer enum);
-- `KeyFrames` with `StateId`.
-
-Use it when you need to play the state animation of the layer.
+Plays an RSI state on one sprite layer over time, disabling auto-animation for that layer.
+Fields: `LayerKey` (layer map key, usually a layer enum), `KeyFrames(StateId, delta)`.
 
 ### `AnimationTrackPlaySound`
 
-Plays sound on the given keyframes.
-
-Use for precise synchronization of “visual + sound” in one timeline.
+Fires a resolved sound specifier at given keyframes; precise "visual + sound" sync in one timeline.
 
 ## KeyFrame and interpolation
 
 `AnimationTrackProperty.KeyFrame(value, keyTime, easing?)`:
 
-- `keyTime` is a **delta** from the previous keyframe, not an absolute time.
-- `easing` applies to the transition between the previous and current frame.
+- `keyTime` is a **delta from the previous keyframe**, not an absolute timestamp;
+- `easing` (`Func<float, float>`, e.g. `Easings.OutQuad`) reshapes interpolation toward this keyframe.
 
-`AnimationInterpolationMode`:
-
-- `Linear`
-- `Cubic`
-- `Nearest`
-- `Previous`
-
-For unsupported types, interpolation actually behaves like a discrete step (previous value).
+`AnimationInterpolationMode`: `Linear` (default) / `Cubic` / `Nearest` / `Previous`.
+Linear/Cubic interpolate Vector2/3/4, float, double, int, Angle and Color;
+unsupported types fall back to discrete steps (previous value).
 
 ## Practical examples
 
-### Example 1: secure launch by key
+### Example 1: guarded launch by key
 
 ```csharp
 private const string AnimKey = "rotating_light";
 
 private void TryPlayRotation(EntityUid uid, AnimationPlayerComponent player, Animation anim)
 {
-    // We do not allow key conflicts in PlayingAnimations.
+    // Playback storage throws on a duplicate key, so gate replays.
     if (_anim.HasRunningAnimation(uid, player, AnimKey))
         return;
 
     _anim.Play((uid, player), anim, AnimKey);
 }
+// Verify: AnimationPlayerSystem.cs — grep HasRunningAnimation / Play(
 ```
 
-### Example 2: correct stop + cleanup
+### Example 2: restore visuals, then stop
 
 ```csharp
-private void StopFallAnimation(EntityUid uid, AnimationPlayerComponent player, SpriteComponent sprite, Vector2 originalScale)
+private void StopFallAnimation(EntityUid uid, AnimationPlayerComponent player,
+    SpriteComponent sprite, Vector2 originalScale)
 {
-    // First, we return the visual parameters to their basic state.
+    // Restore base visuals BEFORE stopping so no further frame rewrites them.
     _sprite.SetScale((uid, sprite), originalScale);
 
-    // Then we stop the animation by key.
+    // Raises AnimationCompletedEvent with Finished = false.
     _anim.Stop((uid, player), "chasm_fall");
 }
+// Verify: AnimationPlayerSystem.cs — grep public void Stop(
 ```
 
-### Example 3: property-track with easing
+### Example 3: property-track tween with easing
 
 ```csharp
 private static Animation BuildPickupAnim(Vector2 from, Vector2 to, Color startColor)
@@ -191,163 +199,66 @@ private static Animation BuildPickupAnim(Vector2 from, Vector2 to, Color startCo
         }
     };
 }
+// Verify: Content.Client/Animations/EntityPickupAnimationSystem.cs — grep AnimationTrackComponentProperty;
+// easing samples live in melee swing effects (grep Easings.OutQuart there).
 ```
 
-### Example 4: combined track (flick + light)
-
-```csharp
-private static readonly Animation ProximityAnim = new()
-{
-    Length = TimeSpan.FromSeconds(0.6f),
-    AnimationTracks =
-    {
-        new AnimationTrackSpriteFlick
-        {
-            LayerKey = ProximityTriggerVisualLayers.Base,
-            KeyFrames = { new AnimationTrackSpriteFlick.KeyFrame("flashing", 0f) }
-        },
-        new AnimationTrackComponentProperty
-        {
-            ComponentType = typeof(PointLightComponent),
-            Property = nameof(PointLightComponent.AnimatedRadius),
-            InterpolationMode = AnimationInterpolationMode.Nearest,
-            KeyFrames =
-            {
-                new AnimationTrackProperty.KeyFrame(0.1f, 0f),
-                new AnimationTrackProperty.KeyFrame(3f, 0.1f),
-                new AnimationTrackProperty.KeyFrame(0.1f, 0.5f)
-            }
-        }
-    }
-};
-```
-
-### Example 5: manual loop via `AnimationCompletedEvent`
-
-```csharp
-private void OnAnimationCompleted(EntityUid uid, RotatingLightComponent comp, AnimationCompletedEvent args)
-{
-    if (args.Key != "rotating_light")
-        return;
-
-    // We re-beat only at natural completion.
-    if (!args.Finished)
-        return;
-
-    if (!TryComp<AnimationPlayerComponent>(uid, out var player))
-        return;
-
-    _anim.Play((uid, player), BuildRotation(comp.Speed), "rotating_light");
-}
-```
-
-### Example 6: flick with infinite length + sound
-
-```csharp
-private Animation BuildPrimingAnimation(ResolvedSoundSpecifier? sound)
-{
-    var anim = new Animation
-    {
-        Length = TimeSpan.MaxValue,
-        AnimationTracks =
-        {
-            new AnimationTrackSpriteFlick
-            {
-                LayerKey = TriggerVisualLayers.Base,
-                KeyFrames = { new AnimationTrackSpriteFlick.KeyFrame("primed", 0f) }
-            }
-        }
-    };
-
-    if (sound != null)
-    {
-        anim.AnimationTracks.Add(new AnimationTrackPlaySound
-        {
-            KeyFrames = { new AnimationTrackPlaySound.KeyFrame(sound.Value, 0f) }
-        });
-    }
-
-    return anim;
-}
-```
-
-### Example 7: Animate a color without duplicating a component
-
-```csharp
-private Animation BuildColorFlash(Color from, Color to, float seconds)
-{
-    return new Animation
-    {
-        Length = TimeSpan.FromSeconds(seconds),
-        AnimationTracks =
-        {
-            new AnimationTrackComponentProperty
-            {
-                ComponentType = typeof(SpriteComponent),
-                Property = nameof(SpriteComponent.Color),
-                InterpolationMode = AnimationInterpolationMode.Linear,
-                KeyFrames =
-                {
-                    new AnimationTrackProperty.KeyFrame(from, 0f),
-                    new AnimationTrackProperty.KeyFrame(to, seconds)
-                }
-            }
-        }
-    };
-}
-```
-
-### Example 8: connection with appearance without spam
-
-```csharp
-private void UpdateTriggeredState(EntityUid uid, AnimationPlayerComponent player, ProximityTriggerVisuals state)
-{
-    switch (state)
-    {
-        case ProximityTriggerVisuals.Active:
-            if (!_anim.HasRunningAnimation(uid, player, "proximity"))
-                _anim.Play((uid, player), ProximityAnim, "proximity");
-            break;
-        case ProximityTriggerVisuals.Inactive:
-        case ProximityTriggerVisuals.Off:
-            _anim.Stop((uid, player), "proximity");
-            break;
-    }
-}
-```
+Extended catalog lives in `references/examples.md`: combined flick + light pulse, manual loop,
+infinite flick + sound, color flash helper, driving animations from appearance data without spam.
 
 ## Patterns 🙂
 
-- Store animation keys as constants near the system.
-- Before `Play`, check `HasRunningAnimation` if the key may be repeated.
-- For replays, prefer `AnimationCompletedEvent` + `args.Finished`.
-- On `ComponentShutdown/Remove` return the original visual values ​​(scale/offset/color).
-- Combine several tracks in one `Animation` if they need a common timeline.
-- Use `nameof(...)` for `Property` to avoid breaking during refactoring.
+1. Store animation keys as constants next to the consuming system — prevents typo drift between Play/Stop/listener.
+2. Gate repeated `Play` with `HasRunningAnimation`; applies whenever the same key may fire twice (toggles, retriggers); unnecessary for strictly one-shot lifecycles.
+3. Drive replays from `AnimationCompletedEvent` + `args.Finished == true` — prevents restart after forced stop.
+4. Restore original visual values on `ComponentShutdown` or forced stop — prevents stuck scale/offset/color.
+5. Combine tracks that need phase lock into one `Animation` instead of parallel plays.
+6. Use `nameof(...)` for `Property` — survives refactors.
+7. Cache built animations in `static readonly` fields — avoids rebuilding graphs per play.
 
 ## Anti-patterns ❌
 
-- Play `Play` again with the same key without checking (risk of exclusion for a duplicate key).
-- Forget to cleanup after an interrupted animation.
-- Try to animate properties that are not animable.
-- Embed server business logic into the client animation system.
-- Re-create heavy animations every frame without having to.
-- Confuse entity-animation (`AnimationPlayerSystem`) and UI-animation (`Control.PlayAnimation`).
+- Playing with a key that is already active (exception, playback lost).
+- Leaving visuals dirty after an interrupted animation.
+- Animating non-existent components or `[AutoNetworkedField]` networked properties (abort / dirty-spam warning).
+- Embedding server business logic into client animation systems.
+- Rebuilding heavy `Animation` objects every frame without need.
+- Confusing entity animation (`AnimationPlayerSystem`) with UI animation (`Control.PlayAnimation`).
+- Subscribing to animation events from shared/server code — they fire only on the client.
 
 ## Checklist before change ✅
 
-- Is there a stable `AnimationKey`?
-- Is there a guard for repeated `Play`?
-- Is `Finished` checked in `AnimationCompletedEvent`?
-- Are the original visual parameters returned during shutdown/stop?
-- Does `Length` really cover all keyframe transitions?
-- Is the correct `ComponentType` + `Property` specified for `AnimationTrackComponentProperty`?
+- Stable `AnimationKey` constant?
+- Guard for repeated `Play`?
+- `args.Finished` checked in the completion handler?
+- Original visual parameters restored on shutdown/stop?
+- Does `Length` cover all keyframe deltas?
+- Correct `ComponentType` + `Property`, and the property is not networked?
 
 ## Common errors
 
-- `keyTime` is treated as an absolute timestamp, not a delta.
-- The animation is stopped, but they forget to return the original `SpriteComponent` state.
-- Use `string` literals instead of `nameof(...)` and break the animation when renaming.
-- Listen to `AnimationCompletedEvent`, but do not filter `args.Key`.
-- Launch animation on an entity without the required component.
-- They don’t differentiate between `Finished = true` and `Finished = false`, which causes the loop to start in the wrong place ⚠
+- Treating `keyTime` as an absolute timestamp instead of a delta.
+- Stopping an animation but not restoring the original `SpriteComponent` state.
+- String literals for keys/properties instead of constants/`nameof`.
+- Not filtering `args.Key` in completion handlers.
+- Animating a component the entity lacks — debug error log and aborted animation.
+- Ignoring `Finished = false`, which restarts a loop at the wrong moment.
+
+## SS14 dimension checklist
+
+| Dimension | Covered | Notes |
+|---|---|---|
+| Prediction gating | N/A | Client-only component; no predicted writes involved |
+| Server / Client / Shared split | Covered | Component + system exist only in Robust.Client |
+| Event / update ordering | N/A | Driven by client `FrameUpdate`; no fixed-step ordering constraints |
+| Component lifecycle | Covered | Restore visuals on shutdown/stop; events raised during `FrameUpdate` |
+| Hot path & allocations | Covered | Cache `static readonly Animation`; avoid `[AutoNetworkedField]` targets |
+| PVS / network visibility | Covered | Out-of-PVS entities are detached and force-paused, so playback freezes; resumes automatically when metadata state reapplies |
+
+## Extension and change rule
+
+Add new recipes to `references/examples.md` rather than growing this file past its budget.
+When upstream changes overloads, verify signatures against RobustToolbox HEAD and update the
+API parsing block in place; keep obsolete overloads listed only as "do not use".
+
+Verified against code state: 2026-08-23
