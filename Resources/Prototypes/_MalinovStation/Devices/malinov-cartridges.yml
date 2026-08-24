@@ -1,0 +1,16 @@
+- type: entity
+  parent: BasePDACartridge
+  id: MalinovMessengerCartridge
+  name: Malinov Messenger cartridge
+  description: A program for instant messaging across the station.
+  components:
+  - type: Sprite
+    state: cart-m
+  - type: UIFragment
+    ui: !type:MalinovMessengerUi
+  - type: Cartridge
+    programName: malinov-messenger-program-name
+    icon:
+      sprite: Objects/Devices/pda.rsi
+      state: pda
+  - type: MalinovMessengerCartridge

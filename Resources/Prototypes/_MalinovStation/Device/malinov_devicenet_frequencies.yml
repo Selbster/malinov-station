@@ -1,0 +1,4 @@
+- type: deviceFrequency
+  id: MalinovMessengerFrequency
+  name: device-frequency-malinov-messenger
+  frequency: 2210
