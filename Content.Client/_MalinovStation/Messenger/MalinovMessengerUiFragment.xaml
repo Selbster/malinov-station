@@ -3,6 +3,9 @@
                                       Margin="1 0 2 0">
     <PanelContainer StyleClasses="BackgroundDark"></PanelContainer>
     <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
+        <Label Name="HeaderLabel" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
+        <Label Name="StatusLabel" HorizontalAlignment="Center" VerticalExpand="True" Visible="False" />
+        <ItemList Name="ContactsList" HorizontalExpand="True" VerticalExpand="True" Visible="False" />
         <Label Name="PlaceholderLabel" HorizontalAlignment="Center" VerticalAlignment="Center" VerticalExpand="True" />
     </BoxContainer>
 </messenger:MalinovMessengerUiFragment>

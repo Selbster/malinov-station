@@ -23,9 +23,9 @@ public sealed partial class MalinovMessengerUi : UIFragment
 
     public override void UpdateState(BoundUserInterfaceState state)
     {
-        if (state is not MalinovMessengerUiState)
+        if (state is not MalinovMessengerUiState messengerState)
             return;
 
-        _fragment?.UpdateState();
+        _fragment?.UpdateState(messengerState);
     }
 }
