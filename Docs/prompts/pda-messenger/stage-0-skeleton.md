@@ -5,7 +5,7 @@
 https://github.com/Selbster/malinov-station.
 
 🌿 ВЕТКА: работай в ветке `pda-messenger`. НЕ переключайся на `alpha-master`, НЕ мержи.
-Один этап = один атомарный коммит: `feat(pda-messenger): этап 0 — скелет программы мессенджера`.
+Один этап = один атомарный коммит (делает пользователь после review): `feat(pda-messenger): этап 0 — скелет программы мессенджера`.
 
 ## 🛠️ DevOps Gate (из корня репозитория; копия CI проекта .github/workflows/build-test-debug.yml)
 
@@ -25,7 +25,10 @@ https://github.com/Selbster/malinov-station.
 4. ИЗОЛЯЦИЯ И КОНВЕНЦИИ ФОРКА: обязательно прочитай `.agents/skills/ss14-upstream-maintenance/SKILL.md`.
    Всё новое — только в `_MalinovStation`. Vanilla-файлы на этом этапе не менять НИ ОДНОГО.
 5. ОТЧЁТНОСТЬ: создай и обнови `Docs/messenger-rollout.md`:
-   `- [x] Этап 0 — скелет программы (commit: <hash>, CI: green)`.
+   `- [ ] Этап 0 — скелет программы (commit: TBD, CI: green)`.
+   Отмечать `[x]` и вписывать хэш коммита будет пользователь после ручного коммита.
+6. **КОММИТ ДЕЛАЕТ ПОЛЬЗОВАТЕЛЬ.** Агент не выполняет `git commit`, `git push`, merge, rebase
+   и любые другие git-мутации без явного указания.
 
 ## 🧠 Тестирование
 
