@@ -1,124 +1,71 @@
 ---
 name: ss14-standard-optimizations
-description: Practical skill in standard optimizations of Space Station 14: caching, reduction of allocations, abandonment of LINQ in hot-path, ActiveComponent approach, EntityQuery, order of components in EntityQueryEnumerator, ByRef events, DirtyField, early exits and cleaning of unnecessary components. Use it when designing, reviewing and optimizing ECS ​​code in server/shared/client.
+description: Practical skill in standard optimizations of Space Station 14: caching, reduction of allocations, abandonment of LINQ in hot-path, ActiveComponent approach, EntityQuery, order of components in EntityQueryEnumerator, ByRef events, DirtyField, staggered update timers, early exits and cleaning of unnecessary components. Use it when designing, reviewing and optimizing ECS code in server/shared/client.
 ---
 
 # SS14 Standard Optimizations
 
-The goal of the skill: quickly select the correct optimization for ECS code without degradation of readability and without outdated techniques :)
-The main reference: the current behavior of the code. Documentation is an auxiliary layer.
+Goal: pick the correct optimization for ECS code fast — measurable wins only, no readability damage, no outdated techniques :)
+On any docs-vs-code conflict the current fork code wins; reconciliation rules live in `references/docs-reconciliation.md`.
 
-## When to use
+## Mental model
 
-1. Optimize `Update`, frequent event handlers, visual overlays, mass checks.
-2. You do a code review and see frequent `TryComp/HasComp`, LINQ in the hot-path, and unnecessary state components.
-3. Looking for the source of lags/GC spikes in server/shared/client.
+Hot path = `Update`, frequent event handlers, visual overlays, mass checks.
+Optimize only a measured symptom (frame time, GC spikes, network delta size) and pick the cheapest technique first:
+narrow the iteration set (ActiveComponent marker, rare-first query order) → cut repeated work (precomputed invariants, incremental aggregates, early exits, staggered timers) → cut allocations (buffer reuse, no LINQ) → shrink network deltas (`DirtyField`).
 
-## When not to use
+## When to use / not use
 
-1. The code is rarely executed and is not in the hot path.
-2. Optimization complicates the code more than it provides benefits.
-3. No measurable symptom (frame time, GC, network delta size).
+Use when: optimizing the hot path above; a review shows `TryComp/HasComp` spam, LINQ chains or inactive-entity sweeps; hunting lags/GC spikes.
+Do not use when: the code is rarely executed; complexity grows faster than benefit; there is no measurable symptom.
 
 ## Reading order of resources
 
-1. Open `references/optimization-patterns.md` - quick selection matrix.
-2. Open `references/annotated-code-examples.md` - live examples with comments.
-3. Open `references/docs-reconciliation.md` - comparison of docs and actual code.
+1. `references/optimization-patterns.md` — signal → decision → risk router for reviews and refactors.
+2. `references/annotated-code-examples.md` — live examples from this fork, each with a `// Verify:` recipe.
+3. `references/docs-reconciliation.md` — how to resolve docs/code conflicts and judge freshness.
 
-## Source of truth and boundaries of trust
+## Workflow
 
-1. True - actual code of subsystems.
-2. Use Docs as a context for intentions and terms.
-3. If there is a conflict between docs and code, choose the code and explicitly record this in the reasoning.
-4. Don't rely on old pieces without checking for freshness and without the context of the changes.
-
-## Workflow optimization
-
-1. Find the hot-path and record the symptom.
-2. Choose the minimum technique from the cards below.
-3. Compare before/after: number of iterations, allocations, network deltas, behavior.
-4. Add a short explanation to your PR: “what was accelerated” and “why it’s safe.”
+1. Find the hot path and record the symptom. 2. Pick the minimum technique from the cards. 3. Compare before/after: iterations, allocations, network deltas, behavior. 4. Explain in PR "what got faster" and "why it is safe".
 
 ## Optimization cards
 
-### 1) Caching invariants and aggregates before hot-loop ⏱️
+Each card: pattern (with the failure mode it prevents) → anti-pattern → limits. Full annotated snippets with verify recipes live in `references/annotated-code-examples.md`.
+
+### 1) Cache invariants and aggregates before the hot loop ⏱️
 
 **Pattern**
-1. Compute expensive invariants before nested loops (shapes, set of angles, fast-path flags).
-2. Maintain aggregates incrementally (for example, `TargetCount`, `BurstShotsCount`), rather than recalculating collections every tick.
-3. For frequent component checks, additionally cache `EntityQuery<T>`.
+1. Precompute expensive invariants before nested loops (shapes, angle sets, fast-path flags) — prevents O(n·m) recomputation inside the innermost loop.
+2. Maintain aggregates incrementally (`TargetCount`, `BurstShotsCount`) instead of rescanning collections per tick — prevents full-collection walks for one number.
+3. Cache frequent component checks as `EntityQuery<T>` fields — prevents dictionary lookups on every call.
 
 **Anti-pattern**
-1. Call an expensive computation inside the inner loop.
-2. Each time, re-calculate “how much is already there/made”, going through the collections.
-3. Receive query/accessor in every hot-path call.
+1. Expensive computation inside the inner loop.
+2. Recounting "how many are done" by walking collections each tick.
 
-**Code example**
-```csharp
-var itemShape = ItemSystem.GetItemShape(itemEnt); // One shape calculation before cycles.
-var fastAngles = itemShape.Count == 1;
-var angles = new ValueList<Angle>();
+**Limits**: biggest effect at 2+ nested loop levels; for rare code prefer simplicity over micro-optimization.
 
-if (!fastAngles)
-{
-    for (var angle = startAngle; angle <= Angle.FromDegrees(360 - startAngle); angle += Math.PI / 2f)
-        angles.Add(angle); // We precalculated the allowable angles once.
-}
-else
-{
-    angles.Add(startAngle);
-    if (itemShape[0].Width != itemShape[0].Height)
-        angles.Add(startAngle + Angle.FromDegrees(90));
-}
-
-// In the inner loop we use only prepared data.
-foreach (var angle in angles)
-{
-    // Heavy placement/collision checking.
-}
-
-// Incremental aggregate instead of set recalculation:
-if (gun.BurstActivated)
-{
-    gun.BurstShotsCount += shots;
-    if (gun.BurstShotsCount >= gun.ShotsPerBurstModified)
-    {
-        gun.BurstActivated = false;
-        gun.BurstShotsCount = 0;
-    }
-}
-```
-
-**Why is it faster**
-1. The number of repeated calculations in a deep loop is greatly reduced.
-2. The number of traversals of collections for the sake of one aggregate is reduced.
-3. The hot path works on already prepared data.
-
-**Limits of applicability**
-1. The greatest effect is in algorithms with 2+ levels of cycles.
-2. For rare code, choose simplicity over micro-optimization.
-
-### 2) Reduced allocations ♻️
+### 2) Cut allocations ♻️
 
 **Pattern**
-1. Create working collections once as system/UI fields and clear them via `Clear()`.
-2. Pass existing lists/spans to the method instead of creating new ones.
-3. For temporary buffers in the hot-path, use a pool (`ArrayPool<T>`) and a guaranteed `Return`.
+1. Create working collections once as system/UI fields and `Clear()` them per use — prevents gen0 garbage storms and GC-spike frame freezes.
+2. Pass existing lists/spans into methods instead of rebuilding collections per call.
+3. Rent temporary hot-path buffers from `ArrayPool<T>` with a symmetric `Return` in `finally`.
+4. Never share one scratch buffer across reentrant calls: if `RemComp` or an event can synchronously re-enter this system mid-iteration, use a local list or defer work — prevents silent buffer corruption.
 
 **Anti-pattern**
-1. `new List<T>()` per frame/each call.
-2. Copying large collections for one iteration.
-3. Ignoring the pool for repeated short-lived buffers.
+1. `new List<T>()` per frame/call.
+2. Copying large collections for a single pass.
+3. Pool rent without guaranteed return (leaks; dirty data when `Clear` is skipped).
 
-**Code example**
 ```csharp
-private ValueList<EntityUid> _toRemove = new();
+private ValueList<EntityUid> _toRemove = new(); // One field, reused every tick.
 
 public override void Update(float frameTime)
 {
     var query = AllEntityQuery<ColorFlashEffectComponent>();
-    _toRemove.Clear(); // We will reuse without new allocation.
+    _toRemove.Clear(); // Reuse without allocation; safe because RemComp happens after the sweep.
 
     while (query.MoveNext(out var uid, out _))
     {
@@ -131,269 +78,173 @@ public override void Update(float frameTime)
     foreach (var ent in _toRemove)
         RemComp<ColorFlashEffectComponent>(ent);
 }
+// Verify: ColorFlashEffectSystem.cs — grep RemComp<ColorFlashEffectComponent>
 ```
 
-**Why is it faster**
-1. The pressure on the GC is reduced.
-2. Jitter disappears due to frequent short-lived objects.
+**Limits**: clear at the start of every pass — including paths that bail out early — so a half-filled buffer never leaks into the next run; keep rent/return strictly symmetric.
 
-**Limits of applicability**
-1. Ensure collections are cleaned before reuse.
-2. The pool should always have a symmetrical return.
-
-### 3) Refusal of LINQ in hot-path 🚫
+### 3) No LINQ in the hot path 🚫
 
 **Pattern**
-1. In hot spots, use `for/foreach` and explicit early exits.
-2. Leave LINQ for rare/offline operations where compactness is more important.
+1. Rewrite hot spots as `for/foreach` with explicit early exits — prevents per-call delegate/enumerator/result-list allocations that cause jitter.
+2. Keep LINQ for rare/offline code where compactness matters more.
 
 **Anti-pattern**
-1. `Where/Select/Any/Count` in `Update` and frequent handlers.
-2. LINQ chains for simple filters in loops.
+1. `Where/Select/Any/Count` inside `Update` and frequent handlers.
+2. LINQ chains for simple filters inside loops.
 
-**Code example**
+**Limits**: do not turn cold code into micro-optimized noise; readability wins off the hot path.
+
+### 4) Component + ActiveComponent pair 🔋
+
+**Pattern**
+1. The base component holds configuration; a separate `Active...Component` marks "currently active" so `Update` sweeps only active entities — prevents iterating huge sets of inactive ones.
+2. Add/remove the marker exactly at state transitions so queries stay consistent.
+
+**Anti-pattern**
+1. One sweep over all entities with `if (!IsActive) continue`.
+2. An activity flag buried in the base component without a queryable marker.
+
+**Limits**: needs transition discipline; logic must remain consistent through shutdown/removal.
+
 ```csharp
-// ✅ Hot-path: a regular loop without unnecessary enumerators/closures.
-for (var i = 0; i < entities.Count; i++)
-{
-    var uid = entities[i];
-    if (!TryComp(uid, out MyComponent? comp))
-        continue;
-
-    Process(uid, comp);
-}
-
-// ❌ Don't do this in hot-path:
-// entities.Where(HasComp<MyComponent>).Select(...).ToList();
+// Verify: TriggerSystem.Timer.cs — grep RemComp<ActiveTimerTriggerComponent>
 ```
 
-**Why is it faster**
-1. Fewer intermediate objects and delegates.
-2. It is easier to control branches and early exits.
-
-**Limits of applicability**
-1. Don't turn your code into "micro-optimized noise."
-2. If the area is not hot, readability may be more important.
-
-### 4) Pattern Component + ActiveComponent 🔋
+### 5) `EntityQuery<T>` for repeated TryComp/HasComp/Resolve 🔎
 
 **Pattern**
-1. The base component stores the configuration.
-2. A separate `Active...Component` marks “currently active”.
-3. `Update` passes only through active entities.
+1. Cache `EntityQuery<T>` in `Initialize()` and use its typed methods — prevents repeated general-purpose lookups during mass checks.
 
 **Anti-pattern**
-1. One huge list of all entities + `if (!IsActive) continue`.
-2. Activity flags only inside the base component without a separate marker.
+1. Uncached checks repeated back-to-back in high-frequency code.
 
-**Code example**
+**Limits**: gain shows only under frequency; isolated calls are fine uncached.
+
+### 6) Order components in `EntityQueryEnumerator` 📉
+
+**Pattern**
+1. Rarest component first, then rarer-to-massive — prevents building intersections over the larger set; the engine itself notes trait1 should be the smaller set of components.
+
+**Anti-pattern**
+1. Massive component first ("as it came to mind").
+
 ```csharp
-// Activating the timer: added an active marker.
-EnsureComp<ActiveTimerTriggerComponent>(uid);
-
-// Deactivation: the marker was removed, the entity disappeared from the target query.
-RemComp<ActiveTimerTriggerComponent>(uid);
-
-// Iterate over active timers only.
+// Active* is far rarer than the base timer component:
 var query = EntityQueryEnumerator<ActiveTimerTriggerComponent, TimerTriggerComponent>();
+// Verify: TriggerSystem.Timer.cs — grep EntityQueryEnumerator<ActiveTimerTriggerComponent
 ```
 
-**Why is it faster**
-1. The sample size is greatly reduced.
-2. Fewer active/inactive checks within the loop.
+**Limits**: estimate real cardinality in your subsystem; recheck after gameplay data/prototype changes.
 
-**Limits of applicability**
-1. We need discipline for state transitions (adding/removing a marker).
-2. The logic must remain consistent during shutdown/remove.
-
-### 5) EntityQuery for `TryComp/HasComp/Resolve` 🔎
+### 7) `[ByRefEvent] record struct` events ⚡
 
 **Pattern**
-1. For repeated checks of the component, cache `EntityQuery<T>`.
-2. Use `_query.TryComp/_query.HasComp/_query.Comp` instead of frequent general calls.
+1. High-frequency local events: `[ByRefEvent] public record struct ...` raised via `RaiseLocalEvent(uid, ref ev)` — prevents per-event heap allocations and struct copies.
 
 **Anti-pattern**
-1. Call uncached checks in many places in a row.
-2. Ignore typed query in systems with a large number of hits.
+1. Reference-type event classes for frequent gameplay-loop events.
+2. Dropping `ref` on raise/handler of a by-ref event.
 
-**Code example**
-```csharp
-private EntityQuery<TagComponent> _tagQuery;
+**Limits**: negligible gain for rare events; keep handler signatures uniform. Mutations through `ref` roll back with prediction states on the client — gate accordingly.
 
-public override void Initialize()
-{
-    _tagQuery = GetEntityQuery<TagComponent>();
-}
-
-public bool HasTag(EntityUid uid, ProtoId<TagPrototype> tag)
-{
-    return _tagQuery.TryComp(uid, out var tagComp) &&
-           tagComp.Tags.Contains(tag);
-}
-```
-
-**Why is it faster**
-1. A more direct path to component storage.
-2. Fewer redundant operations during mass checks.
-
-**Limits of applicability**
-1. The gain is noticeable with frequent calls, and not in isolated places.
-
-### 6) Component order in `EntityQueryEnumerator()` 📉
+### 8) `DirtyField` over `Dirty` for large networked components 📡
 
 **Pattern**
-1. Place the rarest component first.
-2. The second is less rare, and so on.
+1. With `[AutoGenerateComponentState(fieldDeltas: true)]`, dirty only the actually changed field(s) — prevents resending full state for one-field updates.
+2. Layer split: on the server `DirtyField` decides which deltas go out to clients. In shared/client systems that tick predicted delta components, also dirty the changed field locally so client rollback can reroll it (per-entity timers like `NextUpdate` are the classic case).
+3. Prefer overloads that bind uid and component together: the `(Entity<T>, comp, name)` form or the two-arg `Entity<T?>` form via `ent.AsNullable()`. `nameof` field names are checked at compile time by the `[ValidateMember]` analyzer; the runtime only logs an error if a name still misses the lookup.
 
 **Anti-pattern**
-1. Place the most massive component first and cross the huge set.
-2. Choose the order “as it came to mind.”
+1. `Dirty(uid, comp)` for every small change of a large component.
+2. A bare string instead of `nameof(...)` — silently bypasses the analyzer.
+3. Mutating an `[AutoNetworkedField]` without a dirty call afterwards — server and client drift apart until a full-state resync.
 
-**Code example**
 ```csharp
-// ✅ Usually it’s better this way: Active* is less common.
-var query = EntityQueryEnumerator<ActiveTimerTriggerComponent, TimerTriggerComponent>();
-
-// ❌ Worse in most cases:
-// var query = EntityQueryEnumerator<TimerTriggerComponent, ActiveTimerTriggerComponent>();
-```
-
-**Why is it faster**
-1. Fewer candidates when constructing the intersection of components.
-2. Lower cost of each `MoveNext`.
-
-**Limits of applicability**
-1. Assess the real cardinality in your subsystem.
-2. Check after changes to gameplay data/prototypes.
-
-### 7) `ByRef record struct` for events ⚡
-
-**Pattern**
-1. For frequent events, use `[ByRefEvent] public record struct ...`.
-2. Pass such events through `ref`.
-
-**Anti-pattern**
-1. Use reference classes for high frequency local events unnecessarily.
-2. Forget `ref` when processing/calling a by-ref event.
-
-**Code example**
-```csharp
-[ByRefEvent] public record struct ChargedMachineActivatedEvent;
-
-private void NotifyActivated(EntityUid uid)
-{
-    var ev = new ChargedMachineActivatedEvent();
-    RaiseLocalEvent(uid, ref ev); // Transfer by reference.
-}
-```
-
-**Why is it faster**
-1. Less copying of event data.
-2. Fewer unnecessary allocations in a frequent flow of events.
-
-**Limits of applicability**
-1. For rare events, the gain may be negligible.
-2. Maintain a uniform signature style so as not to break the handler API.
-
-### 8) `DirtyField` instead of `Dirty` for large network components 📡
-
-**Pattern**
-1. For components with the set `AutoNetworkedField` and field deltas enabled, only the changed fields are dirty.
-2. Call `DirtyField(uid, comp, nameof(...))` for point changes.
-
-**Anti-pattern**
-1. Call `Dirty(uid, comp)` for every small update of a large component.
-2. Transmit the full state when one field has changed.
-
-**Code example**
-```csharp
-[AutoGenerateComponentState(fieldDeltas: true)]
-public sealed partial class ProximityDetectorComponent : Component
-{
-    [AutoNetworkedField] public TimeSpan NextUpdate;
-    [AutoNetworkedField] public float Distance;
-}
-
 component.NextUpdate += component.UpdateCooldown;
 DirtyField(uid, component, nameof(ProximityDetectorComponent.NextUpdate));
+// Verify: EntityManager.ComponentDeltas.cs + EntitySystem.Proxy.cs — grep DirtyField
 ```
 
-**Why is it faster**
-1. Smaller size of network deltas.
-2. Lower load on serialization and sending state.
+**Limits**: if almost the whole state changes at once, plain `Dirty` is acceptable.
 
-**Limits of applicability**
-1. If almost the entire state changes at once, the full `Dirty` may be normal.
-
-### 9) Reducing busting and early exits 🚪
+### 9) Cheap filters first, early exits 🚪
 
 **Pattern**
-1. Put cheap filters first.
-2. Use early `return/continue`.
-3. Stop working immediately if the context is invalid.
+1. Order checks cheap→expensive with early `return/continue` — prevents paying expensive work for entities that fail trivial guards.
 
 **Anti-pattern**
-1. Calculate expensive things before simple checks.
-2. Deep nesting instead of direct filters.
+1. Expensive computation before simple guards.
+2. Deep nesting instead of flat filter chains.
 
-**Code example**
+**Limits**: keep filters predictable and readable.
+
+### 10) Remove finished-state components 🧹
+
+**Pattern**
+1. Remove temporary/active markers immediately after their state completes — prevents dead entities from entering future queries and inflating networked state.
+
+**Anti-pattern**
+1. Keeping temporary components around "just in case".
+
+**Limits**: removal must not break expected subscriptions or visual transitions.
+
 ```csharp
-while (query.MoveNext(out var uid, out var comp))
-{
-    if (comp.NextUpdate > curTime)
-        continue; // Cheap filter first.
+// Verify: trigger/timed systems — grep RemComp<ActiveTimerTriggerComponent>
+```
 
-    if (!_toggle.IsActivated(uid))
+### 11) Stagger per-entity work behind `NextUpdate` timers ⏱️
+
+**Pattern**
+1. Gate expensive per-entity logic behind a `NextUpdate` timestamp stored on the component and advance it by the entity's own interval (`NextUpdate += interval`) — prevents the whole population from doing its expensive work on the same tick.
+2. Combine with card 8: when the timer advances, dirty only the timestamp field.
+3. Entities created at different moments tick out of phase naturally; add randomized offsets on init only if mass spawns still align.
+
+**Anti-pattern**
+1. Every entity runs its full expensive body every tick because "it is simpler".
+2. Resetting from absolute time (`NextUpdate = CurTime + interval`) in steady-state ticking — reserve resets for init/pause transitions, advance otherwise.
+
+**Limits**: only for work whose result may lag by up to one interval; ordering-sensitive or combat-critical checks stay immediate.
+
+```csharp
+var query = EntityQueryEnumerator<ThirstComponent>();
+while (query.MoveNext(out var uid, out var thirst))
+{
+    if (_timing.CurTime < thirst.NextUpdateTime)
         continue;
 
-    UpdateTarget((uid, comp));
+    thirst.NextUpdateTime += thirst.UpdateRate; // Advance, don't reset: cadence stays stable under lag.
+    // ...throttled expensive body...
 }
+// Verify: ThirstSystem.cs — grep NextUpdateTime +=
 ```
-
-**Why is it faster**
-1. Expensive is performed only for “reached” entities.
-2. The average cost of one iteration is reduced.
-
-**Limits of applicability**
-1. Don't break readability: filters should be predictable.
-
-### 10) Removing unnecessary components from an entity 🧹
-
-**Pattern**
-1. After the state is completed, remove temporary/active components.
-2. Keep the entity minimal in terms of its current role.
-
-**Anti-pattern**
-1. Leave temporary components “just in case.”
-2. Accumulate markers that are no longer involved in logic.
-
-**Code example**
-```csharp
-if (timer.NextTrigger <= curTime)
-{
-    Trigger(uid, timer.User, timer.KeyOut);
-    RemComp<ActiveTimerTriggerComponent>(uid); // We remove the excess component immediately.
-}
-```
-
-**Why is it faster**
-1. Fewer entities are included in future queries.
-2. Less unnecessary checks and network load.
-
-**Limits of applicability**
-1. Removal should not break expected subscriptions/visual transitions.
 
 ## Checklist before PR
 
-1. All changes are tied to a measurable hot-path.
-2. No LINQ in hot loop without conscious rationale.
-3. Query order is checked: from rare to massive.
-4. For large network components, `DirtyField` is used where appropriate.
-5. Temporary components are removed after the state is completed.
-6. The text and comments are not tied to specific code paths.
+1. Changes are tied to a measured hot path; no blind micro-optimization.
+2. No LINQ in hot loops without written rationale.
+3. Query order checked: rare → massive.
+4. Large networked components use `DirtyField` with `nameof`; shared/client ticks of predicted delta components re-dirty changed fields locally.
+5. Scratch buffers cleared before reuse and safe against reentry; pool rents returned.
+6. Temporary components removed after their state completes.
+7. Text/comments carry no hard-coded repo paths; snippets carry verify recipes.
+
+## SS14 dimensions
+
+| Dimension | Covered | Notes |
+|---|---|---|
+| Prediction gating (`InPrediction` / `IsPredictionEnabled`) | ☑ | Scratch buffers clear at Update start each call; incremental counters live on components so rollback restores them; `DirtyField`: server drives outgoing deltas, predicted shared/client ticks re-dirty locally (card 8) |
+| Server / Client / Shared split + `[NetworkedComponent]` | N/A | Techniques are layer-agnostic; apply in whichever layer owns the hot path |
+| Event and `UpdatesBefore`/`UpdatesAfter` ordering | N/A | Orthogonal to these techniques |
+| Component lifecycle (Add/Remove/Initialize/Shutdown) | ☑ | Active-marker add/remove discipline (card 4); cleanup on completion (card 10) |
+| Hot path and allocations (`EntityQuery`, by-ref events, `DirtyField`) | ☑ | Core topic: cards 1–3, 5–11 |
+| PVS / network visibility of client-side logic | ☑ | Smaller deltas shrink per-client state sends (card 8); client overlay buffers reuse fields (card 2) |
 
 ## Rule for extending this skill
 
-1. Add only architecture-wide optimizations that are repeated in several subsystems.
-2. Narrow topics (for example, prediction-specific or atmos-specific) should be included in specialized skills.
-3. Add any new pattern along with an anti-pattern and a code example.
+1. Add only architecture-wide optimizations that repeat across several subsystems.
+2. Narrow topics (prediction-specific, atmos-specific, …) go to specialized skills.
+3. Every new card ships pattern + anti-pattern + limits + example with a verify recipe.
+4. After edits update the marker below, re-run the self-check and sync the bridge.
+
+Verified against code state: 2026-08-22

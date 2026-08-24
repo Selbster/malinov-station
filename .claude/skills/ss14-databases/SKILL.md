@@ -1,6 +1,6 @@
 ---
 name: ss14-databases
-description: SS14 Database System Guide (PostgreSQL and SQLite)
+description: SS14 database architecture — dual engine (PostgreSQL/SQLite), EF Core DbContext hierarchy, post-BanRefactor ban model, TypedHwid, Database Notifications, and data access patterns
 ---
 
 # Claude Bridge

@@ -1,6 +1,6 @@
 ---
 name: ss14-pvs
-description: Architecture guide for PVS in Space Station 14 — chunk-based spatial partitioning, visibility determination, override types, budgets, Level-of-Detail, leave mechanics, visibility masks, and ExpandPvsEvent
+description: PVS (Potentially Visible Sets) in Space Station 14 — chunk spatial partitioning, overrides (ForceSend / GlobalOverride / SessionOverride), per-tick budgets, LoD, leave mechanics, visibility masks, and ExpandPvsEvent. Use it to design always-visible entities, debug pop-in or desyncs, tune budgets, or reason about what a client can and cannot see.
 ---
 
 # Claude Bridge

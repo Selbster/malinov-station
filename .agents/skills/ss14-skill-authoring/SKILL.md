@@ -15,6 +15,7 @@ Collect at the exit:
 2. `SKILL.md` with a clear frontmatter and working workflow.
 3. Patterns, anti-patterns and examples with comments.
 4. A short quality self-check before completion.
+5. A synchronized bridge in `.claude/skills` (see `AUTHORING_POLICY.md`) and a passing bridge check.
 
 ## Mandatory meta rules
 
@@ -22,6 +23,7 @@ Collect at the exit:
 2. Consider the requirements of activated skills as mandatory implementation restrictions.
 3. If inaccurate or outdated information is found in a skill, correct it immediately during your current work.
 4. After such a correction, clearly inform the user that this is normal expected behavior and that the maintainers specifically configured the agent to update skills “in place” so that the changes are not deleted by mistake :)
+5. When creating or updating a skill, sync the matching bridge file in `.claude/skills` in the same change and run the bridge check (`check-skill-bridges.ps1`) before finishing.
 
 ## Workflow
 
@@ -31,6 +33,7 @@ Collect at the exit:
 2. Determine the type of work: a new skill or a modification of an existing one.
 3. Record which questions the skill should cover and which ones it should not.
 4. Immediately exclude related large topics: put them in separate skills.
+5. Do not create a skill if the topic is already covered by a sibling skill, if it is only a checklist of obvious steps, or if the expected workload is under a day: in those cases add a pattern to an existing skill instead.
 
 ### 2) Break the topic down into skills (if the topic is broad)
 
@@ -50,7 +53,7 @@ Procedure:
 1. Consider the code as the ground truth.
 2. Read docs as a secondary layer for terms, intent and diagnostics.
 3. Check the freshness using the history of changes.
-4. Do not use code older than two years as a reference if there is a more recent implementation.
+4. Verify references against the fork's current HEAD and the last upstream sync point; the age of an upstream fragment is a red flag, not a calendar rule. The fork's checkout is the ground truth.
 5. Do not take as a reference fragments with TODO/hack/wip comments on the topic.
 
 Use internal priority of sources when researching, but do not publish it as an explicit list in the final skill.
@@ -82,19 +85,37 @@ Required blocks:
 7. Examples with comments.
 8. Extension/change rule.
 
+### 5.5) Walk the SS14 dimension checklist
+
+For the topic being authored, mark each dimension as "covered" or explicitly "N/A" (never skip it silently):
+
+| Dimension | Covered | Notes |
+|---|---|---|
+| Prediction gating (`InPrediction` / `IsPredictionEnabled`) | ☐ | |
+| Server / Client / Shared split + `[NetworkedComponent]` | ☐ | |
+| Event and `UpdatesBefore`/`UpdatesAfter` ordering | ☐ | |
+| Component lifecycle (Add/Remove/Initialize/Shutdown) | ☐ | |
+| Hot path and allocations (`EntityQuery`, by-ref events, `DirtyField`) | ☐ | |
+| PVS / network visibility of client-side logic | ☐ | |
+
+Every example that touches an API must carry a verification marker: grep the API in the fork's codebase or cross-check with the matching sibling `*-api` skill.
+
 ### 6) Respect style and restrictions
 
 Text requirements:
-1. Write in Russian.
+1. Write in English: prose, code comments and frontmatter `description` alike.
 2. Use a moderate number of emoticons (not in every paragraph).
 3. Give specifics, not general advice.
 4. Write in imperative/infinitive style.
 
 Restrictions:
-1. Do not refer to absolute or hard-coded paths to code in the rules.
-2. Describe the behavior of the system through attributes and context, and not through “see file X.”
-3. Do not mix materials from another independent topic in one skill.
-4. Do not duplicate data already living in a specialized skill.
+1. Keep `SKILL.md` at most 300 lines / 14 KB; deeper material goes to `references/`. The first 30 lines must contain the mental model and the single most important pattern.
+2. Set `name` equal to the folder name in hyphen-case (e.g. `ss14-physics-system-core`).
+3. Do not refer to absolute or hard-coded paths to code in the rules.
+4. Describe the behavior of the system through attributes and context, and not through “see file X.”
+5. Do not mix materials from another independent topic in one skill.
+6. Do not duplicate data already living in a specialized skill.
+7. If a fact cannot be verified against the fork's current code, mark it `[unverified]` and add “check against the current code”; never silently invent the missing details.
 
 ### 7) Close quality before publishing
 
@@ -104,6 +125,11 @@ Check:
 3. There are at least 5 patterns and 5 anti-patterns.
 4. There are at least 3 practical examples with explanatory comments.
 5. There is a rule for further expansion without breaking the existing structure.
+6. The size budget (300 lines / 14 KB) is respected and the first 30 lines carry the mental model.
+7. The bridge in `.claude/skills` is synced and the bridge check passes.
+8. A reverse walkthrough was done: read the skill as a fresh agent and confirm it answers three control questions without access to the codebase.
+9. Every API example carries a verification marker.
+10. Every API method mentioned has a real signature in the fork's current RobustToolbox HEAD. If a described overload does not exist (e.g., uid-only variant when only `Entity<T>` exists), remove it or mark `[unverified]`. Do not describe hypothetical API surface.
 
 ## Patterns for writing skills ✅
 
@@ -114,6 +140,12 @@ Check:
 5. Highlight risky areas: nondeterminism, order of events, expensive in hot-loop.
 6. Formulate rules so that they can be applied without a specific file path.
 7. Note docs limitations and always check against current code.
+8. Formulate each pattern as “prevents <failure mode>, by <action>” so the rule stays concrete.
+9. Add a verification recipe for examples: how the next agent confirms the snippet is current (grep in the fork, compare with the sibling `*-api` skill).
+10. Walk the SS14 dimension checklist before writing the architecture section.
+11. Do a reverse walkthrough before completion.
+12. Respect the context budget: dense facts first, depth in `references/`.
+13. When describing a pattern, state the **triggering condition** (when it applies) and the **non-triggering condition** (when it does NOT). Anti-pattern: `SetCoordinates → AttachToGridOrMap` described as "always required" when it only applies to cross-grid/cross-map teleports (~20% of callers). Misleading universal patterns cause LLMs to add unnecessary code.
 
 ## Anti-patterns when writing skills ❌
 
@@ -124,6 +156,16 @@ Check:
 5. Write abstract “best practices” without reference to the real behavior of the system.
 6. Rely only on docs and ignore discrepancies with the code.
 7. Overload the skill with a long theory, which is better put in `references/`.
+8. Create a skill when the topic is already covered by a sibling skill or is a trivial checklist.
+9. Leave facts that could not be verified unmarked, silently guessing instead.
+10. Update a skill in `.agents/skills` without syncing the bridge in `.claude/skills`.
+11. Blow past the size budget, pushing the skill out of the context window.
+12. Ship API examples without a verification marker.
+13. Name the skill in Title Case while the folder is hyphen-case.
+14. Publish a raw API catalog without application context. A skill listing 100+ method signatures without "when to use" forces the LLM to read like an IDE tooltip. Group by goal, show preferred overload, and move full signatures to `references/`.
+15. Ship code examples without verification markers. Every snippet must carry `// Verify: <System>.cs — grep <Method>` so the next agent can confirm the example is current without reading the entire codebase.
+16. Describe a pattern as universally required when it only applies to a subset of cases (e.g., `SetCoordinates → AttachToGridOrMap` is only needed for cross-grid/cross-map teleports, not all SetCoordinates calls). Always state the triggering and non-triggering conditions.
+17. Suggest API calls that do not exist in the real codebase (e.g., `MetaDataSystem.GetEntityData()` for resolving `EntParentChangedMessage.OldMapId`). Always grep for actual usage patterns before adding resolution instructions.
 
 ## Examples of templates and fragments
 
@@ -161,6 +203,7 @@ public override void Initialize()
     UpdatesBefore.Add(typeof(TileFrictionController));
     base.Initialize();
 }
+// Verify TileFrictionController against the fork's current code before reuse.
 ```
 
 Comment: The code example should show a specific invariant and be accompanied by an explanation of "why it is important."
@@ -182,6 +225,34 @@ works only with active/awake bodies to avoid extra load and desync.
 
 Comment: Describe the observed behavior and conditions of application so that the rule can be transferred between repositories.
 
+### Example 5: budget and restrictions block
+
+```md
+## Budget and restrictions
+
+- `SKILL.md`: at most 300 lines / 14 KB. Depth beyond that lives in `references/`.
+- First 30 lines carry the mental model and the single most important pattern.
+- Frontmatter `description` is in English, answers "what" + "when to trigger", at most ~60 words.
+- `name` equals the folder name in hyphen-case.
+- Prose and code comments are in English. No hard-coded paths: describe behavior
+  through attributes and context, not "see file X".
+- Facts that could not be verified against the fork's current code are marked
+  `[unverified]` with "check against the current code" instead of invented details.
+```
+
+Comment: fixed numbers turn “keep it compact” into a checkable gate; the `[unverified]` rule closes the hallucination loop.
+
+### Example 6: filled dimension checklist row
+
+```md
+| Dimension | Covered | Notes |
+|---|---|---|
+| Prediction gating (`InPrediction` / `IsPredictionEnabled`) | ☑ | `UpdateBeforeSolve` must early-return when `!_timing.InPrediction` |
+| Server / Client / Shared split + `[NetworkedComponent]` | ☐ | |
+```
+
+Comment: each covered row names the concrete invariant and why it matters, so a later agent can verify it without guessing.
+
 ## Pre-completion self-test template
 
 1. The topic “skill” is narrow and does not duplicate existing skills.
@@ -190,13 +261,21 @@ Comment: Describe the observed behavior and conditions of application so that th
 4. The text contains an architectural model, patterns, anti-patterns and examples.
 5. Examples are taken from current system behavior, and not from outdated fragments.
 6. There are no direct references to hard code paths.
-7. Text in Russian, working tone, moderate emoticons 🙂
+7. Text in English, working tone, moderate emoticons 🙂
+8. `name` equals the folder name in hyphen-case.
+9. The bridge in `.claude/skills` is synced and the bridge check passes.
+10. The size budget (300 lines / 14 KB) is respected.
+11. API examples carry verification markers; unverifiable facts are marked `[unverified]`.
 
 ## Skills update rule
 
 1. When changing an existing skill, first save its structure and intent.
 2. Update only outdated blocks and add new facts point by point.
 3. If a new big topic appears, move it to a separate skill instead of blowing up the current one.
-4. After the update, run a self-test and make sure that the trigger in `description` is still accurate.
+4. After the update, sync the bridge in `.claude/skills` and run the bridge check again.
+5. Update the “Verified against code state: <date>” marker at the end of the body.
+6. After the update, run a self-test and make sure that the trigger in `description` is still accurate.
 
 Think of skill as a working tool for the next agent: less noise, more testable solutions 🚀
+
+Verified against code state: 2026-08-01

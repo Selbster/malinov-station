@@ -1,374 +1,119 @@
 ---
-name: SS14 Prediction
-description: Architecture guide for client-side prediction in Space Station 14 — prediction loop, timing properties, predicted entities, state reconciliation, randomness, and common pitfalls
+name: ss14-prediction
+description: Client-side prediction in Space Station 14 — prediction loop, timing flags (InPrediction / IsFirstTimePredicted / ApplyingState), rollback via ResetPredictedEntities, predicted spawn/audio/popups, and deterministic predicted random. Use it to debug mispredictions, add predicted gameplay, or design client-side side effects.
 ---
 
-# Prediction (Client-Side Prediction) in SS14
+# Client-Side Prediction in SS14
 
-## Why do we need prediction?
+## What to read first
 
-In an online game, there is time (RTT) between pressing a button and the server responding. Without prediction, the player would press “move” and see the result 50–200 ms later. Prediction solves this: the client **immediately** applies the action locally, and then adjusts the result when the server state arrives.
+1. `references/fresh-pattern-catalog.md` — confirmed, verified API recipes.
+2. `references/rejected-snippets.md` — legacy and unsafe zones that must not be copied.
 
-### Price of prediction
+## Source of truth
 
-- The code must be in a **Shared** project (common for client and server)
-- Need special processing of side effects (sounds, pop-ups)
-- Randomness requires a deterministic generator
-- Reference types in components must implement `IRobustCloneable`
-- Possible “mispredicts” - moments when the client predicted incorrectly
+1. The fork codebase is the ground truth: `Robust.Client/GameStates/ClientGameStateManager.cs`, `Robust.Client/GameStates/ClientDirtySystem.cs`, `Robust.Client/Timing/ClientGameTiming.cs`.
+2. Everything not re-verified against current code is marked `[unverified]` — check it before reuse.
+3. CVar names, attributes and method signatures drift between upstream syncs; re-verify them by name.
 
-## Main prediction loop
+## Prediction mental model
 
-Each frame the client executes the following sequence:
-
-```
-┌──────────────────────────────────────────────────────┐
-│           ClientGameStateManager.ApplyGameState()     │
-│                                                      │
-│  1. ResetPredictedEntities()                         │
-│ └─ Roll back all predicted changes │
-│ to the last confirmed server │
-│ condition │
-│                                                      │
-│  2. ApplyGameState(curState, nextState)               │
-│ └─ Apply new server state │
-│ └─ Create new entities │
-│ └─ Process PVS inputs/outputs │
-│ └─ Delete marked entities │
-│                                                      │
-│  3. MergeImplicitData()                              │
-│ └─ Create “fake” initial states │
-│ for new entities (from prototypes) │
-│                                                      │
-│  4. PredictTicks(predictionTarget)                   │
-│ └─ Play all candidate ticks again │
-│ └─ Apply pending input and events │
-│ └─ Run EntitySystemManager.TickUpdate() │
-│                                                      │
-│ 5. TickUpdate (main tick of the current frame) │
-│ └─ Final tick = predictionTarget │
-└──────────────────────────────────────────────────────┘
-```
-
-### Calculation of predictionTarget
+The client runs two sides of the same simulation: it applies the confirmed server state, then replays local input ahead of it. The whole replay is rolled back and redone whenever a new server state arrives.
 
 ```
-predictionTarget = LastProcessedTick + TargetBufferSize + lag_ticks + PredictTickBias
+ClientGameStateManager.ApplyGameState()
+  1. ResetPredictedEntities()    // roll back all predicted changes to the last server state
+  2. ApplyGameState(cur, next)   // apply new server state, create/delete/detach entities
+  3. MergeImplicitData()         // fake initial states for new entities (from prototypes)
+  4. PredictTicks(target)        // replay ticks, apply pending input and events
+  5. TickUpdate()                // final tick = predictionTarget, runs exactly once
 ```
 
-Where is `lag_ticks = ceil(TickRate × ping / TimeScale)`. The client predicts so many ticks ahead so that its input has time to reach the server and return.
+Timing flags (all from `IGameTiming` / `IClientGameTiming`):
 
-## ResetPredictedEntities: rollback predictions
+- `InPrediction` = `!ApplyingState && CurTick > LastRealTick` — inside the replay window.
+- `ApplyingState` — a server state is being applied; never produce side effects here.
+- `IsFirstTimePredicted` — true **only on the final present tick** of a run, false inside the past-prediction replay. This is the correct gate for one-shot side effects.
+- `LastRealTick` — last tick confirmed by the server; `LastProcessedTick` — last tick a state was applied for.
 
-Before the new server state is applied, **all predicted changes are rolled back**. This happens via `ClientDirtySystem`:
+The single most important pattern: **every side effect (sound, popup, visual, spawn) must fire exactly once — gate it with `IsFirstTimePredicted` or use a `*Predicted` method.**
 
-### How changes are tracked
+## Patterns
 
-- `ClientDirtySystem` subscribes to the `EntityDirtied` event
-- When a component of a **server** entity (not a client) changes during prediction (`InPrediction = true`), it is added to `DirtyEntities`
-- Deleted components are written to `RemovedComponents`
+1. Gate every side effect with `IsFirstTimePredicted` or a `*Predicted` method (`PlayPredicted`, `PopupPredicted`).
+2. Call `Dirty(uid, comp)` after every change to a networked component field, otherwise the change never leaves the client.
+3. Keep predicted logic and components in **Content.Shared** — client and server must derive the same result from the same input.
+4. Use the `EntityManager.PredictedSpawn*` family for client-spawned entities; the engine reconciles them on rollback via `PredictedSpawnComponent`.
+5. Use deterministic random — `SharedRandomExtensions.PredictedRandom(_timing, GetNetEntity(uid))` — seeded from `NetEntity`, identical on client and server.
+6. Model "must be removed" states as a component change (state-as-component) instead of deleting a server entity.
+7. Keep `[AutoNetworkedField]` values small and plain; big reference types are serialized into every delta.
 
-### Rollback includes
+## Anti-patterns
 
-1. **Deleting predicted entities** - all entities with `PredictedSpawnComponent` are deleted and recreated when running again
-2. **Restoring component states** - for each “dirty” entity, components are reset to the last server state via `ComponentHandleState`
-3. **Removing added components** - components added during prediction (with `CreationTick > LastRealTick`) are deleted
-4. **Recovery of deleted components** - components deleted during prediction are recreated with the server state
-5. **Reset physics contacts** - `PhysicsSystem.ResetContacts()`
+1. Calling `PlayPvs` / `PopupEntity` during prediction without a gate — the effect repeats on every re-prediction.
+2. `QueueDel(serverEntity)` while `InPrediction` — the engine only logs `Log.Error` ("Predicting the deletion of a networked entity"); the state is left inconsistent.
+3. Seeding `new System.Random((int)uid.Id + ...)` — the local `EntityUid` differs between client and server, so seeds diverge → misprediction. Seed from `NetEntity` instead.
+4. Using `IRobustRandom` for gameplay during prediction — the client's RNG is independent and not re-seeded per tick, so results differ between replays.
+5. Mutating non-networked fields during prediction — `ResetPredictedEntities` never rolls them back.
+6. `[NetworkedComponent]` in `Content.Client` — silently ineffective; it must live in `Content.Shared`.
+7. Forgetting `Dirty()` — the change is dropped and the prediction diverges from the server.
 
-## IGameTiming properties for prediction
+## Code examples
 
-### IsFirstTimePredicted
-
-Returns `true` if the current tick is predicted **for the first time**. For repeated runs (re-prediction), it returns `false`.
-
-**Critical for side effects:**
+### 1) Sound that plays exactly once, only for the local player
 
 ```csharp
-// ✅ Correct - the sound is played once
-if (_timing.IsFirstTimePredicted)
-    _audio.PlayPvs(sound, uid);
-
-// ✅ It’s more correct to use Predicted methods
-_audio.PlayPredicted(sound, source, receiver);
-// source - sound source
-// receiver - the “client” entity that made the sound.
-// By default, the player's client that triggered the sound will duplicate the sound (locally and from the server). To avoid this, we pass the player’s sound that was projected to the method
-// Because of this feature, sometimes the Predicted method may not work correctly!
-
-// ❌ Incorrect - the sound will be played with every re-prediction!
-_audio.PlayPvs(sound, uid);
+// Client: plays locally only when IsFirstTimePredicted.
+// Server: plays to PVS but excludes `user` via ExcludedEntity (no double sound).
+_audio.PlayPredicted(sound, sourceUid, user);
+// Verify signature: SharedAudioSystem.PlayPredicted(SoundSpecifier?, EntityUid source, EntityUid? user, AudioParams?).
 ```
 
-### InPrediction
-
-`true` when `CurTick > LastRealTick` **and** `ApplyingState = false`. Indicates that the client is currently making a prediction.
-
-### ApplyingState
-
-`true` when the client applies the server state (between `ResetPredictedEntities` and the beginning of `PredictTicks`). At this point, you cannot create side effects.
-
-### CurTick vs LastRealTick vs LastProcessedTick
-
-- **CurTick** — current simulation tick. Changes with prediction
-- **LastRealTick** — last tick confirmed by the server
-- **LastProcessedTick** — the last tick for which the server state was applied
-
-## Foretold entities
-
-### Spawn
-
-Use special methods to create entities on the client:
+### 2) Deterministic predicted random
 
 ```csharp
-// Creating an Entity with Prediction
-var entity = PredictedSpawn(prototype, coordinates);
-```
-
-When applying server state:
-1. All entities with `PredictedSpawnComponent` are deleted
-2. If the server has confirmed the creation, the entity will appear from the server state
-3. The next time the prediction is run, the entity will be created anew
-
-### Predicted removal
-
-Deleting server-side entities on the client is **not directly supported**. `ClientDirtySystem` will throw an error if it detects that a server entity has been deleted during prediction:
-
-```
-// This will throw an error:
-// "Predicting the deletion of a networked entity: ..."
-QueueDel(serverEntity); // ❌ cannot be predicted!
-```
-
-Instead, use the state as component pattern - add/remove components to change the state of the entity.
-
-## Predicted sounds and popups
-
-### Sounds
-
-```csharp
-// ✅ Plays once: on the client for the first predictor, on the server for the rest
-_audio.PlayPredicted(sound, uid, user);
-
-// ✅ Alternative with manual control
-if (_timing.IsFirstTimePredicted)
-    _audio.PlayPvs(sound, uid);
-```
-
-### Popups
-
-```csharp
-// ✅ Shows once
-_popup.PopupPredicted(message, uid, user, PopupType.Medium);
-
-// ✅ Option for local player only
-if (_timing.IsFirstTimePredicted)
-    _popup.PopupEntity(message, uid, user);
-```
-
-## Predicted randomness
-
-Regular `IRobustRandom` is **not deterministic** between prediction runs. Each time it re-predicts, it will give different numbers, which will cause a misprediction.
-
-### Solutions
-
-#### Vanilla approach: manual creation of Random
-
-```csharp
-// ✅ Deterministic seed
-var random = new System.Random((int)(uid.Id + _timing.CurTick.Value));
-var result = random.Next(0, 100);
-```
-
-#### What NOT to do
-
-```csharp
-// ❌ IRobustRandom - different results for each prediction run
-var result = _random.Next(0, 100);
-
-// ❌ RobustRandom.NextFloat() - also non-deterministic
-```
-
-#### Optional: a dedicated EntityUid-seeded predicted-random helper
-
-If a codebase needs entity-seeded predicted randomness in many places, it's worth wrapping the
-`System.Random((int)(uid.Id + _timing.CurTick.Value))` seed above into a small shared system
-(`NextForEntity(uid, min, max)`, `ProbForEntity(uid, chance)`, `PickForEntity(uid, list)`, ...)
-instead of repeating the seed expression at every call site. Check first whether such a helper
-already exists in this codebase before adding a new one.
-
-## Shared code for prediction
-
-### Why Shared
-
-Predicted systems and components **must** be in `Content.Shared` (or `Robust.Shared`). This is because:
-
-1. The prediction code is executed **on both the client and the server**
-2. The client and server should get the **same result** given the same input
-3. If the code is only on the server, the client will not be able to predict it
-
-### Partial class decomposition
-
-When server or client specialization is needed:
-
-```csharp
-// Content.Shared/MySystem.cs
-public abstract partial class SharedMySystem : EntitySystem
-{
-    // General prediction logic
-    protected void HandleAction(EntityUid uid, MyComponent comp)
-    {
-        comp.Value += 1;
-        Dirty(uid, comp);
-    }
-}
-
-// Content.Server/MySystem.cs
-public sealed partial class MySystem : SharedMySystem
-{
-    // Server validation, logging, authoritative actions
-}
-
-// Content.Client/MySystem.cs
-public sealed partial class MySystem : SharedMySystem
-{
-    // Client effects, UI
-}
-```
-
-## Processing states during prediction
-
-### AutoGenerateComponentState
-
-The `[AutoGenerateComponentState]` attribute generates code for:
-- Serialization of the component in `IComponentState` (for sending over the network)
-- Deserialization from `ComponentHandleState` (to apply server state)
-- Automatic rollback at `ResetPredictedEntities`
-
-### How rollback works
-
-1. Component is marked as "dirty" during prediction
-2. At `ResetPredictedEntities` the engine finds the last server state for this component
-3. Generates `ComponentHandleState` and raises it as an event
-4. The auto-generated handler restores all `[AutoNetworkedField]` fields
-5. `LastModifiedTick` is reset to `LastRealTick`
-
-### NetSync
-
-Fields with `[AutoNetworkedField]` can be further configured via `[NetSync]` to control the direction of synchronization.
-
-## Prediction checklist
-
-When adding prediction to the system:
-
-1. **Component in Shared** - with `[NetworkedComponent]`, `[AutoGenerateComponentState]`, `[AutoNetworkedField]` on the required fields
-2. **System in Shared** - base class `SharedMySystem` with prediction logic
-3. **`Dirty()` after changes** - each change to a component must be accompanied by `Dirty(uid, comp)`
-4. **Side effects for `IsFirstTimePredicted`** - sounds, popups, visual effects
-5. **Deterministic random** - seed-based `System.Random` tied to `EntityUid` + `CurTick` (see "Predicted randomness" above)
-6. **`IRobustCloneable` for reference types** - collections, classes in network fields
-7. **No deleting server-side entities** - use state components instead of deleting
-8. **Testing with delay** - `net.fakelagmin 0.2` + `net.fakelagrand 0.1`
-9. **Testing with prediction disabled** - `net.predict false`
-
-## Frequent errors
-
-### 1. Forgot `Dirty()`
-
-```csharp
-// ❌ The client will not receive the update
-comp.Health -= damage;
-
-// ✅ Correct
-comp.Health -= damage;
-Dirty(uid, comp);
-```
-
-### 2. IRobustRandom in prediction
-
-```csharp
-// ❌ Different results with each re-prediction
-if (_random.Prob(0.5f))
+// Same seed on client and server: CurTick + NetEntity ids.
+var rand = SharedRandomExtensions.PredictedRandom(_timing, GetNetEntity(ent));
+if (rand.Prob(0.5f))
     DoAction();
-
-// ✅ Deterministic random, seeded from EntityUid + CurTick
-var random = new System.Random((int)(uid.Id + _timing.CurTick.Value));
-if (random.NextDouble() < 0.5)
-    DoAction();
+// Verify: Content.Shared/Random/Helpers/SharedRandomExtensions.cs (PredictedRandom, PredictedProb).
 ```
 
-### 3. Side effects without IsFirstTimePredicted
+### 3) Predicted spawn with automatic reconciliation
 
 ```csharp
-// ❌ The popup will appear many times
-_popup.PopupEntity("Hit!", uid);
-
-// ✅ Only once
-if (_timing.IsFirstTimePredicted)
-    _popup.PopupEntity("Hit!", uid);
+var ent = EntityManager.PredictedSpawn(protoId, mapCoords);
+// ResetPredictedEntities deletes PredictedSpawnComponent entities, then re-creates them from the server state.
+// Verify family: PredictedSpawn, PredictedSpawnAtPosition, PredictedTrySpawnNextTo, PredictedTrySpawnInContainer.
 ```
 
-### 4. [NetworkedComponent] on a non-Shared component
+## Dimension checklist
 
-```csharp
-// ❌ In Content.Client - silently does not work
-[RegisterComponent, NetworkedComponent]
-public sealed partial class MyClientComponent : Component { }
-
-// ✅ In Content.Shared - works correctly
-[RegisterComponent, NetworkedComponent]
-public sealed partial class MyComponent : Component { }
-```
-
-### 5. Deleting a server entity in prediction
-
-```csharp
-// ❌ Will cause an error during reconciliation
-if (_timing.InPrediction)
-    QueueDel(targetUid);
-
-// ✅ Use a state component
-RemComp<AliveComponent>(targetUid);
-```
-
-### 6. Changing non-network data in prediction
-
-```csharp
-// ❌ A field without [AutoNetworkedField] will not be rolled back
-comp.LocalCounter += 1; // Not network, will not roll back!
-
-// ✅ All predicted fields must be network
-[AutoNetworkedField]
-public int Counter;
-```
+| Dimension | Covered | Notes |
+|---|---|---|
+| Prediction gating (`InPrediction` / `IsPredictionEnabled`) | ☑ | `InPrediction` for rollback-sensitive code; `IsFirstTimePredicted` for one-shot effects |
+| Server / Client / Shared split + `[NetworkedComponent]` | ☑ | predicted logic in Shared; `[NetworkedComponent]` in Shared only |
+| Event and `UpdatesBefore` / `UpdatesAfter` ordering | ◑ | keep the replay identical to the server: order systems relative to InputSystem; verify each new system |
+| Component lifecycle (Add/Remove/Initialize/Shutdown) | ◑ | rollback uses `CreationTick` vs `LastRealTick`; deleted components are re-added with the server state |
+| Hot path and allocations | ◑ | re-prediction multiplies per-tick cost; avoid heavy queries/allocations in predicted systems |
+| PVS / network visibility of client-side logic | ◑ | predicted entities detach when leaving PVS (`net.pvs_exit_budget`) — prediction stops until re-entry |
 
 ## Prediction testing
 
-### Basic CVars
-
 ```
-// In the client console
-net.predict false          // Disable prediction - the real delay is visible
-net.predict true           // Turn back on
-
-// Latency simulation
-net.fakelagmin 0.2         // 200ms minimum latency
-net.fakelagrand 0.05       // +0-50ms random delay
-
-// Packet Loss Simulation
-net.fakeloss 0.05          // 5% packet loss
+net.predict false        // disable prediction -> see real latency and snap-backs
+net.predict true         // enable again
+net.fakelagmin 0.2       // +200ms minimum latency (CVar.CHEAT — dev only)
+net.fakelagrand 0.05     // +0–50ms random delay (CVar.CHEAT)
+net.fakeloss 0.05        // 5% packet loss (CVar.CHEAT)
 ```
 
-### What to check
+Tuning: `net.predict_tick_bias` (default 1) and `net.predict_lag_bias` (0.016 s on Windows, 0 on Linux) shift how far the client runs ahead. Test with prediction on, off, under fake lag, and with rapid repeated actions.
 
-1. With **prediction turned off** (`net.predict false`) - is the server behavior correct?
-2. With **delay** - are there any visual jumps (snap-backs) during a misprediction?
-3. With **packet loss** - does synchronization break?
-4. Several **quick actions in a row** - is the prediction queue processed correctly?
+## Extension rule
 
-## Connection with other skills
+1. Extend via Shared systems + `[AutoNetworkedField]` state that stays rollback-friendly: no side effects, no non-networked mutations, no `IRobustRandom`.
+2. Before shipping a predicted mechanic, check: deterministic random? one-shot side effect gating? `Dirty()` on every change? clear entity lifetime (`PredictedSpawn*` or state component)?
+3. If a section outgrows this file, move it to `references/` and update the reading order at the top.
 
-- **SS14 Netcode Architecture** - how the network stack that provides prediction works
-- **SS14 ECS Components** - attributes `[AutoGenerateComponentState]`, `[AutoNetworkedField]`, `Dirty()`
-- **SS14 ECS Systems** — partial class decomposition for Shared/Client/Server systems
-- **SS14 ECS Entities** — `EntityUid` vs `NetEntity`, entity life cycle
+Verified against code state: 2026-08-02.

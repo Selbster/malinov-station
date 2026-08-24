@@ -5,9 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $sourceRoot = Join-Path $RepoRoot ".agents/skills"
-$antigravityBridgeRoot = Join-Path $RepoRoot ".agent/skills"
 $claudeBridgeRoot = Join-Path $RepoRoot ".claude/skills"
-$cursorBridgeRoot = Join-Path $RepoRoot ".cursor/skills"
 
 function Get-SkillData {
     param([string]$SkillMdPath)
@@ -22,31 +20,20 @@ function Get-SkillData {
     $body = $raw.Substring($fmMatch.Index + $fmMatch.Length).Trim()
     $name = [regex]::Match($frontmatter, "(?m)^name:\s*(.+)$").Groups[1].Value.Trim()
     $description = [regex]::Match($frontmatter, "(?m)^description:\s*(.+)$").Groups[1].Value.Trim()
-    $sourceSkill = [regex]::Match(
-        $frontmatter,
-        "(?m)^\s*source_skill:\s*`"?([^`"\r\n]+)`"?\s*$"
-    ).Groups[1].Value.Trim()
 
     return @{
         raw = $raw
         body = $body
         name = $name
         description = $description
-        source_skill = $sourceSkill
     }
 }
 
 if (-not (Test-Path $sourceRoot)) {
     throw "Source skills path not found: $sourceRoot"
 }
-if (-not (Test-Path $antigravityBridgeRoot)) {
-    throw "Antigravity bridge skills path not found: $antigravityBridgeRoot"
-}
 if (-not (Test-Path $claudeBridgeRoot)) {
     throw "Claude bridge skills path not found: $claudeBridgeRoot"
-}
-if (-not (Test-Path $cursorBridgeRoot)) {
-    throw "Cursor bridge skills path not found: $cursorBridgeRoot"
 }
 
 $errors = New-Object System.Collections.Generic.List[string]
@@ -54,63 +41,31 @@ $errors = New-Object System.Collections.Generic.List[string]
 $sourceSkills = Get-ChildItem $sourceRoot -Directory |
     Where-Object { Test-Path (Join-Path $_.FullName "SKILL.md") } |
     Sort-Object Name
-$antigravityBridgeSkills = Get-ChildItem $antigravityBridgeRoot -Directory |
-    Where-Object { Test-Path (Join-Path $_.FullName "SKILL.md") } |
-    Sort-Object Name
 $claudeBridgeSkills = Get-ChildItem $claudeBridgeRoot -Directory |
-    Where-Object { Test-Path (Join-Path $_.FullName "SKILL.md") } |
-    Sort-Object Name
-$cursorBridgeSkills = Get-ChildItem $cursorBridgeRoot -Directory |
     Where-Object { Test-Path (Join-Path $_.FullName "SKILL.md") } |
     Sort-Object Name
 
 $sourceNames = @($sourceSkills.Name)
-$antigravityBridgeNames = @($antigravityBridgeSkills.Name)
 $claudeBridgeNames = @($claudeBridgeSkills.Name)
-$cursorBridgeNames = @($cursorBridgeSkills.Name)
 
 foreach ($source in $sourceSkills) {
     $name = $source.Name
     $sourceSkillMd = Join-Path $source.FullName "SKILL.md"
-    $antigravityBridgeSkillMd = Join-Path $antigravityBridgeRoot "$name/SKILL.md"
     $claudeBridgeSkillMd = Join-Path $claudeBridgeRoot "$name/SKILL.md"
-    $cursorBridgeSkillMd = Join-Path $cursorBridgeRoot "$name/SKILL.md"
 
-    if (-not (Test-Path $antigravityBridgeSkillMd)) {
-        $errors.Add("Missing Antigravity bridge SKILL.md for '$name'.")
-    }
     if (-not (Test-Path $claudeBridgeSkillMd)) {
         $errors.Add("Missing Claude bridge SKILL.md for '$name'.")
-    }
-    if (-not (Test-Path $cursorBridgeSkillMd)) {
-        $errors.Add("Missing Cursor bridge SKILL.md for '$name'.")
-    }
-    if ((-not (Test-Path $antigravityBridgeSkillMd)) -or (-not (Test-Path $claudeBridgeSkillMd)) -or (-not (Test-Path $cursorBridgeSkillMd))) {
         continue
     }
 
     $sourceData = Get-SkillData -SkillMdPath $sourceSkillMd
-    $antigravityData = Get-SkillData -SkillMdPath $antigravityBridgeSkillMd
     $claudeData = Get-SkillData -SkillMdPath $claudeBridgeSkillMd
-    $cursorData = Get-SkillData -SkillMdPath $cursorBridgeSkillMd
 
     $expectedSourceSkill = "../../../.agents/skills/$name/SKILL.md"
 
-    if ($antigravityData.name -ne $name) {
-        $errors.Add("Antigravity bridge name mismatch for '$name': '$($antigravityData.name)'")
+    if ($sourceData.name -ne $name) {
+        $errors.Add("Source skill name mismatch for '$name': '$($sourceData.name)'. Expected the folder name in hyphen-case.")
     }
-    if ($antigravityData.description -ne $sourceData.description) {
-        $errors.Add("Antigravity bridge description mismatch for '$name'.")
-    }
-    if ($antigravityData.source_skill -ne $expectedSourceSkill) {
-        $errors.Add(
-            "Antigravity bridge source_skill mismatch for '$name': '$($antigravityData.source_skill)'"
-        )
-    }
-    if ($antigravityData.body -notmatch [regex]::Escape($expectedSourceSkill)) {
-        $errors.Add("Antigravity bridge reference mismatch for '$name'.")
-    }
-
     if ($claudeData.name -ne $name) {
         $errors.Add("Claude bridge name mismatch for '$name': '$($claudeData.name)'")
     }
@@ -120,22 +75,6 @@ foreach ($source in $sourceSkills) {
     if ($claudeData.body -notmatch [regex]::Escape($expectedSourceSkill)) {
         $errors.Add("Claude bridge reference mismatch for '$name'.")
     }
-
-    if ($cursorData.name -ne $name) {
-        $errors.Add("Cursor bridge name mismatch for '$name': '$($cursorData.name)'")
-    }
-    if ($cursorData.description -ne $sourceData.description) {
-        $errors.Add("Cursor bridge description mismatch for '$name'.")
-    }
-    if ($cursorData.body -notmatch [regex]::Escape($expectedSourceSkill)) {
-        $errors.Add("Cursor bridge reference mismatch for '$name'.")
-    }
-}
-
-foreach ($bridgeName in $antigravityBridgeNames) {
-    if ($sourceNames -notcontains $bridgeName) {
-        $errors.Add("Antigravity bridge exists without source skill: '$bridgeName'.")
-    }
 }
 
 foreach ($bridgeName in $claudeBridgeNames) {
@@ -144,21 +83,9 @@ foreach ($bridgeName in $claudeBridgeNames) {
     }
 }
 
-foreach ($bridgeName in $cursorBridgeNames) {
-    if ($sourceNames -notcontains $bridgeName) {
-        $errors.Add("Cursor bridge exists without source skill: '$bridgeName'.")
-    }
-}
-
 foreach ($sourceName in $sourceNames) {
-    if ($antigravityBridgeNames -notcontains $sourceName) {
-        $errors.Add("Source skill missing in Antigravity bridge tree: '$sourceName'.")
-    }
     if ($claudeBridgeNames -notcontains $sourceName) {
         $errors.Add("Source skill missing in Claude bridge tree: '$sourceName'.")
-    }
-    if ($cursorBridgeNames -notcontains $sourceName) {
-        $errors.Add("Source skill missing in Cursor bridge tree: '$sourceName'.")
     }
 }
 
@@ -172,7 +99,5 @@ if ($errors.Count -gt 0) {
 
 Write-Host "Bridge check passed:"
 Write-Host "- source skills: $($sourceSkills.Count)"
-Write-Host "- antigravity bridges: $($antigravityBridgeSkills.Count)"
 Write-Host "- claude bridges: $($claudeBridgeSkills.Count)"
-Write-Host "- cursor bridges: $($cursorBridgeSkills.Count)"
 exit 0

@@ -3,20 +3,21 @@
 The docs are useful for intent and terms, but some of the language in them is broader and older than current practices.  
 The rule of this skill is: **if there is a conflict, the current code wins**.
 
-## Summary table for 10 topics
+## Summary table of topics
 
 | Topic | What docs usually capture | What does the code confirm | Rule for skill |
 |---|---|---|---|
-| Caching in hot-path | Tips for eliminating duplicate data access | In real code, invariants are precomputed before nested loops and aggregates are maintained using counters; query is also cached | First, remove repeated calculations/recalculations, then cache access to components |
+| Caching in hot-path | Tips for eliminating duplicate data access | In real code, invariants are precomputed before nested loops and aggregates are maintained using counters; queries are also cached | Remove repeated computation first, then cache component access |
 | Reduced allocations | Recommendations for reusing memory | Uses `ValueList` as fields and `ArrayPool` for temporary buffers | Reuse collections, don't create them for every frame |
 | Abandoning LINQ in hot-path | Indirectly through perf guides and examples | Critical loops are mostly written via `for/foreach` | In hot LINQ code, replace with explicit loops |
-| `Component + ActiveComponent` | ECS State through Components Architecture | Active markers are actually used to narrow query | Use Active Components for Limited Sampling |
-| `EntityQuery` for `TryComp/HasComp/Resolve` | Query API Recommendations | Systems cache `EntityQuery<T>` and use its methods | For frequent checks, go to the query cache |
-| Component order in `EntityQueryEnumerator` | Not always clearly stated in docs | In runtime there is a direct comment about the rare first component | Put the rarest component first |
+| `Component + ActiveComponent` | ECS State through Components Architecture | Active markers are actually used to narrow query | Narrow iteration with active markers |
+| `EntityQuery` for `TryComp/HasComp/Resolve` | Query API Recommendations | Systems cache `EntityQuery<T>` and use its methods | Switch frequent checks to cached queries |
+| Component order in `EntityQueryEnumerator` | Not always clearly stated in docs | Engine runtime carries a direct comment about putting the smaller set first | Put the rarest component first |
 | `ByRef record struct` events | There is guidance about by-ref events | In server/shared there are `[ByRefEvent] record struct` + `RaiseLocalEvent(..., ref ...)` | For frequent local events, use the by-ref structure |
-| `DirtyField` vs `Dirty` | There are recommendations about field deltas | In network components with multiple fields, use `DirtyField` | When changing a field selectively, select `DirtyField` |
+| `DirtyField` vs `Dirty` | There are recommendations about field deltas | In network components with multiple fields, use `DirtyField` | For selective field changes choose `DirtyField`; see the case study below |
 | Early `return/continue` | General tips about cheap filters | In hot-loop there are often early filters and `continue` | Sort checks from cheap to expensive |
 | Removing unnecessary components | ECS-idea “data only on the fact of state” | After the activity is completed, temporary components are deleted | Remove temporary components immediately after state completion |
+| Staggered per-entity timers | Rarely covered as an explicit pattern | Nutrition/proximity systems gate work behind incrementally advanced `NextUpdate` timestamps | Gate mass per-entity work behind staggered timers |
 
 ## Where docs can fall behind
 
@@ -30,6 +31,16 @@ The rule of this skill is: **if there is a conflict, the current code wins**.
 2. If the code is fresh and stable, use it as a reference.
 3. If the code is old, but it is a canonical engine pattern, mark it as a soft-exception and be sure to explain why it is still relevant.
 4. If the code contains TODO/FIXME/HACK on the topic of optimization, do not take such a fragment into the standard.
+
+## Case study: `DirtyField` was documented as server-only
+
+Earlier guidance treated `DirtyField` as a server-only operation ("never call it in predicted client branches").
+Current code disproves the absolute form: shared nutrition/proximity systems advance per-entity timers and dirty the
+timestamp locally, with comments stating the client needs the dirty call so prediction can reroll it.
+
+Decision: keep "server drives outgoing deltas" as the primary rule, allow local re-dirtying of predicted fields in
+shared/client ticks, and require a measured reason before treating any layer rule as absolute. This is the template for
+resolving similar conflicts: quote the code comment, name both layers, and narrow the rule instead of deleting it.
 
 ## Short template for committing a solution
 

@@ -5,15 +5,16 @@ Use the table as a quick solution router in reviews and refactorings.
 | Topic | Signal | Solution | Risk due to incorrect use |
 |---|---|---|---|
 | Caching invariants and aggregates | Inside nested loops, the same calculations or quantity recalculation are repeated | Precalculate invariants before the loop and keep the counter incrementally (`TargetCount`, `BurstShotsCount`, `count += / -=`) | Inconsistent counter when update is missed |
-| Reduced allocations | GC spikes on mass shots | Reuse `ValueList/List`, apply `ArrayPool`, transfer collections/spans | Leaks in the pool when `Return` is forgotten, dirty data without `Clear` |
+| Reduced allocations | GC spikes on mass shots | Reuse `ValueList/List`, apply `ArrayPool`, pass collections/spans through | Leaks in the pool when `Return` is forgotten, dirty data without `Clear` |
 | Abandoning LINQ | LINQ in hot-path (`Where/Select/Any/Count`) | Rewrite to `for/foreach` with early exits | Loss of readability if rewritten without structure |
 | `Component + ActiveComponent` | Many "inactive" entities in the overall iteration | Enter active marker and iterate only active ones | Inconsistent state transitions when remove/add is forgotten |
 | `EntityQuery` for `TryComp/HasComp/Resolve` | Frequent component rechecks | Cache `EntityQuery<T>` in `Initialize()` and use its methods | False "optimization" in rarely called code |
-| Order in `EntityQueryEnumerator` | Dear multi-component query | Put the rare component first, then the more widespread ones | Incorrect ordering worsens iteration time |
+| Order in `EntityQueryEnumerator` | Costly multi-component query | Put the rare component first, then the more widespread ones | Incorrect ordering worsens iteration time |
 | `ByRef record struct` events | Frequent local events in the gameplay loop | `[ByRefEvent] public record struct ...` + transfer `ref` | Handlers break due to inconsistent signature |
-| `DirtyField` vs `Dirty` | Large component with many network fields | For point changes, use `DirtyField` | Skip the required field and get out of sync |
-| Early `return/continue` | Complex nested checks in a loop | Cheap filters ahead, early release | It's difficult to follow the logic if the conditions are chaotic |
-| Removing unnecessary components | Temporary components hang after task completion | Remove the component immediately after the state is completed | Break visual/event tails if removed too early |
+| `DirtyField` vs `Dirty` | Large component with many network fields | For point changes, use `DirtyField`; server drives outgoing deltas, predicted shared/client ticks re-dirty locally | Skip the required field and get out of sync |
+| Early `return/continue` | Complex nested checks in a loop | Cheap filters first, early exits | It's difficult to follow the logic if the conditions are chaotic |
+| Removing unnecessary components | Temporary components hang after task completion | Remove the component immediately after the state is completed | Visual/event tails break if removed too early |
+| Staggered per-entity timers | Whole population runs its expensive logic every tick | Gate work behind a per-entity `NextUpdate` timestamp advanced incrementally (`+= interval`) | Work whose result must be immediate lags by up to one interval |
 
 ## Hot-path criterion by topic
 
@@ -27,10 +28,11 @@ Use the table as a quick solution router in reviews and refactorings.
 8. DirtyField: a network component and contains several `AutoNetworkedField`.
 9. Early exits: Expensive work is done before the base filters.
 10. Cleaning components: temporary/active markers continue to live after completion.
+11. Staggered timers: a mass population shares one expensive per-tick body with no per-entity gate.
 
 ## Unusual but useful techniques
 
-1. Double packet queues (swap queues) in the network subsystem: prevents the “packet begets a packet” loop in one tick.
+1. Double packet queues (swap queues) in the network subsystem: prevents packets spawned inside a handler from being processed again within the same tick.
 2. Passing `ReadOnlySpan<T>` to distribution methods: removes unnecessary copies of recipient lists.
 3. Local list cache per frame in UI/effects: more GC-stable than creating a new list every pass.
 4. `fieldDeltas + DirtyField` combination: especially useful for components with frequent minor updates.

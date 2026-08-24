@@ -23,6 +23,22 @@ Currently the fork is small: most custom content lives in `_MalinovStation` help
 > **Minimizing changes to vanilla files is MORE IMPORTANT than "pretty" architecture.**
 > It's better to leave the "dirty" hack in one line of the vanilla file than to rewrite half the system, creating hell when merging.
 
+## ⚠️ Parent contract
+
+This repository is a fork parent: downstream projects fork it and inherit vanilla plus `_MalinovStation`
+as-is. Because of that, `_MalinovStation` is a public API surface for child forks:
+
+1. Prototype IDs and `[DataField]` names inside `_MalinovStation` are a stable contract. Renaming or
+   removing them for style reasons breaks saved maps and inherited child content — always rename
+   through `Resources/migration.yml` and treat it as a visible change.
+2. Prefer extending over rewriting: a child that needs a different variant inherits the parent
+   prototype (`parent: <MalinovId>`) instead of editing the shared `_MalinovStation` file in place.
+3. Full rewrites of `_MalinovStation` files are the same anti-pattern as full rewrites of vanilla
+   files — they break the parent/child merge flow.
+4. Child fork logic lives in the child's own `_<Child>` folder, never inside the shared
+   `_MalinovStation` folder.
+
+
 ## 📁 Folder structure and Project Folder
 
 To clearly separate vanilla code from our modifications, a special project folder is used, starting with the symbol `_`: `_MalinovStation`.
@@ -52,6 +68,14 @@ differently-named folder just because the original code or inspiration came from
 > Partial classes in `_MalinovStation` (see below). Not needed for simple helper calls.
 
 ## 🛠️ Modification of C# code
+
+> [!IMPORTANT]
+> **Fork logic lives in `_MalinovStation`, vanilla files only get hooks and markers.**
+> A vanilla file may contain a call into a `_MalinovStation` helper (Pattern 1), a `Malinov edit start/end`
+> block (Pattern 2/3), or a partial-class extension (Pattern 4) — but it must **never** contain the
+> implementation of custom logic itself (helper bodies, new algorithms, custom state). If you find
+> yourself writing more than a few lines of fork logic inside a vanilla file, move it into
+> `_MalinovStation` and leave a minimal hook.
 
 When modifying existing vanilla code (outside the project folder), use the following patterns.
 
@@ -272,3 +296,16 @@ If you copy the entire file into your folder and disable the original, you lose 
 
 ❌ **Replacement of entity ID without inheritance.**
 If you simply copy the YAML of an entity and change it, you will not receive updates to the parent components from upstream. Always use `parent`.
+
+## 🔗 Related skills
+
+The ECS skills (`ss14-ecs-components`, `ss14-ecs-entities`, `ss14-ecs-prototypes`,
+`ss14-ecs-systems`) describe the architecture rules that are **mandatory for new `_MalinovStation`
+code**. Each of them has a "Scope of applicability" section stating that vanilla upstream code is a
+reference, not a refactoring target. This skill is the practical counterweight: it defines **how**
+to integrate fork code with vanilla without breaking the merge.
+
+When touching a vanilla component/prototype, remember the **serialization contract**: existing
+`[DataField]` names (including legacy/typo'd ones like `decayhreshold`) and prototype IDs must not
+be renamed for style reasons — saved maps and other prototypes reference them. Renaming requires
+data migration and a YAMLLinter run (`dotnet run --project Content.YAMLLinter`).

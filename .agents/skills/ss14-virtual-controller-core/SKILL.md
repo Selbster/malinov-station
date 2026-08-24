@@ -6,7 +6,7 @@ description: Parses the VirtualController architecture in Space Station 14: the 
 # VirtualController: Architecture and Cycle
 
 Use this skill as an architectural playbook for VirtualController :)
-Keep your focus on fresh code and check its relevance through `git log`/`blame` (cutoff: `2024-02-20`).
+Keep your focus on fresh code: verify relevance via `git blame` of the anchor line and the last upstream sync point of the fork. Age is a red flag, not a calendar rule - re-verify the catalog dates before relying on them.
 
 ## What to download first
 
@@ -18,7 +18,7 @@ Keep your focus on fresh code and check its relevance through `git log`/`blame` 
 
 1. The codebase is the primary source of truth.
 2. Documentation - secondary layer (terms, intent, diagnostics).
-3. Any site older than two years or with a TODO/problematic comment on the topic should not be included in the reference rules.
+3. Any fragment with a TODO/problematic comment on the topic, or whose freshness cannot be confirmed, should not be included in the reference rules.
 
 ## VirtualController mental model
 
@@ -47,8 +47,8 @@ Keep your focus on fresh code and check its relevance through `git log`/`blame` 
 3. Use `AwakeBodies` as the main set for per-step physical logic.
 4. For `KinematicController`, use manual damping via helper movement methods and then `SetLinearVelocity`/`SetAngularVelocity`.
 5. For heavy calculations inside the controller, separate the calculation phase (parallel job) from the phase of applying the results (main thread).
-6. For relay management, use the `SetRelay`/`RemoveRelay` API methods, rather than manually adding/removing components.
-7. For container-eject scenarios, where the entity must immediately appear “outside”, use `ForciblySetClimbing` as a safe post-eject transition.
+6. For relay lifecycle (create via `SetRelay`, teardown via `RemComp<RelayInputMoverComponent>`), follow the Relay API in `ss14-virtual-controller-api` - the relay teardown contract is owned there.
+7. For container-eject scenarios, where the entity must immediately appear “outside”, use the climb post-eject transition from `ss14-virtual-controller-api` (Climb API).
 8. Keep `UpdateBeforeSolve` deterministic: minimum hidden state, minimum nondeterministic sources.
 9. To control regressions, check the physics monitors of the controllers before/after the change.
 10. For movement systems, maintain an invariant: mob movement and tile friction must occur in a consistent order.
@@ -59,9 +59,9 @@ Keep your focus on fresh code and check its relevance through `git log`/`blame` 
 2. Copy TODO-heavy sections as an architectural standard.
 3. Write a controller that depends on “one call per tick” and ignores substeps.
 4. Perform expensive lookup/alloc operations without cache-query in a hot physics loop.
-5. Bypass the relay API using direct `RemComp/EnsureComp` in the gameplay code.
-6. Consider the empty client `ConveyorController` “superfluous” and remove it from the predictor scheme.
-7. Try to use old pre-cutoff fragments as a basis for new solutions.
+5. Manually wire relay components instead of the Relay API in `ss14-virtual-controller-api` (relay teardown contract).
+6. Treat the empty client `ConveyorController` as removable; see the misuse catalog in `ss14-virtual-controller-api`.
+7. Try to use fragments older than the last re-verified anchor as a basis for new solutions.
 8. Treat mispredict with “magic guards” instead of correcting the source of desync.
 9. Interfere with transform movement and physical impulses without a clear cause-and-effect model.
 10. Ignore warning comments about fragile logic (`slop`, `hack`, `temporary`).
@@ -77,20 +77,19 @@ Keep your focus on fresh code and check its relevance through `git log`/`blame` 
 
 ## Code examples
 
-### 1) Subscribe VirtualController to before/after solve
+### 1) What `base.Initialize()` already does for you
+
+`VirtualController.Initialize()` (in the engine) subscribes the controller to `PhysicsUpdateBeforeSolveEvent` / `PhysicsUpdateAfterSolveEvent` itself and routes them to `UpdateBeforeSolve` / `UpdateAfterSolve`. You must NOT subscribe to these events manually: doing so runs your logic twice per substep. The only thing your `Initialize()` override needs is configuring the order *before* calling the base.
 
 ```csharp
 public override void Initialize()
 {
+    // Fix the order before base.Initialize(), which snapshots the lists.
+    UpdatesBefore.Add(typeof(TileFrictionController));
+    UpdatesAfter.Add(typeof(SharedMoverController));
     base.Initialize();
-
-    var updatesBefore = UpdatesBefore.ToArray();
-    var updatesAfter = UpdatesAfter.ToArray();
-
-    // The controller receives both physics hooks in one order graph.
-    SubscribeLocalEvent<PhysicsUpdateBeforeSolveEvent>(OnBeforeSolve, updatesBefore, updatesAfter);
-    SubscribeLocalEvent<PhysicsUpdateAfterSolveEvent>(OnAfterSolve, updatesBefore, updatesAfter);
 }
+// Verify UpdatesBefore/UpdatesAfter semantics against the fork's current code before reuse.
 ```
 
 ### 2) Physics substeps with calling controllers
@@ -108,6 +107,7 @@ for (int i = 0; i < _substeps; i++)
     var after = new PhysicsUpdateAfterSolveEvent(prediction, frameTime);
     RaiseLocalEvent(ref after);
 }
+// Verify the SimulateWorld substep loop against the fork's current code before reuse.
 ```
 
 ### 3) Explicit order between mover/friction/conveyor
@@ -124,6 +124,7 @@ public override void Initialize()
     UpdatesAfter.Add(typeof(SharedMoverController));
     base.Initialize();
 }
+// Verify the UpdatesBefore/UpdatesAfter ordering against the fork's current code before reuse.
 ```
 
 ### 4) Manual damping for KinematicController
@@ -141,6 +142,7 @@ if (body.BodyType == BodyType.KinematicController)
     PhysicsSystem.SetLinearVelocity(uid, velocity, body: body);
     PhysicsSystem.SetAngularVelocity(uid, angVelocity, body: body);
 }
+// Verify Friction/SetLinearVelocity/SetAngularVelocity against the fork's current code before reuse.
 ```
 
 ### 5) Pull controller with reverse pulse in special mode
@@ -155,6 +157,7 @@ if (_gravity.IsWeightless(puller) && pullerXform.Comp.GridUid == null || !_actio
     PhysicsSystem.WakeBody(puller);
     PhysicsSystem.ApplyLinearImpulse(puller, -impulse);
 }
+// Verify the pull impulse/condition against the fork's current code before reuse.
 ```
 
 ### 6) Chasing controller forcibly keeps the body “in the air”
@@ -166,6 +169,7 @@ var speed = delta.Length() > 0 ? delta.Normalized() * component.Speed : Vector2.
 _physics.SetLinearVelocity(uid, speed);
 // Special mode for entity behavior (for example, tesla-like objects).
 _physics.SetBodyStatus(uid, physics, BodyStatus.InAir);
+// Verify SetBodyStatus/BodyStatus against the fork's current code before reuse.
 ```
 
 ### 7) Chaotic jump with raycast-safe offset
@@ -179,15 +183,34 @@ if (hit != null)
     // Shift away from the collision point to avoid teleporting directly into the collision.
     targetPos = hit.Value.HitPos - new Vector2((float)Math.Cos(direction), (float)Math.Sin(direction));
 }
+else
+{
+    // No collision ahead: jump to the full range instead of teleporting to the world origin.
+    targetPos = startPos + direction.ToVec() * range;
+}
 
 _transform.SetWorldPosition(uid, targetPos);
+// Verify IntersectRay/SetWorldPosition against the fork's current code before reuse.
 ```
+
+## Dimension checklist
+
+| Dimension | Coverage |
+|---|---|
+| Client prediction gating | Covered: `prediction` parameter, `UpdateIsPredictedEvent` hooks |
+| Server/Shared/Client split | Covered: layer scheme above |
+| Event ordering | Covered: `UpdatesBefore/UpdatesAfter` before `base.Initialize()` |
+| Component lifecycle | Covered: `Initialize`/`Shutdown` contract + relay teardown |
+| Hot-path allocations | Covered: `AwakeBodies` iteration, parallel compute pattern, cached queries |
+| PVS visibility | N/A: controllers orchestrate physics state, not PVS-visible entities |
 
 ## Extension rule
 
 1. Design new controllers as deterministic substep passes with explicit prediction-gating.
-2. Fix the order of controllers in `Initialize()` to `base.Initialize()`.
+2. Fix the order of controllers in `Initialize()` before `base.Initialize()`.
 3. First check any borrowed fragment with `rejected-snippets`.
 4. Confirm any performance change by profiling controller histograms.
 
 Think of VirtualController as a physics orchestration layer, not as “another Update()” 😅
+
+Verified against code state: 2026-08-16

@@ -1,241 +1,145 @@
 ---
-name: SS14 Netcode Architecture
-description: Architecture guide for networking in Space Station 14 — Lidgren integration, NetManager abstraction, message system, game state synchronization, PVS, network events, and component networking
+name: ss14-netcode
+description: Architecture guide for SS14 networking - Lidgren transport, NetManager abstraction, typed messages, game state deltas, network events, EntityUid/NetEntity conversion, and component replication basics. Use it when writing or debugging any code that crosses the network boundary (RaiseNetworkEvent, AutoNetworkedField, Dirty/DirtyField, NetEntity conversions), before reaching for specialized ss14-pvs, ss14-prediction, or ss14-events skills.
 ---
 
 # SS14 network architecture
 
-## Stack overview
+## Mental model
 
-The SS14 networking stack consists of several layers of abstraction, from low-level transport to game state synchronization logic:
+The server is authoritative. It simulates the world, filters visibility through
+PVS, composes one delta `GameState` per player per tick, and streams it down.
+Clients apply states, predict local inputs ahead of server acks, and send
+commands/events up. Only three things cross the process boundary: component
+states (`AutoNetworkedField` + `Dirty()`), network events (`RaiseNetworkEvent`),
+and session/console messages.
 
-```
-┌─────────────────────────────────────────────┐
-│ Content (game systems) │
-│  RaiseNetworkEvent / ComponentState / Dirty  │
-├─────────────────────────────────────────────┤
-│         ServerGameStateManager              │
-│         ClientGameStateManager              │
-│         GameStateProcessor                  │
-├─────────────────────────────────────────────┤
-│              PVS System                     │
-│ (filtering the visibility of entities) │
-├─────────────────────────────────────────────┤
-│       NetMessage / MsgState / MsgGroups     │
-│ (typed messages with serialization)│
-├─────────────────────────────────────────────┤
-│            NetManager                       │
-│ (wrapper over Lidgren, control │
-│ channels, packet dispatch) │
-├─────────────────────────────────────────────┤
-│     Lidgren (NetPeer/NetServer/NetClient)   │
-│          UDP + reliability layer            │
-└─────────────────────────────────────────────┘
+Stack, top-down: content systems -> game state managers + PVS -> typed
+`NetMessage`s in delivery groups -> `NetManager` (`INetManager` wrapper) ->
+Lidgren UDP with its reliability layer.
+
+**The single most important pattern:** after mutating a networked component on
+the server you MUST call `Dirty()` (or `DirtyField()`), otherwise the change is
+server-only and clients silently desync:
+
+```csharp
+comp.Value = newValue;
+Dirty(uid, comp); // no Dirty() = change never reaches clients
+// Verify: Robust.Shared/GameObjects - grep "public void Dirty("
 ```
 
-## Lidgren: transport layer
+## What to read first
 
-SS14 uses the **Lidgren** library for UDP transport. The engine does not use Lidgren directly in the game code - all work is done through the `INetManager` and `NetMessage` abstractions.
+1. This file end-to-end once; afterwards jump by task.
+2. `[NetworkedComponent]` / `[AutoNetworkedField]` deep dive: **ss14-ecs-components**.
+3. Prediction loop and timing flags: **ss14-prediction**.
+4. PVS overrides, budgets, leave mechanics: **ss14-pvs**.
+5. Event taxonomy and subscriptions: **ss14-events**; hot-path discipline: **ss14-standard-optimizations**.
+6. Network debugging recipes: `references/debugging.md`.
 
-### Lidgren configuration
+## Source of truth
 
-The engine configures Lidgren via CVars:
+1. Ground truth is the fork codebase: transport in RobustToolbox `Robust.Shared/Network/`, state streaming in `Robust.Server/GameStates/` + `Robust.Client/GameStates/`.
+2. CVar names/defaults drift between upstream syncs - re-check `Robust.Shared/CVars.cs`.
+3. Anything not re-verified against current code is marked `[unverified]`.
 
-- **MTU** - Maximum Transmission Unit. Packets larger than MTU are fragmented. Default ~1408 bytes
-- **Simulation of network problems** - for testing:
-  - `net.fakeloss` — percentage of lost packets (0.0–1.0)
-  - `net.fakelagmin` — minimum delay in seconds
-  - `net.fakelagrand` - random additional delay
-  - `net.fakeduplicates` — chance of packet duplication
-- **Buffers** — `net.sendbuffersize`, `net.receivebuffersize`
-- **AppIdentifier** - string to identify the protocol (via `CVars.NetLidgrenAppIdentifier`)
+## Patterns
 
-### Time synchronization
+1. Validate every client->server event on the server (component presence + interaction range) from shared helpers so client pre-checks reuse the code.
+2. Call `Dirty()` after mutating any `AutoNetworkedField`; switch to `DirtyField()` for point updates on heavy components (`fieldDeltas: true`).
+3. Convert IDs only at the boundary: store `EntityUid`, wrap via `GetNetEntity()` when serializing, unwrap via `GetEntity()` when consuming.
+4. Respect delivery-group defaults instead of hand-picking transports: unreliable for per-tick data, reliable ordered for chat/ECS events.
+5. Mark owner-private components with `SendOnlyToOwner => true` and per-session divergent data with `SessionSpecific => true`; never filter sends manually.
+6. Use PVS overrides only where visibility must exceed range limits - see ss14-pvs.
+7. Test against hostile networks early with `net.fake*` CVars.
 
-When initialized, the engine synchronizes `NetTime` Lidgren with its own `RealTime`:
+## Anti-patterns
+
+1. Trusting client-sent event payloads without validation - any client can spoof any message and target entity.
+2. Mutating an `AutoNetworkedField` without `Dirty()` - server changes, clients never learn about it.
+3. Full `Dirty()` every tick when one field changed on a field-heavy component - use `DirtyField()` instead.
+4. Storing `NetEntity` in component fields or sending raw `EntityUid` in event payloads without conversion.
+5. Putting `[NetworkedComponent]` on Client/Server project components - it silently does nothing there.
+6. Assuming ordering or arrival for unreliable delivery - handlers must tolerate drops and reorderings.
+7. Sizing packets against configured `net.mtu` alone - the MsgState reliability threshold is hardcoded lower (488 bytes, see below).
+
+## Lidgren transport layer
+
+Game code never touches Lidgren's `NetPeer` directly; everything goes through the `INetManager` abstraction. Configuration flows from CVars:
+
+- `net.mtu` (default 700) feeds Lidgren's `MaximumTransmissionUnit`; Lidgren's own constant `kDefaultMTU` is 508. Oversized packets are fragmented.
+- Fake-network testing: `net.fakeloss`, `net.fakelagmin`, `net.fakelagrand`, `net.fakeduplicates` (CHEAT cvars).
+- Buffers: `net.sendbuffersize`, `net.receivebuffersize`; protocol id: `CVars.NetLidgrenAppIdentifier`.
+
+At startup the engine pins Lidgren's clock to engine time:
 
 ```csharp
 NetTime.SetNow(_timing.RealTime.TotalSeconds);
+// Verify: Robust.Shared/Network/NetManager.cs - grep NetTime.SetNow
 ```
 
-This is critical for packet timings to work correctly.
+## NetMessage: typed messages
 
-## NetMessage: typed message system
+Every wire message derives from `NetMessage`; the group sets the default delivery method (verify: `Robust.Shared/Network/NetMessage.cs` - grep `DeliveryMethod`):
 
-All network messages are inherited from the abstract class `NetMessage`.
+| Group | Delivery | Used for |
+|-------|----------|----------|
+| `Core` | ReliableUnordered | connections, disconnections, ticks |
+| `Entity` | Unreliable | entity/state synchronization |
+| `String` | ReliableOrdered | chat, text messages |
+| `Command` | ReliableUnordered | commands client -> server |
+| `EntityEvent` | ReliableOrdered | ECS events between peers |
 
-### Message groups (MsgGroups)
-
-Each message belongs to a group that determines the default delivery method:
-
-| Group | Delivery | Destination |
-|--------|----------|------------|
-| `Core` | ReliableUnordered | Connections, disconnections, ticks |
-| `Entity` | Unreliable Game state synchronization |
-| `String` | ReliableOrdered | Chat, text messages |
-| `Command` | ReliableUnordered | Commands client → server |
-| `EntityEvent` | ReliableOrdered | ECS events between server and client |
-
-### Lidgren delivery methods
-
-- **Unreliable** - no guarantee of delivery, no order. The fastest
-- **ReliableUnordered** — delivery guarantee, without order guarantee
-- **ReliableOrdered** - guarantee of delivery and order (within the sequence channel)
-
-### Sequence Channels
-
-Lidgren supports up to 32 channels for ordered messages. Channels 16+ are reserved for internal engine needs. Messages in different channels are ordered independently.
-
-### Registration and processing
+Ordering applies only within a sequence channel (up to 32; channels 16+ are reserved for engine use). Message type names travel as numeric IDs synced via `StringTable` during connection setup. Registration happens once per side:
 
 ```csharp
-// Registering a message with a handler
-_networkManager.RegisterNetMessage<MsgStateAck>(HandleStateAck);
-
-// Registration without handler (for sending only)
-_networkManager.RegisterNetMessage<MsgState>();
+_networkManager.RegisterNetMessage<MsgStateAck>(HandleStateAck); // with handler
+_networkManager.RegisterNetMessage<MsgState>();                  // send-only
+// Verify: Robust.Shared/Network/NetManager.cs - grep RegisterNetMessage
 ```
 
-## NetManager: network management
+## NetManager
 
-`NetManager` is the central point of the network subsystem. It implements both interfaces: `IClientNetManager` and `IServerNetManager`.
+One class implements both `IClientNetManager` and `IServerNetManager`. `ProcessPackets()` runs every frame: drains the Lidgren queue, dispatches `Data` messages to handlers, reacts to `StatusChanged`, logs warnings, updates Prometheus metrics, recycles buffers. Each connection surfaces as an `INetChannel`: Lidgren connection + `NetUserId` + ping + auth status.
 
-### Main processing cycle
+## Game state synchronization
 
-The `ProcessPackets()` method is called every frame and does:
+A `GameState` is a delta between two ticks: changed component states, player sessions, entity deletions, the `FromSequence`/`ToSequence` range, and `LastProcessedInput`. `FromSequence == 0` means a full state - sent after connecting or on desync recovery requested via `MsgStateRequestFull`.
 
-1. Reads all incoming messages from Lidgren peers
-2. Classifies by `NetIncomingMessageType`:
-   - `Data` → deserializes to `NetMessage`, calls the registered callback
-   - `StatusChanged` → handles connections/disconnections
-   - `VerboseDebugMessage`, `WarningMessage`, `ErrorMessage` → logs
-3. Updates Prometheus metrics (sent/received packets, bytes, resends)
-4. Recycles used Lidgren buffers
+`MsgState` packing rules:
 
-### StringTable
-
-To save traffic, message type names are passed as numeric IDs via `StringTable`. When connecting, the server and client synchronize the mapping table.
-
-### Channels (NetChannel)
-
-Each connection is represented by `NetChannel`, which stores:
-- Lidgren `NetConnection`
-- User ID (`NetUserId`)
-- Ping
-- Authentication status
-
-## Synchronizing the game state (GameState)
-
-### GameState structure
-
-`GameState` — a snapshot of the game state at a specific tick. Contains:
-
-- **EntityStates** — changed states of entity components
-- **PlayerStates** — player session states
-- **EntityDeletions** — deleted entities
-- **FromSequence / ToSequence** — tick range (delta state)
-- **LastProcessedInput** — the last client input processed by the server
-
-### Delta states
-
-The server sends the **delta** between two ticks, rather than the full state each time. `FromSequence = 0` means full status (after connection or on error).
-
-### Compression and reliability (MsgState)
-
-The `MsgState` class implements smart dispatch logic:
-
-- **ZStd compression** - states > 256 bytes are compressed
-- **Adaptive reliability** - if the resulting size exceeds the Lidgren MTU (~1408 bytes), the message is sent as Reliable. Otherwise - Unreliable
-- **Forced reliability** - `ForceSendReliably` for states that the client must receive
-
-### Flow server → client
-
-1. **Server:** `ServerGameStateManager.SendGameStateUpdate()` → `PvsSystem.SendGameStates(players)`
-2. PVS calculates visible entities for each player
-3. An individual `GameState` is formed for each player
-4. State is serialized, compressed, sent as `MsgState`
-5. **Client:** receives `MsgState`, deserializes, places in `GameStateProcessor`
-6. The client responds with `MsgStateAck` confirmation
-
-### Client state processing
-
-`GameStateProcessor` buffers received states and releases them for use:
-
-- **State Buffer** - stores several states in advance for smoothing
-- **Target buffer size** — target buffer size, affects latency vs smoothness
-- **Tick timing adjustment** — the client slightly speeds up/slows down its tick to synchronize with the server
-
-### Query full status
-
-If there is an error (missing entity metadata, desynchronization), the client requests the full state via `MsgStateRequestFull`. The server responds with a state of `FromSequence = 0`.
-
-## Potentially Visible Set (PVS)
-
-PVS is a server-side optimization system that determines which entities each client sees.
-
-### Operating principle
-
-- The world is divided into **chunks**
-- The server tracks the position of each player
-- Entities within a certain radius enter the player's PVS
-- Only visible entity data is sent to the client
-
-### Visibility Lifecycle
-
-1. **Entity enters PVS** - the client receives the full state, the `Detached` flag is cleared
-2. **Entity in PVS** - client receives delta updates
-3. **The entity leaves PVS** - the server sends `MsgStateLeavePvs`, the client sets the flag `MetaDataFlags.Detached`
-
-### Detached entities
-
-When an entity exits PVS:
-- It **is not deleted** - remains in the client’s memory
-- The flag `MetaDataFlags.Detached` is set
-- The entity moves to “null-space” (removed from broadphase)
-- When re-entering PVS, the flag is removed, the entity returns to its place
-
-### PVS Overrides
-
-For entities that should be visible always or to specific players:
+- ZStd compression kicks in above 256 bytes of serialized payload.
+- Reliability switches on size: payloads over the hardcoded `ReliableThreshold` (= Lidgren `kDefaultMTU - 20` = 488 bytes) go Reliable, smaller go Unreliable. NOT derived from the configured `net.mtu`.
+- `ForceSendReliably` marks states the client must not lose.
 
 ```csharp
-// Visible to all clients, regardless of distance
-_pvs.AddGlobalOverride(entityUid);
-
-// Visible to a specific session
-_pvs.AddSessionOverride(entityUid, session);
+public const int CompressionThreshold = 256;
+public const int ReliableThreshold = NetPeerConfiguration.kDefaultMTU - 20;
+// Verify: Robust.Shared/Network/Messages/MsgState.cs - grep Threshold
 ```
 
-Typical applications: player UI entities, global controllers, objects on the character’s hands.
+Flow, server -> client: `ServerGameStateManager.SendGameStateUpdate()` -> PVS builds one per-player `GameState` -> serialize/compress -> send as `MsgState` -> client buffers it in `GameStateProcessor` (buffer size trades latency against smoothness; local tick rate nudges to match the server) -> client answers with `MsgStateAck`.
 
-## Network Events
+## Network events
 
-### Two types of events
-
-SS14 has **local** and **online** events. These are fundamentally different mechanisms:
+Local and networked events are different mechanisms; taxonomy lives in the ss14-events skill. Event payloads must be plain serializable data - convert entities to `NetEntity` before sending.
 
 ```csharp
-// Local event - only in the current process
-RaiseLocalEvent(uid, new MyLocalEvent());
-SubscribeLocalEvent<MyComponent, MyLocalEvent>(OnMyEvent);
-
-// Network event - sent over the network
-RaiseNetworkEvent(new MyNetEvent());
+RaiseNetworkEvent(new MyNetEvent());      // crosses the network
 SubscribeNetworkEvent<MyNetEvent>(OnNetEvent);
+// Verify: Robust.Shared/GameObjects/EntitySystem.Subscriptions.cs - grep SubscribeNetworkEvent
 ```
 
-### Server Validation
-
-**All events from the client to the server must be validated.** The client can send any data:
+**Validate everything a client sends.** Any client can spoof any message:
 
 ```csharp
-// ❌ Dangerous - no validation
+// BAD - a spoofed TargetEntity triggers an arbitrary server-side action
 private void OnClientEvent(MyEvent ev, EntitySessionEventArgs args)
 {
-    DoAction(ev.TargetEntity); // The client could have spoofed the TargetEntity!
+    DoAction(ev.TargetEntity);
 }
 
-// ✅ Safe - with validation
+// GOOD - validate on the server; mirror checks client-side from shared code
 private void OnClientEvent(MyEvent ev, EntitySessionEventArgs args)
 {
     if (!HasComp<MyComponent>(ev.TargetEntity))
@@ -244,56 +148,38 @@ private void OnClientEvent(MyEvent ev, EntitySessionEventArgs args)
         return;
     DoAction(ev.TargetEntity);
 }
+// Verify: Content.Shared/Interaction/SharedInteractionSystem.cs - grep InRangeUnobstructed
 ```
 
-Validation must occur on the server after receiving the message and on the client before it is sent.
-Validation code must be in a shared system/helper class to prevent duplication of logic!
-
-### Sending patterns
+Sending patterns (real overloads):
 
 ```csharp
-// Server → all clients
-RaiseNetworkEvent(new MyEvent());
-
-// Server → specific client
-RaiseNetworkEvent(new MyEvent(), session);
-
-// Server → everyone except one
+RaiseNetworkEvent(new MyEvent());                    // server -> all clients
+RaiseNetworkEvent(new MyEvent(), session);           // server -> one player
 var filter = Filter.Broadcast().RemovePlayerByAttachedEntity(uid);
-RaiseNetworkEvent(new MyEvent(), filter);
+RaiseNetworkEvent(new MyEvent(), filter);            // everyone except one
+// Verify: Robust.Shared/GameObjects/EntitySystem.cs - grep RaiseNetworkEvent
 ```
 
 ## EntityUid vs NetEntity
 
-SS14 has two entity identification systems:
-
 | | EntityUid | NetEntity |
 |---|---|---|
-| Where is it used | Locally in progress | When transmitted over a network |
-| Stability | Different on client and server | Same everywhere |
-| Storage | In components | For transmission only |
-
-### Conversion
+| Where used | locally, at runtime | only on the wire |
+| Stability | differs between client and server | identical everywhere |
+| Storage | in components and logic | transmission only |
 
 ```csharp
-// EntityUid → NetEntity (to be sent over the network)
-var netEntity = GetNetEntity(uid);
-
-// NetEntity → EntityUid (when received from the network)
-var uid = GetEntity(netEntity);
+var netEntity = GetNetEntity(uid); // serialize out
+var uid = GetEntity(netEntity);    // deserialize in
+// Verify: Robust.Shared/GameObjects/IEntityManager.Network.cs - grep GetNetEntity
 ```
 
-### Rules
+Edge cases: deleted/untracked entities convert to `NetEntity.Invalid` - guard with `!= NetEntity.Invalid` before converting back. An entity that left PVS still exists client-side with `MetaDataFlags.Detached`, parked in null-space; on re-entry it revives - revive what exists instead of spawning duplicates. With `[AutoNetworkedField]`, `EntityUid` values and collections convert automatically; manual conversion is for custom serialization paths only.
 
-- **Components** store `EntityUid`, not `NetEntity`
-- During network synchronization (`[AutoNetworkedField]`), conversion occurs automatically
-- For manual networking, use `GetNetEntity()`/`GetEntity()` when serializing/deserializing
+## Component networking
 
-## Component Networking: network synchronization of components
-
-### Automatic synchronization
-
-This is the basic and recommended method. Described in detail in the skill **SS14 ECS Components**:
+Automatic replication is the default choice:
 
 ```csharp
 [RegisterComponent, NetworkedComponent, AutoGenerateComponentState]
@@ -302,90 +188,48 @@ public sealed partial class MyComponent : Component
     [DataField, AutoNetworkedField]
     public float Value = 1f;
 }
+// Verify: Robust.Shared/Analyzers/ComponentNetworkGeneratorAuxiliary.cs - grep AutoNetworkedFieldAttribute
 ```
 
-### Key Point: Dirty()
-
-After changing component data in code, it is **required** to call `Dirty()`:
+To react to applied incoming states without re-implementing replication, set `[AutoGenerateComponentState(raiseAfterAutoHandleState: true)]` and handle the ByRef `AfterAutoHandleStateEvent` component event. Owner-private and per-session data are COMPONENT-level property overrides, not field attributes:
 
 ```csharp
-comp.Value = newValue;
-Dirty(uid, comp); // Without this, the client will NOT receive the update!
-```
-
-`Dirty()` marks the component as changed. The PVS system will include it in the next `GameState` to send to clients.
-
-> **⚠️ Common mistake:** forgetting `Dirty()` after changing a component. The data will change on the server, but the client will not receive the update, which will lead to desynchronization.
-
-### SendOnlyToOwner
-
-For data that only the "owner" of the entity should see (such as inventory):
-
-```csharp
-[DataField, AutoNetworkedField]
-[Access(Other = AccessPermissions.ReadWrite)]
-public int SecretValue
+// ALL AutoNetworkedFields here reach only the owning player's client
+[RegisterComponent, NetworkedComponent, AutoGenerateComponentState]
+public sealed partial class AlertsComponent : Component
 {
-    get => _secretValue;
-    set => _secretValue = value;
+    public override bool SendOnlyToOwner => true;
+
+    [AutoNetworkedField] public int AlertCount;
 }
+// Verify: Content.Shared/Alert/AlertsComponent.cs - grep SendOnlyToOwner
 ```
 
-### SessionSpecific
-
-For data that differs between clients (for example, the visibility of a masked character).
-
-### NetworkedComponent for Shared only
-
-`[NetworkedComponent]` can be set **only on components in a Shared project**. If you put it on a component in a Client or Server project, it will not work silently - without compilation errors, but also without synchronization.
-
-### IRobustCloneable for reference types
-
-If the network field contains a reference type (class, collection), the type must implement `IRobustCloneable` so that the prediction can correctly save and restore state:
+Non-triggering condition: do NOT use it when other clients need the data for prediction or rendering - owner-only delivery starves their predictors.
 
 ```csharp
-[DataField, AutoNetworkedField]
-public List<string> Items = new(); // List<T> already implements IRobustCloneable
+// each client receives values scoped to itself (disguise/hidden-role visibility)
+public override bool SessionSpecific => true;
+// Verify: Content.Shared/Revolutionary/Components/RevolutionaryComponent.cs - grep SessionSpecific
 ```
 
-## Debugging network problems
+`[NetworkedComponent]` belongs ONLY on Shared-project components; on Client or Server projects it silently does nothing - no compile error, no sync.
 
-###CVars for simulation
+Reference-type fields: the generator special-cases `List<T>` and `Dictionary<K,V>` out of the box (including automatic `EntityUid` conversion inside collections). Custom reference types MUST implement the generic `IRobustCloneable<T>`, otherwise prediction restores them by reference and mutations leak across predicted states:
 
-Use in the client or server console:
+```csharp
+public sealed partial class MySettings : IRobustCloneable<MySettings>
+{
+    public string Mode = string.Empty;
 
-```
-net.fakeloss 0.1       // 10% packet loss
-net.fakelagmin 0.1     // Minimum 100ms latency
-net.fakelagrand 0.05   // + random 0-50ms
-net.fakeduplicates 0.05 // 5% doubles
-```
-
-### net.predict
-
-```
-net.predict false  // Disable client prediction - you can see the real delay
-net.predict true   // Turn back on
+    public MySettings Clone() => new() { Mode = Mode };
+}
+// Verify: Robust.Shared.Serialization - grep IRobustCloneable + GlobalIRobustCloneableName in CompNetworkGenerator
 ```
 
-### Prometheus Metrics
+## Point updates with DirtyField
 
-The engine exports metrics:
-- `robust_net_sent_packets` / `robust_net_recv_packets`
-- `robust_net_sent_bytes` / `robust_net_recv_bytes`
-- `robust_net_resent_delay` / `robust_net_resent_hole`
-- `robust_net_dropped`
-
-## Connection with other skills
-
-- **SS14 ECS Components** - attribute details `[NetworkedComponent]`, `[AutoGenerateComponentState]`, `[AutoNetworkedField]`
-- **SS14 ECS Systems** - patterns for working with network events from systems
-- **SS14 ECS Entities** - `EntityUid` vs `NetEntity`, containers and network identification
-- **SS14 Prediction** - how the client uses the received states to make predictions
-
-## Synchronization optimization: `DirtyField` instead of the full `Dirty` (addition)
-
-For large network components with multiple `AutoNetworkedField` and field deltas enabled, mark point changes with `DirtyField`.
+For components built with `fieldDeltas: true`, mark individual field changes instead of dirtying the whole component:
 
 ```csharp
 [RegisterComponent, NetworkedComponent]
@@ -395,28 +239,26 @@ public sealed partial class ProximityDetectorComponent : Component
     [AutoNetworkedField] public TimeSpan NextUpdate = TimeSpan.Zero;
     [AutoNetworkedField] public float Distance = float.PositiveInfinity;
     [AutoNetworkedField] public EntityUid? Target;
+    [DataField] public TimeSpan UpdateCooldown = TimeSpan.FromSeconds(1);
 }
 
 private void Tick(EntityUid uid, ProximityDetectorComponent comp)
 {
     comp.NextUpdate += comp.UpdateCooldown;
     DirtyField(uid, comp, nameof(ProximityDetectorComponent.NextUpdate));
-    // The delta will be sent only along the changed field.
+    // delta carries only NextUpdate; Distance/Target stay untouched
 }
+// Verify: Robust.Shared/GameObjects/EntityManager.ComponentDeltas.cs - grep DirtyField
 ```
 
-### When to do this
+Use `DirtyField` when specific fields change, the component carries many networked fields, and changes are frequent. Reserve full `Dirty()` for when most of the state actually changes together (see Anti-pattern 3).
 
-1. One or more specific fields change.
-2. The component is “heavy” in terms of the number of network fields.
-3. Changes occur frequently.
+## Debugging network problems
 
-### Anti-pattern
+Quick levers: `net.predict false` shows raw latency by disabling prediction; the `net.fake*` CVars inject loss/lag/duplicates. Full recipes - Prometheus metrics, buffer tuning, desync triage - live in `references/debugging.md`.
 
-```csharp
-// ❌ Completely dirty for every tick when changing one field:
-comp.NextUpdate += comp.UpdateCooldown;
-Dirty(uid, comp);
-```
+## Extension rule
 
-Leave the full `Dirty` for cases where a significant part of the state actually changes at the same time.
+Add new transport/message-level facts next to the matching section and give every new code example a `// Verify:` marker. If a topic grows past ~40 extra lines, split it into its own skill or `references/` page and link it here. Never re-explain PVS internals or event taxonomy here - extend the dedicated skills instead.
+
+Verified against code state: 2026-08-22

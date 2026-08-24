@@ -1,6 +1,10 @@
 # Fresh Pattern Catalog (VirtualController Core)
 
-> Status `Limited` means architectural contract: useful for understanding, but the code is older than cutoff and is not copied as a template.
+> Status `Limited` means architectural contract: useful for understanding, but the code has not been re-verified against the current fork (older than the last upstream sync point) and is not copied as a template.
+>
+> `Date by blame` is the last commit that touched the anchor line (`git blame -L`). For usage-case rows the anchor is the caller site; for method rows it is the method definition. Re-verify the date before relying on the freshness status.
+>
+> This catalog owns architecture anchors (engine contract, substep pipeline, layer split). The full method/usage catalog for gameplay code lives in `ss14-virtual-controller-api/references/fresh-pattern-catalog.md`.
 
 | Class/method | Pattern | Why is it useful | Layer | Date by blame | Status |
 |---|---|---|---|---|---|
@@ -13,7 +17,5 @@
 | `SharedConveyorController.UpdateBeforeSolve` | Parallel compute (`_parallel.ProcessNow`) + combine with `wishDir` | Productive conveyor without desync | Shared | 2025-03-28 | Use |
 | `PullController.UpdateBeforeSolve` | Pulse in pullable + reverse pulse puller in weightless/blocked | Physically stable pull in difficult conditions | Server | 2024-05-27 | Use |
 | `MoverController (Client).OnUpdate*Predicted` | `UpdateIsPredictedEvent` for mover/relay target/pullable | Reduces mispredict in local management | Client | 2024-09-12 | Use |
-| `SharedMoverController.SetRelay` | Relay lifecycle with `PhysicsSystem.UpdateIsPredicted(...)` | Consistent relay synchronization | Shared | 2025-04-05 | Use |
-| `SharedMoverController.RemoveRelay` | Explicit teardown relay + cleanup prediction state | Avoids dangling relay targets | Shared | 2025-08-04 | Use |
 | `ChasingWalkSystem` | Setting speed + `SetBodyStatus(..., BodyStatus.InAir)` for special entities | Supports desired pursuit mechanics | Server | 2024-03-25 | Use |
-| `ChaoticJumpSystem.Jump` | Raycast-target selection and teleport safe-offset before `SetWorldPosition` | Reduces the chance of teleporting into a collision | Server | 2024-09-29 | Use |
+| `ChaoticJumpSystem.Jump` | Raycast-target selection and teleport safe-offset before `SetWorldPosition` | Reduces the chance of teleporting into a collision | Server | 2023-12-28 | Use |

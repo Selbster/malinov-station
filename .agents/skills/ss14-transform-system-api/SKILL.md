@@ -1,325 +1,243 @@
 ---
-name: SS14 Transform System API
-description: A complete reference book for the SharedTransformSystem API in Space Station 14: analysis of all public families of methods, selection of overloads, restrictions and practical application patterns on the server and client. Use when you need to accurately select the TransformSystem method and avoid coordinate space errors.
+name: ss14-transform-system-api
+description: A complete reference for the SharedTransformSystem API in Space Station 14: method families, overload selection, obsolete warnings and practical patterns. Use when you need to select the correct TransformSystem method, avoid coordinate space errors, or batch transform operations.
 ---
 
 # TransformSystem: API
 
-This skill is the full directory of the public API `SharedTransformSystem` :)
+This skill is the public API directory for `SharedTransformSystem`.
 For the general architecture and operation scheme, first read `SS14 Transform System Core`.
 
-## How to read this directory
+## Mental model
 
-- For each family, first select a space (`EntityCoordinates` or `MapCoordinates`).
-- Then select an overload: `uid`-overload or overload with already resolved `TransformComponent`.
-- For bulk cycles, give priority to overloads, where you can transfer existing components/queries.
+Two questions to pick the right method:
+1. **What coordinate space** is the input in? (`EntityCoordinates` = relative to parent, `MapCoordinates` = world-in-map)
+2. **Read or write?**
+
+Read: `GetWorldPosition` / `GetMapCoordinates` / `GetMoverCoordinates`
+Write: `SetLocal*` / `SetWorld*` / `SetMapCoordinates` / `SetCoordinates`
+
+Prefer uid-overloads. Resolve `TransformComponent` once per entity in hot loops.
+
+## SS14 dimensions
+
+| Dimension | Covered | Notes |
+|---|---|---|
+| Prediction gating | ☐ N/A | Transform methods are shared; prediction gating is handled at call-site. When subscribing to `MoveEvent`, account for prediction re-fires. |
+| Server / Client split | ☑ | Server: authoritative anchoring, reparenting, teleport. Client: interpolation (`ActivateLerp`), matrix rendering, mover coordinates for UI. |
+| Event ordering | ☑ | `MoveEvent` [ByRefEvent] fires after position update, before grid traversal. `EntParentChangedMessage` [ByRefEvent] fires on parent change. `OnGlobalMoveEvent` fires after directed events. |
+| Hot path / allocations | ☑ | Prefer uid-overloads; resolve `TransformComponent` once per entity in loops. Use `EntityQuery<TransformComponent>` for batch traversal. |
+| Component lifecycle | ☐ N/A | `TransformStartupEvent` is engine-internal (0 content subscribers). Content code uses `MapInitEvent` / `ComponentStartup`. |
+| PVS / network visibility | ☐ N/A | Transform data feeds PVS but methods do not perform visibility filtering. |
 
 ## 1) Lifecycle and events
 
-- `Initialize()`
-Initializing Transform system subscriptions.
-
-- `MoveEventHandler` + `OnGlobalMoveEvent`
-Global C# event for movement after local `MoveEvent`.
-
-- `TransformStartupEvent`
-Transform component start event.
-
-- `ActivateLerp(EntityUid uid, TransformComponent xform)`
-Virtual hook for interpolation on the client. Usually not needed for content code.
+- `TransformStartupEvent` — directed event when TransformComponent first initializes. **Engine-internal only** (0 content subscribers; used by PVS, GridTraversal). Content init: use `MapInitEvent` / `ComponentStartup`.
+- `MoveEvent` — **[ByRefEvent]** directed at the moving entity. Fields: `OldPosition`, `NewPosition` (both `EntityCoordinates`, NOT world positions), `OldRotation`, `NewRotation`. Computed: `ParentChanged`. Subscribe with `ref MoveEvent ev`.
+- `OnGlobalMoveEvent` — **[Discouraged]** global broadcast. Engine docs say "which you probably shouldn't" — use only when you truly need every move event across all entities.
+- `ActivateLerp` — virtual hook for client interpolation. Content code should not override.
 
 ## 2) Coordinate transformations and distances
 
-- `IsValid(EntityCoordinates coordinates)`
-Checking the validity of coordinates.
-
-- `WithEntityId(EntityCoordinates coordinates, EntityUid entity)`
-Translation of coordinates into the space of another entity.
-
-- `ToMapCoordinates(...)`
-Overload:
-`ToMapCoordinates(EntityCoordinates coordinates, bool logError = true)`
-`ToMapCoordinates(NetCoordinates coordinates)`
-
-- `ToWorldPosition(...)`
-Overload:
-`ToWorldPosition(EntityCoordinates coordinates, bool logError = true)`
-`ToWorldPosition(NetCoordinates coordinates)`
-
-- `ToCoordinates(...)`
-Overload:
-`ToCoordinates(Entity<TransformComponent?> entity, MapCoordinates coordinates)`
-`ToCoordinates(MapCoordinates coordinates)`
-
-- `GetGrid(...)`
-Overload:
-`GetGrid(EntityCoordinates coordinates)`
-`GetGrid(Entity<TransformComponent?> entity)`
-
-- `GetMapId(...)`
-Overload:
-`GetMapId(EntityCoordinates coordinates)`
-`GetMapId(Entity<TransformComponent?> entity)`
-
-- `GetMap(...)`
-Overload:
-`GetMap(EntityCoordinates coordinates)`
-`GetMap(Entity<TransformComponent?> entity)`
-
-- `InRange(...)`
-Overload:
-`InRange(EntityCoordinates coordA, EntityCoordinates coordB, float range)`
-`InRange(Entity<TransformComponent?> entA, Entity<TransformComponent?> entB, float range)`
+- `IsValid(EntityCoordinates coordinates)` — check validity.
+- `WithEntityId(EntityCoordinates coordinates, EntityUid entity)` — translate into another entity's space.
+- `ToMapCoordinates(EntityCoordinates coordinates, bool logError = true)` — EntityCoords → MapCoords.
+  `ToMapCoordinates(NetCoordinates coordinates)` — from network coordinates.
+- `ToWorldPosition(EntityCoordinates coordinates, bool logError = true)` — to world Vector2.
+  `ToWorldPosition(NetCoordinates coordinates)`.
+- `ToCoordinates(Entity<TransformComponent?> entity, MapCoordinates coordinates)` — MapCoords → EntityCoords anchored to entity.
+  `ToCoordinates(MapCoordinates coordinates)` — unanchored variant.
+- `GetGrid(EntityCoordinates coordinates)` / `GetGrid(Entity<TransformComponent?> entity)` — resolve grid uid.
+- `GetMapId(EntityCoordinates coordinates)` / `GetMapId(Entity<TransformComponent?> entity)` — resolve map id.
+- `GetMap(EntityCoordinates coordinates)` / `GetMap(Entity<TransformComponent?> entity)` — resolve map entity uid.
+- `InRange(EntityCoordinates coordA, EntityCoordinates coordB, float range)` — cross-space distance check.
+  `InRange(Entity<TransformComponent?> entA, Entity<TransformComponent?> entB, float range)`.
 
 ## 3) Mover and tile helper API
 
-- `GetMoverCoordinates(...)`
-Overload:
-`GetMoverCoordinates(EntityUid uid)`
-`GetMoverCoordinates(EntityUid uid, TransformComponent xform)`
-`GetMoverCoordinates(EntityCoordinates coordinates, EntityQuery<TransformComponent> xformQuery)`
-`GetMoverCoordinates(EntityCoordinates coordinates)`
-
-- `GetMoverCoordinateRotation(EntityUid uid, TransformComponent xform)`
-Mover coordinates + world rotation.
-
-- `GetGridOrMapTilePosition(EntityUid uid, TransformComponent? xform = null)`
-Tile position on a grid or map.
-
-- `GetGridTilePositionOrDefault(Entity<TransformComponent?> entity, MapGridComponent? grid = null)`
-Tile position on the grid, or `Vector2i.Zero`.
-
-- `TryGetGridTilePosition(Entity<TransformComponent?> entity, out Vector2i indices, MapGridComponent? grid = null)`
-Safe `Try` option.
+- `GetMoverCoordinates(EntityUid uid)` — effective world-space position accounting for container nesting.
+  Overloads: uid / uid+xform / EntityCoordinates+xformQuery / EntityCoordinates.
+- `GetMoverCoordinateRotation(EntityUid uid, TransformComponent xform)` — mover coords + world rotation.
+- `GetGridOrMapTilePosition(EntityUid uid, TransformComponent? xform = null)` — tile position on grid or map.
+- `GetGridTilePositionOrDefault(Entity<TransformComponent?> entity, MapGridComponent? grid = null)` — tile position, or `Vector2i.Zero`.
+- `TryGetGridTilePosition(Entity<TransformComponent?> entity, out Vector2i indices, MapGridComponent? grid = null)` — safe `Try` variant.
 
 ## 4) Hierarchy, parent, anchoring
 
-- `AnchorEntity(...)`
-Overload:
-`AnchorEntity(EntityUid uid, TransformComponent xform, EntityUid gridUid, MapGridComponent grid, Vector2i tileIndices)` (obsolete)
-`AnchorEntity(Entity<TransformComponent> entity, Entity<MapGridComponent> grid, Vector2i tileIndices)`
-`AnchorEntity(EntityUid uid, TransformComponent xform, MapGridComponent grid)` (obsolete)
-`AnchorEntity(EntityUid uid)`
-`AnchorEntity(EntityUid uid, TransformComponent xform)`
-`AnchorEntity(Entity<TransformComponent> entity, Entity<MapGridComponent>? grid = null)`
+- `AnchorEntity(Entity<T> entity, Entity<MapGridComponent>? grid = null)` — preferred.
+  Convenience: `AnchorEntity(EntityUid uid)` or `(EntityUid uid, TransformComponent xform)`.
+  Obsolete: `(EntityUid, TransformComponent, EntityUid, MapGridComponent, Vector2i)` and `(EntityUid, TransformComponent, MapGridComponent)`.
+- `Unanchor(EntityUid uid)` or `Unanchor(EntityUid uid, TransformComponent xform, bool setPhysics = true)`.
+- `ContainsEntity(EntityUid parent, Entity<TransformComponent?> child)` — check nesting in transform tree.
+- `IsParentOf(TransformComponent parent, EntityUid child)` — quick parent check.
+- `SetGridId` — low-level, no `[Obsolete]` attribute but bypasses traversal invariants. Prefer `AttachToGridOrMap` or `SetCoordinates` for content code.
+- `ReparentChildren(EntityUid oldUid, EntityUid uid)` — bulk reparent.
+- `GetParent(EntityUid uid)` / `GetParentUid(EntityUid uid)`.
+- `SetParent(EntityUid uid, EntityUid parent)` or `SetParent(EntityUid uid, TransformComponent xform, EntityUid parent, TransformComponent? parentXform = null)`.
 
-- `Unanchor(...)`
-Overload:
-`Unanchor(EntityUid uid)`
-`Unanchor(EntityUid uid, TransformComponent xform, bool setPhysics = true)`
+## 5) Local mutations — preferred overloads
 
-- `ContainsEntity(EntityUid parent, Entity<TransformComponent?> child)`
-Checking nesting in the transform tree.
-
-- `IsParentOf(TransformComponent parent, EntityUid child)`
-Quickly check the parent of a children set.
-
-- `SetGridId(...)`
-Overload:
-`SetGridId(EntityUid uid, TransformComponent xform, EntityUid? gridId, EntityQuery<TransformComponent>? xformQuery = null)`
-`SetGridId(Entity<TransformComponent, MetaDataComponent?> ent, EntityUid? gridId)`
-Low-level API; usually not used in content code.
-
-- `ReparentChildren(...)`
-Overload:
-`ReparentChildren(EntityUid oldUid, EntityUid uid)`
-`ReparentChildren(EntityUid oldUid, EntityUid uid, EntityQuery<TransformComponent> xformQuery)`
-
-- `GetParent(...)`
-Overload:
-`GetParent(EntityUid uid)`
-`GetParent(TransformComponent xform)`
-
-- `GetParentUid(EntityUid uid)`
-
-- `SetParent(...)`
-Overload:
-`SetParent(EntityUid uid, EntityUid parent)`
-`SetParent(EntityUid uid, TransformComponent xform, EntityUid parent, TransformComponent? parentXform = null)`
-`SetParent(EntityUid uid, TransformComponent xform, EntityUid parent, EntityQuery<TransformComponent> xformQuery, TransformComponent? parentXform = null)`
-
-## 5) Local mutations
-
-- `SetLocalPosition(...)`
-Overload:
-`SetLocalPosition(TransformComponent xform, Vector2 value)` (obsolete)
-`SetLocalPosition(EntityUid uid, Vector2 value, TransformComponent? xform = null)`
-
-- `SetLocalPositionNoLerp(...)`
-Overload:
-`SetLocalPositionNoLerp(TransformComponent xform, Vector2 value)` (obsolete)
-`SetLocalPositionNoLerp(EntityUid uid, Vector2 value, TransformComponent? xform = null)`
-
+- `SetLocalPosition(EntityUid uid, Vector2 value, TransformComponent? xform = null)`
+- `SetLocalPositionNoLerp(EntityUid uid, Vector2 value, TransformComponent? xform = null)`
+- `SetLocalRotation(EntityUid uid, Angle value, TransformComponent? xform = null)`
 - `SetLocalRotationNoLerp(EntityUid uid, Angle value, TransformComponent? xform = null)`
+- `SetLocalPositionRotation(EntityUid uid, Vector2 pos, Angle rot, TransformComponent? xform = null)` — combined pos+rot.
+- `SetCoordinates(EntityUid uid, EntityCoordinates value)` — simple.
+  `SetCoordinates(EntityUid uid, TransformComponent xform, EntityCoordinates value, Angle? rotation = null, bool unanchor = true, ...)` — full; use named parameter `rotation:` explicitly.
 
-- `SetLocalRotation(...)`
-Overload:
-`SetLocalRotation(EntityUid uid, Angle value, TransformComponent? xform = null)`
-`SetLocalRotation(TransformComponent xform, Angle value)` (obsolete)
+All overloads with `TransformComponent` as **first** parameter are `[Obsolete]`. Never use in new code.
 
-- `SetCoordinates(...)`
-Overload:
-`SetCoordinates(EntityUid uid, EntityCoordinates value)`
-`SetCoordinates(Entity<TransformComponent, MetaDataComponent> entity, EntityCoordinates value, Angle? rotation = null, bool unanchor = true, TransformComponent? newParent = null, TransformComponent? oldParent = null)`
-`SetCoordinates(EntityUid uid, TransformComponent xform, EntityCoordinates value, Angle? rotation = null, bool unanchor = true, TransformComponent? newParent = null, TransformComponent? oldParent = null)`
+## Preferred overload cheat-sheet
 
-- `SetLocalPositionRotation(...)`
-Overload:
-`SetLocalPositionRotation(TransformComponent xform, Vector2 pos, Angle rot)` (obsolete)
-`SetLocalPositionRotation(EntityUid uid, Vector2 pos, Angle rot, TransformComponent? xform = null)`
+| Task | Preferred | Convenience | Obsolete (avoid) |
+|------|-----------|-------------|------------------|
+| Set local pos | `SetLocalPosition(EntityUid, Vector2, TransformComponent?)` | — | `(TransformComponent, Vector2)` |
+| Set local pos (no lerp) | `SetLocalPositionNoLerp(EntityUid, Vector2, TransformComponent?)` | — | `(TransformComponent, Vector2)` |
+| Set local rot | `SetLocalRotation(EntityUid, Angle, TransformComponent?)` | — | `(TransformComponent, Angle)` |
+| Set local pos+rot | `SetLocalPositionRotation(EntityUid, Vector2, Angle, TransformComponent?)` | — | `(TransformComponent, Vector2, Angle)` |
+| Set world pos | `SetWorldPosition(Entity<T>, Vector2)` | `(EntityUid, Vector2)` | `(TransformComponent, Vector2)` |
+| Set world rot | `SetWorldRotation(EntityUid, Angle)` or `(TransformComponent, Angle)` | — | — |
+| Set world pos+rot | `SetWorldPositionRotation(EntityUid, Vector2, Angle, TransformComponent?)` | — | — |
+| Set map coords | `SetMapCoordinates(EntityUid, MapCoords)` or `(Entity<T>, MapCoords)` | — | — |
+| Anchor | `AnchorEntity(Entity<T>, Entity<MapGridComponent>?)` | `(EntityUid)` or `(EntityUid, xform)` | 5-param and 3-param `(MapGridComponent)` variants |
+| Unanchor | `Unanchor(EntityUid)` or `(EntityUid, xform, bool)` | — | — |
+| Detach | `DetachEntity(EntityUid, TransformComponent?)` or `(Entity<T?>)` | — | `DetachParentToNull` |
+| Drop | `DropNextTo(Entity<T?>, Entity<T?>)` | — | — (no uid overload) |
 
 ## 6) World position, rotation, map coordinates
 
-- `GetWorldMatrix(...)`
-Overloads: uid / component / uid+query / component+query.
+**Getters** (all have uid / component / uid+query / component+query overloads):
+- `GetWorldPosition`, `GetWorldRotation`, `GetWorldMatrix`, `GetWorldPositionRotation`.
+- `GetMapCoordinates(EntityUid entity, TransformComponent? xform = null)`.
 
-- `GetWorldPosition(...)`
-Overloads: uid / component / uid+query / component+query.
+**Setters — preferred:**
+- `SetWorldPosition(Entity<TransformComponent> entity, Vector2 worldPos)` — preferred.
+  Convenience: `SetWorldPosition(EntityUid uid, Vector2 worldPos)`.
+- `SetWorldRotation(EntityUid uid, Angle angle)` or `(TransformComponent, Angle)`.
+- `SetWorldPositionRotation(EntityUid uid, Vector2 worldPos, Angle worldRot, TransformComponent? component = null)`.
+- `SetMapCoordinates(EntityUid entity, MapCoordinates coordinates)` or `(Entity<TransformComponent>, MapCoordinates)`.
+- `SetWorldRotationNoLerp(Entity<T?> entity, Angle angle)`.
 
-- `GetMapCoordinates(...)`
-Overload:
-`GetMapCoordinates(EntityUid entity, TransformComponent? xform = null)`
-`GetMapCoordinates(TransformComponent xform)`
-`GetMapCoordinates(Entity<TransformComponent> entity)`
+**Obsolete setter:** `SetWorldPosition(TransformComponent, Vector2)` — use Entity<T> variant.
 
-- `SetMapCoordinates(...)`
-Overload:
-`SetMapCoordinates(EntityUid entity, MapCoordinates coordinates)`
-`SetMapCoordinates(Entity<TransformComponent> entity, MapCoordinates coordinates)`
+**Relative:**
+- `GetRelativePositionRotation(TransformComponent component, EntityUid relative)`.
+- `GetRelativePosition(TransformComponent component, EntityUid relative)`.
+  Obsolete: overloads with extra `EntityQuery<TransformComponent>` parameter.
 
-- `GetWorldPositionRotation(...)`
-Overloads: uid / component / component+query.
+## 7) Batch matrix bundle API
 
-- `GetRelativePositionRotation(...)`
-Overload:
-`GetRelativePositionRotation(TransformComponent component, EntityUid relative, EntityQuery<TransformComponent> query)` (obsolete)
-`GetRelativePositionRotation(TransformComponent component, EntityUid relative)`
+All have uid / component / uid+query / component+query overloads:
+- `GetInvWorldMatrix`, `GetWorldPositionRotationMatrix`, `GetWorldPositionRotationInvMatrix`, `GetWorldPositionRotationMatrixWithInv`.
 
-- `GetRelativePosition(...)`
-Overload:
-`GetRelativePosition(TransformComponent component, EntityUid relative, EntityQuery<TransformComponent> query)` (obsolete)
-`GetRelativePosition(TransformComponent component, EntityUid relative)`
+Use when you need several derivatives at once (pos+rot+matrix) without repeated hierarchy passes.
 
-- `SetWorldPosition(...)`
-Overload:
-`SetWorldPosition(EntityUid uid, Vector2 worldPos)`
-`SetWorldPosition(TransformComponent component, Vector2 worldPos)` (obsolete)
-`SetWorldPosition(Entity<TransformComponent> entity, Vector2 worldPos)`
-
-- `GetWorldRotation(...)`
-Overloads: uid / component / uid+query / component+query.
-
-- `SetWorldRotationNoLerp(Entity<TransformComponent?> entity, Angle angle)`
-
-- `SetWorldRotation(...)`
-Overloads: uid / component / uid+query / component+query.
-
-- `SetWorldPositionRotation(EntityUid uid, Vector2 worldPos, Angle worldRot, TransformComponent? component = null)`
-
-## 7) Batch mathematics and matrix bundle API
-
-- `GetInvWorldMatrix(...)`
-Overloads: uid / component / uid+query / component+query.
-
-- `GetWorldPositionRotationMatrix(...)`
-Overloads: uid / component / uid+query / component+query.
-
-- `GetWorldPositionRotationInvMatrix(...)`
-Overloads: uid / component / uid+query / component+query.
-
-- `GetWorldPositionRotationMatrixWithInv(...)`
-Overloads: uid / component / uid+query / component+query.
-
-Use these methods when you need several derivatives at once (`pos+rot+matrix`) without unnecessary repeated passes through the hierarchy.
+**Note:** System methods produce flat translate+rotate matrices. For overlay/UI this is correct. For nested-grid accumulated transforms, consult the engine source.
 
 ## 8) Attach/Detach and "placement nearby"
 
-- `AttachToGridOrMap(EntityUid uid, TransformComponent? xform = null)`
-Normalization of parent to the actual grid or map.
-
-- `TryGetMapOrGridCoordinates(EntityUid uid, out EntityCoordinates? coordinates, TransformComponent? xform = null)`
-Securely obtain current grid/map coordinates.
-
-- `DetachParentToNull(EntityUid uid, TransformComponent xform)` (obsolete alias)
-
-- `DetachEntity(...)`
-Overload:
-`DetachEntity(EntityUid uid, TransformComponent? xform = null)`
-`DetachEntity(Entity<TransformComponent?> ent)`
-`DetachEntity(EntityUid uid, TransformComponent xform, MetaDataComponent meta, TransformComponent? oldXform, bool terminating = false)`
-
-- `DropNextTo(Entity<TransformComponent?> entity, Entity<TransformComponent?> target)`
-Taking into account containers, otherwise nearby in the world.
-
-- `PlaceNextTo(Entity<TransformComponent?> entity, Entity<TransformComponent?> target)`
-With the same parent or target container.
-
-- `SwapPositions(Entity<TransformComponent?> entity1, Entity<TransformComponent?> entity2)`
-Swap positions/containers with protection from incorrect parent-loop.
+- `AttachToGridOrMap(EntityUid uid, TransformComponent? xform = null)` — normalize parent to actual grid or map.
+- `TryGetMapOrGridCoordinates(EntityUid uid, out EntityCoordinates? coordinates, TransformComponent? xform = null)` — safe grid/map coordinates.
+- `DetachEntity(EntityUid uid, TransformComponent? xform = null)` or `DetachEntity(Entity<T?> ent)`.
+  Obsolete: `DetachParentToNull`.
+- `DropNextTo(Entity<T?> entity, Entity<T?> target)` — drop respecting containers, otherwise nearby in world.
+- `PlaceNextTo(Entity<T?> entity, Entity<T?> target)` — place with same parent or target container.
+- `SwapPositions(Entity<T?> entity1, Entity<T?> entity2)` — swap with parent-loop protection.
 
 ## 9) Legacy and restrictions
 
-- Overloads marked `obsolete` are left for compatibility: in the new code, prefer uid/entity options.
-- `SetGridId` and `ActivateLerp` are considered low-level APIs.
-- Direct legacy property-setters on `TransformComponent` should not be used for new logic.
+- Overloads marked `obsolete` are left for compatibility: in new code, prefer uid/entity options.
+- `SetGridId` and `ActivateLerp` are low-level APIs.
+- Direct legacy property-setters on `TransformComponent` (`LocalPosition`, `Coordinates`, `Anchored`) should not be used for new content code.
 
 ## Patterns
 
 - In hot loops, resolve `TransformComponent` once and pass it to overloads.
 - To change position and angle at the same time, use `SetLocalPositionRotation`.
 - For rendering and spatial-culling, use bundle matrix methods.
-- After moves from containers and complex parent operations, execute `AttachToGridOrMap` if normalization is required.
+- After teleport or cross-grid/cross-map moves, call `AttachToGridOrMap` to normalize parent. Intra-grid local moves and container transfers do NOT need it.
 - For drop/spawn nearby, use `DropNextTo` instead of manual `SetParent` + `SetCoordinates`.
 
 ## Anti-patterns
 
-- Ignore `Try`-result (`TryGetMapOrGridCoordinates`, `TryGetGridTilePosition`).
-- Mix local and world coordinates without `ToMapCoordinates`/`ToCoordinates`.
-- Use `SetGridId` as the "normal" way to move.
-- Try to manually maintain container hierarchy instead of `DropNextTo/PlaceNextTo`.
+❌ Ignore `Try`-result:
+```csharp
+// BAD: crash on invalid state
+var tile = _transform.TryGetGridTilePosition(uid, out var indices);
+```
+✅ Always check:
+```csharp
+if (!_transform.TryGetGridTilePosition(uid, out var tile))
+    return;
+```
+
+❌ Mix coordinates from different parent trees:
+```csharp
+// BAD: EntityCoordinates.Position from different grids are incomparable
+var dist = entityA.Coordinates.Position - entityB.Coordinates.Position;
+```
+✅ Convert first:
+```csharp
+var posA = _transform.GetMapCoordinates(entityA);
+var posB = _transform.GetMapCoordinates(entityB);
+var dist = Vector2.Distance(posA.Position, posB.Position);
+```
+
+❌ Use `SetGridId` as normal movement API — bypasses traversal invariants.
+✅ Use `AttachToGridOrMap` or `SetCoordinates` which handle grid rebinding.
+
+❌ Manually `SetParent + SetCoordinates` for drops — misses containers.
+✅ Use `DropNextTo` / `PlaceNextTo`.
+
+## Known issues
+
+- `SwapPositions` has documented client misprediction (`SwapLocationOnTriggerSystem.cs` comment: "SwapPositions mispredicts at the moment"). Only 1 of 5 callers applies `_net.IsServer` guard. Test swap on server+connected client.
+- `GetMoverCoordinates(EntityCoordinates, EntityQuery)` is a plumbing overload that delegates to `GetMoverCoordinates(EntityCoordinates)` — the `xformQuery` parameter is ignored.
 
 ## Code examples
 
-### Example 1: teleport with the correct choice of parent (grid or map)
+### Example 1: teleport with grid/map normalization
+// Verify: SharedMagicSystem.cs — grep SetCoordinates + AttachToGridOrMap
 
 ```csharp
 _transform.AttachToGridOrMap(entity, transform);
 
 if (_map.TryFindGridAt(mapId, position, out var gridUid, out _))
 {
-    // We translate world -> local grid and put it in grid-space.
     var gridPos = Vector2.Transform(position, _transform.GetInvWorldMatrix(gridUid));
     _transform.SetCoordinates(entity, transform, new EntityCoordinates(gridUid, gridPos));
 }
 else
 {
-    // Fallback in map-space.
     _transform.SetWorldPosition((entity, transform), position);
     _transform.SetParent(entity, transform, mapEntity);
 }
 ```
 
 ### Example 2: spawn fallback via DropNextTo
+// Verify: SharedEntityStorageSystem.cs — grep DropNextTo
 
 ```csharp
 var uid = Spawn(protoName, overrides, doMapInit);
+var xform = Transform(uid);
 
-// If a container insert fails, it is safe to "drop" nearby.
-_xforms.DropNextTo(uid, target);
+_xforms.DropNextTo((uid, xform), (target, targetXform));
 ```
 
 ### Example 3: tile-safe check via TryGetGridTilePosition
+// Verify: MagnetPickupSystem.cs — grep TryGetGridTilePosition
 
 ```csharp
 if (args.Grid is {} grid
     && _transform.TryGetGridTilePosition(uid, out var tile)
     && _atmosphere.IsTileAirBlockedCached(grid, tile))
 {
-    return; // The device is in a locked tile.
+    return;
 }
 ```
 
 ### Example 4: GetGridTilePositionOrDefault for atmospheric calculations
+// Verify: SharedAtmosphereSystem.cs — grep GetGridTilePositionOrDefault
 
 ```csharp
 var indices = _transform.GetGridTilePositionOrDefault((uid, transform));
@@ -327,31 +245,42 @@ var tileMix = _atmosphere.GetTileMixture(transform.GridUid, null, indices, true)
 ```
 
 ### Example 5: changing space via WithEntityId
+// Verify: SharedTransformSystem.Coordinates.cs — grep WithEntityId
 
 ```csharp
-// We convert the coordinates to grid-space, snap it and return it back.
 var localPos = _transform.WithEntityId(coords, gridUid).Position;
 var snappedGrid = new EntityCoordinates(gridUid, snappedLocalPos);
 var backToOriginal = _transform.WithEntityId(snappedGrid, coords.EntityId);
 ```
 
-### Example 6: Exchange Entity Positions
+### Example 6: exchange entity positions
+// Verify: SwapTeleporterSystem.cs — grep SwapPositions
 
 ```csharp
-// Returns false if swap is not possible (e.g. parent-loop risk).
 if (!_transform.SwapPositions(first, second))
     return;
 ```
 
-## Mini-checklist for choosing a method
+## Mini-checklist
 
-- Do you need translation between spaces?
-`ToMapCoordinates` / `ToCoordinates` / `WithEntityId`.
-- Need local editing?
-`SetLocal*`.
-- Do you need a world/map edit?
-`SetWorld*` or `SetMapCoordinates`.
-- Do you need to change parent/hierarchy?
-`SetParent` / `SetCoordinates` / `AttachToGridOrMap`.
-- Need a container-safe drop/place/swap?
-`DropNextTo` / `PlaceNextTo` / `SwapPositions` ✅
+- [ ] Input coordinates: `EntityCoordinates` or `MapCoordinates`?
+- [ ] Using preferred uid-overload (not obsolete component-first)?
+- [ ] After teleport: called `AttachToGridOrMap`?
+- [ ] Subscribing to `MoveEvent`? It's `[ByRefEvent]` — use `ref MoveEvent ev`
+- [ ] In hot loop? Resolved `TransformComponent` once, passed to overload?
+- [ ] Need combined pos+rot? Use `SetLocalPositionRotation` or `SetWorldPositionRotation`
+- [ ] Drop/place/swap? Use `DropNextTo`/`PlaceNextTo`/`SwapPositions` — they accept `Entity<T?>`, NOT raw `EntityUid`
+- [ ] Comparing positions across different parent trees? Convert via `ToMapCoordinates` first
+
+## Source of truth
+
+API signatures verified against `SharedTransformSystem.Component.cs`, `SharedTransformSystem.Coordinates.cs`, and `SharedTransformSystem.cs` in the RobustToolbox submodule. When in doubt, grep the actual method in the fork's RobustToolbox.
+Verified against fork HEAD: 2026-08-19.
+
+## Extension rule
+
+When adding new transform-related methods to this skill:
+1. Verify the signature exists in the fork's current RobustToolbox HEAD.
+2. Mark obsolete methods with `(obsolete)`.
+3. Show only the preferred overload + one line about alternatives.
+4. Sync the bridge in `.claude/skills` and update the description if the trigger changed.

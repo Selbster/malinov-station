@@ -17,22 +17,23 @@ The bus is implemented through the `IEventBus` interface (backed by the internal
 
 To achieve high performance, `EntityEventBus` supports several specialized data structures:
 
-*   **Broadcast Subscriptions (`_eventData`)**:
-    * Dictionary `Type` -> `EventData`.
-    * Stores a list of all global subscribers for each event type.
-    * Used for broadcast events and system notifications.
+*   **Broadcast Subscriptions (`_eventData` / `_eventDataUnfrozen`)**:
+    * After lock: `FrozenDictionary<Type, EventData>` — read-only, optimal lookup.
+    * Before lock: `Dictionary<Type, EventData>` — mutable, used during initialization.
+    * Stores `BroadcastRegistration` list (all global subscribers) and ordering data for each event type.
+    * Converted to frozen on `LockSubscriptions()` via `.ToFrozenDictionary()`.
 
 * **Directed Subscriptions (`_eventSubs` and `_compEventSubs`)**:
-    * Array structure of arrays (jagged array), indexed by `CompIdx` (Component Index).
-    * `_eventSubs[CompIdx]`: Maps `EventType` -> `Handler`.
-    * Allows you to search for component handlers for a specific event in O(1). ⚡
-    * Divided into general events and optimized Component Events (see below).
+    * Two flat arrays of frozen dictionaries, indexed by `CompIdx.Value`.
+    * `_eventSubs[CompIdx]`: `FrozenDictionary<Type, DirectedRegistration>` — maps event type to a wrapper containing the handler and ordering data. Used for regular `SubscribeLocalEvent`.
+    * `_compEventSubs[CompIdx]`: `FrozenDictionary<Type, DirectedEventHandler>` — maps event type directly to a raw handler. Used only for events marked with `[ComponentEvent]`.
+    * O(1) lookup by component type + event type. ⚡
+    * Before `LockSubscriptions()` mutable counterparts exist (`_eventSubsUnfrozen`, `_compEventSubsUnfrozen`), which get frozen after locking.
 
 *   **Entity Event Tables (`_entEventTables`)**:
-    * Dictionary stored for each active `EntityUid`.
-    * Displays `EventType` -> `LinkedList<CompIdx>`.
-    * Keeps track of which components *on a specific entity* are listening to a specific event.
-    * This prevents iterating through all entity components to find listeners. 🚫🔄
+    * `Dictionary<EntityUid, EventTable>` — one table per entity.
+    * Inside `EventTable`: `Dictionary<Type, (int Start, int Count)>` maps event type to the head of a custom linked list stored in `EventTableListEntry[]` (inline array with free-list allocation).
+    * Enables O(1) lookup of which components on an entity are subscribed to an event, without iterating all components. 🚫🔄
 
 ## 🎭 Event Paradigms
 
@@ -67,7 +68,10 @@ To achieve high performance, `EntityEventBus` supports several specialized data 
 ### Registration 📝
 Subscriptions are usually registered during `EntitySystem.Initialize()`:
 
-1. **Directed**: `SubscribeLocalEvent<TComp, TEvent>(Handler)` -> Registers `Handler` in `_eventSubs` for `TComp`.
+1. **Directed**: `SubscribeLocalEvent<TComp, TEvent>(Handler)`:
+   - If `TEvent` is marked with `[ComponentEvent]` and `Exclusive = true` → handler is registered only in `_compEventSubs`, accessible exclusively via `RaiseComponentEvent`.
+   - If `[ComponentEvent]` with `Exclusive = false` → handler is registered in both stores (`_compEventSubs` + `_eventSubs`).
+   - If `[ComponentEvent]` is absent → handler is registered only in `_eventSubs` as a `DirectedRegistration` (along with ordering data).
 2. **Broadcast**: `SubscribeEvent<TEvent>(Handler)` -> Registers `Handler` to `_eventData`.
 
 ###Ordering 🔢

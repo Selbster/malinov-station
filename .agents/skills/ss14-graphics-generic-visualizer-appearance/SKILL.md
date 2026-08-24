@@ -1,78 +1,100 @@
 ---
-name: SS14 Graphics GenericVisualizer Appearance
+name: ss14-graphics-generic-visualizer-appearance
 description: A practical and architectural guide to the combination of AppearanceComponent, AppearanceSystem, VisualizerSystem and GenericVisualizer in SS14. Use it when designing network visual states, YAML visualizations and client visualizer systems.
 ---
 
 # GenericVisualizer and Appearance in SS14
 
-This skill only covers the pipeline `Appearance` + `VisualizerSystem` + `GenericVisualizer` :)
-Low-level rendering and detailed `SpriteSystem` API can be analyzed in a separate sprite-skill.
+Scope: the pipeline `Appearance` + `VisualizerSystem` + `GenericVisualizer`.
+Low-level rendering and the detailed `SpriteSystem` API live in `ss14-graphics-sprite-system`;
+timelines/flicks belong to `ss14-graphics-animation-player`.
 
-## When to choose this skill
+Triggering condition: discrete `data -> layer/state/color/shader` mapping.
+Non-triggering condition: time-based effects — hand those to `AnimationPlayerSystem`;
+continuous high-frequency data — see decision tree item 5.
 
-Choose it if the task is about:
+## Reading order
 
-- replication of visual state from server to client;
-- designing `Appearance` keys and payload data;
-- choice between `GenericVisualizer` and custom visualizer;
-- YAML description of visualization via `visuals`;
-- processing `AppearanceChangeEvent`.
+1. This file top-to-bottom: architecture -> enum contract -> API -> decision tree -> examples.
+2. Extended catalog of recipes: `references/examples.md`.
 
-## Source of truth and relevance
+Source of truth: current code wins over docs; verify every API against implementation before reuse.
 
-- If there is a conflict between documentation and code, the current code takes precedence.
-- Documentation is used as conceptual support, but the API is verified against implementation.
-- Practical recommendations and examples are based on fresh patterns from current code.
+## Mental model
+
+The server reports "what is visually true"; the client decides "how to draw".
+
+> **Single most important pattern**: appearance keys are shared enums; values are small,
+> coarse, clone-safe data. Every real change dirties the whole component and resyncs the
+> entire dictionary — keep writes rare and semantic.
 
 ## End-to-end architecture
 
-1. Server logic calculates the visual state.
-2. The server writes data to `AppearanceComponent` through `SharedAppearanceSystem.SetData(...)`.
-3. The data enters the component state and is synchronized over the network.
-4. Client `AppearanceSystem` accepts state, updates the appearance data dictionary, and queues the update.
-5. During `FrameUpdate`, `AppearanceChangeEvent` is raised.
-6. Client visualizer systems (`VisualizerSystem<T>`) apply data to the sprite.
-7. If simple mapping of values ​​on layer-data is enough, `GenericVisualizerSystem` does this.
+1. Server logic computes the visual state and writes it via `SharedAppearanceSystem.SetData(...)`.
+2. Data enters `AppearanceComponent.AppearanceData` and is synchronized over the network.
+3. Client `AppearanceSystem` applies state, replaces its dictionary with a clone, and queues an update.
+4. During client `FrameUpdate`, `AppearanceChangeEvent` is raised (batched per frame).
+5. Client visualizer systems (`VisualizerSystem<T>`) apply data to sprite layers; pure value->layer
+   mapping is delegated to `GenericVisualizerSystem`.
 
-Idea: the server conveys not “how to draw”, but “what is visually true”; the client decides “how to draw” :)
+## Hard invariants
+
+### Network cost
+
+- Any effective write calls `Dirty(uid, component)` -> a full `AppearanceComponentState`
+  (the whole `Dictionary<Enum, object>`) is serialized; the receiving side replaces and clones
+  its entire dictionary on apply.
+- Equal-value `SetData` writes are deduplicated (`existing.Equals(value)` -> no-op). Dedupe uses .NET
+  equality, so class payloads compare by reference — re-pushing an equal-content instance still resyncs.
+- `RemoveData` has no dedupe at all: it dirties even when the key was absent. Call it only when
+  the key is actually set.
+- Changing values back and forth still costs two full syncs; quantize continuous values into coarse
+  semantic enums (e.g. `ChargeState.Empty/Medium/Full`) before they reach appearance.
+
+### State-application gating (prediction)
+
+- While network state is being applied (`IGameTiming.ApplyingState`) and the component has
+  `NetSyncEnabled`, `SetData`/`RemoveData` **silently return without changing anything**.
+- Never write appearance from predicted or client-driven gameplay paths; compute it in server
+  logic. A write that lands during state application is simply lost.
+
+### PVS behavior
+
+- Client `FrameUpdate` skips detached entities; events are not raised for out-of-PVS entities.
+- On re-entering PVS, `ComponentHandleState` requeues an update, so visuals self-heal.
+
+### VisualizerSystem<T> conveniences
+
+Inheriting `VisualizerSystem<T>` gives you `AppearanceSystem`, `SpriteSystem` and
+`AnimationPlayerSystem` (field `AnimationSystem`) dependencies for free.
+
+```text
+// Verify: Shared/GameObjects/Systems/SharedAppearanceSystem.cs — grep CheckIfApplyingState / Dirty(
+// Verify: Client/GameObjects/EntitySystems/AppearanceSystem.cs — grep FrameUpdate / CloneAppearanceData
+// Verify: Client/GameObjects/EntitySystems/VisualizerSystem.cs — grep AnimationSystem
+```
 
 ## Enum contract: which enums are needed and in what order
 
-This topic usually involves **two different enum contracts**, sometimes three:
+Two different enum contracts are involved, sometimes three:
 
-1. `AppearanceKey enum` (shared)
-   These are the keys of the `AppearanceData` dictionary.
-   It is these enums that are passed to `SetData` / `TryGetData` / `RemoveData`.
+1. `AppearanceKey enum` (shared) — keys of the `AppearanceData` dictionary,
+   passed to `SetData` / `TryGetData` / `RemoveData`.
+2. `LayerKey enum` (client + prototype visualization) — keys of sprite layers (layer map),
+   used by `SpriteSystem` and in `GenericVisualizer` YAML.
+3. `AppearanceValue enum` (optional, shared) — a **value** of appearance data,
+   e.g. `ChargeState.Empty/Medium/Full`.
 
-2. `LayerKey enum` (client + prototype visualization)
-   These are the keys of the sprite layers (layer map), by which you change `visible/state/color/...`.
-   These enums are used in `SpriteSystem` and/or in `GenericVisualizer` YAML as layer key.
+Critically important: `AppearanceKey` and `LayerKey` play different roles and must not be mixed ⚠
 
-3. `AppearanceValue enum` (optional, shared)
-   This is not a key, but a **value** of appearance data.
-   Example: `ChargeState.Empty/Medium/Full`.
+### Order of application
 
-Critically important: `AppearanceKey enum` and `LayerKey enum` are different roles and should not be mixed ⚠
-
-### Order of application in code and YAML
-
-1. Describe `AppearanceKey enum` in the shared contract.
-2. Describe `LayerKey enum` for addressing layers.
-3. The server writes the value: `SetData(uid, AppearanceKey.SomeKey, value)`.
-4. Client:
-   - or custom visualizer: reads `AppearanceKey` via `TryGetData`, applies to `LayerKey` via `SpriteSystem`;
-   - or GenericVisualizer: YAML mappit `AppearanceKey -> LayerKey -> AppearanceValueString -> PrototypeLayerData`.
-
-### Matching pattern
-
-```yaml
-visuals:
-  enum.AppearanceKeyEnum.SomeKey:
-    enum.LayerKeyEnum.TargetLayer:
-      "AppearanceValueToString":
-        state: some_state
-        visible: true
-```
+1. Describe the `AppearanceKey` enum in the shared contract.
+2. Describe the `LayerKey` enum for layer addressing.
+3. Server writes values: `SetData(uid, AppearanceKey.SomeKey, value)`.
+4. Client: a custom visualizer reads `AppearanceKey` via `TryGetData` and applies it to `LayerKey`
+   via `SpriteSystem`; GenericVisualizer maps `AppearanceKey -> LayerKey -> value-string ->
+   PrototypeLayerData` in YAML.
 
 ```csharp
 [Serializable, NetSerializable]
@@ -87,7 +109,6 @@ public enum LockerVisualLayers : byte // 2) LayerKey enum
 {
     DoorOpen,
     DoorClosed,
-    Indicator,
 }
 
 [Serializable, NetSerializable]
@@ -98,177 +119,98 @@ public enum LockerChargeState : byte // 3) AppearanceValue enum (optional)
     Full,
 }
 
-// Server: AppearanceKey + value only
-_appearance.SetData(uid, LockerVisuals.Open, true, appearance);
+// Server: keys + values only
 _appearance.SetData(uid, LockerVisuals.ChargeState, LockerChargeState.Full, appearance);
-
-// Client (custom visualizer): reads AppearanceKey, applies to LayerKey
-if (_appearance.TryGetData(uid, LockerVisuals.Open, out bool open, args.Component))
-{
-    _sprite.LayerSetVisible((uid, args.Sprite), LockerVisualLayers.DoorOpen, open);
-    _sprite.LayerSetVisible((uid, args.Sprite), LockerVisualLayers.DoorClosed, !open);
-}
 ```
 
 ## API parsing
 
-## 1) `SharedAppearanceSystem`
+### `SharedAppearanceSystem` (shared)
 
-Key methods:
-
-- `SetData(EntityUid, Enum, object, AppearanceComponent?)`
+- `SetData(EntityUid, Enum key, object value, AppearanceComponent?)`
 - `RemoveData(EntityUid, Enum, AppearanceComponent?)`
-- `TryGetData<T>(...)`
-- `TryGetData(..., out object?)`
-- `CopyData(Entity<AppearanceComponent?> src, Entity<AppearanceComponent?> dest)`
-- `AppendData(...)`
-- `QueueUpdate(...)` (virtual, specific implementation depends on the party)
+- `TryGetData<T>(EntityUid, Enum, out T, AppearanceComponent?)`
+- `TryGetData(EntityUid, Enum, out object?, AppearanceComponent?)`
+- `CopyData(Entity<AppearanceComponent?> src, Entity<AppearanceComponent?> dest)` — clears dest first
+- `AppendData(Entity<AppearanceComponent?> src, Entity<AppearanceComponent?> dest)` — merge/replace per key;
+  an overload taking a resolved source component also exists
+- `QueueUpdate(...)` — virtual; base is a server-side no-op, the client overrides it
 
-Important:
+Keys are `Enum`; values must survive cloning: value type, `ICloneable`, or serializer-copyable —
+otherwise state application throws `NotSupportedException`. Initial values may also be seeded from
+prototype YAML via the read-only `AppearanceDataInit` data field.
 
-- In the current API, appearance data keys are `Enum`.
-- Appearance values ​​must be correctly cloned/serializable.
+### Client `AppearanceSystem`
 
-## 2) Client `AppearanceSystem`
+- Keeps an update queue; `FrameUpdate` drains it and raises `AppearanceChangeEvent`
+  only for running, non-detached entities.
+- `Sprite` may be null in the event (spriteless appearances are legal); always null-check.
+- Cloning requirements as above; non-clonable payloads break state application.
 
-What is important to know:
+### Server `AppearanceSystem`
 
-- keeps a queue of appearance updates;
-- in `FrameUpdate` causes a change in the visual only for current entities;
-- generates and sends `AppearanceChangeEvent`;
-- when received, state compares the data and updates the dictionary;
-- when cloning appearance data, it requires safe types:
-  - value type, or
-  - `ICloneable`, or
-  - a type that the serializer can copy.
+- Issues `AppearanceComponentState` from `ComponentGetState`; knows nothing about rendering.
 
-If this is not done, exceptions may occur when applying state ⚠
+### `VisualizerSystem<T>` / `GenericVisualizerSystem`
 
-## 3) Server `AppearanceSystem`
+- Custom visualizers override `OnAppearanceChange(EntityUid uid, T component, ref AppearanceChangeEvent args)`.
+- `GenericVisualizerComponent.Visuals` is
+  `Dictionary<Enum, Dictionary<string, Dictionary<string, PrototypeLayerData>>>`.
+- Algorithm: read key -> `ToString()` (null/empty skipped) -> look up variant ->
+  resolve layer key (enum reference via reflection or raw string) ->
+  `LayerMapReserveBlank` (auto-creates the layer) -> apply `PrototypeLayerData`.
 
-- Issues `AppearanceComponentState` for network synchronization.
-- Does not deal with client application of layers and should not know rendering details.
+## Decision tree: GenericVisualizer vs custom vs direct state?
 
-## 4) `VisualizerSystem<T>`
-
-Contract:
-
-- inherited from `VisualizerSystem<TVisualComponent>`;
-- redefine `OnAppearanceChange(..., ref AppearanceChangeEvent args)`;
-- read the appearance data and apply visual changes on the client.
-
-## 5) `GenericVisualizerComponent`
-
-Basic structure:
-
-- `visuals`: nested format dictionary
-  `AppearanceKey -> LayerKey -> AppearanceValueString -> PrototypeLayerData`.
-
-Consequence:
-
-- appearance input values ​​are normalized to a string;
-- layer key can be an enum-reference or a regular string.
-
-## 6) `GenericVisualizerSystem`
-
-Application algorithm:
-
-1. Follows the described `visuals`.
-2. For each appearance key, it tries to read the current value.
-3. Converts the value to a string (`ToString()`).
-4. Looks up the corresponding `PrototypeLayerData` in the variant dictionary.
-5. Reserves/gets a layer by key.
-6. Applies `LayerSetData`.
-
-Practical conclusion:
-
-- `GenericVisualizer` is great for pure declarative mapping;
-- for complex branches, animations, interaction with multiple systems, you need a custom visualizer.
-
-## Decision Tree: GenericVisualizer or custom visualizer
-
-1. Do you only need "value X -> state/visible/color/shader/offset/..." without complex logic?
-   Use `GenericVisualizer` ✅
-2. Do you need timers, animations, external system dependencies or complex calculations?
-   Write custom `VisualizerSystem<T>` ✅
-3. Do you need to dynamically create/delete many layers at runtime?
-   Usually custom visualizer ✅
-4. Do you need a composition of several appearance keys with non-trivial rules?
-   Usually custom visualizer ✅
+1. Pure mapping "value X -> state/visible/color/shader/offset"? Use `GenericVisualizer` ✅
+2. Timers, animations, external systems, complex calculations? Custom `VisualizerSystem<T>` ✅
+3. Layers created imperatively at runtime by logic? Custom ✅
+   (declarative auto-creation of static layers is fine with `LayerMapReserveBlank`)
+4. Non-trivial composition of several appearance keys? Usually custom ✅
+5. Continuous/high-frequency data whose appearance writes would spam full-dict resyncs?
+   Skip appearance: network the data via `[AutoNetworkedField]` on a `[NetworkedComponent]` and drive
+   sprite changes client-side from `ComponentHandleState` — common in modern content.
+   Non-triggering: one-off discrete visuals — GenericVisualizer stays cheaper ✅
 
 ## Practical examples
 
-### Example 1: the server writes and clears the appearance flag
+### Example 1: server writes and clears a flag symmetrically
 
 ```csharp
-[NetSerializable, Serializable]
-public enum LockerVisuals : byte
+private void UpdateLockerAppearance(EntityUid uid, bool open, AppearanceComponent? appearance = null)
 {
-    Open,
-}
-
-private void UpdateLockerAppearance(EntityUid uid, AppearanceComponent appearance, bool open)
-{
-    // The server reports only the actual visual state.
-    _appearance.SetData(uid, LockerVisuals.Open, open, appearance);
-
-    if (!open)
-    {
-        // If necessary, the key can be explicitly removed.
+    // Symmetry matters: leaving stale keys keeps layers in their last applied state.
+    if (open)
+        _appearance.SetData(uid, LockerVisuals.Open, true, appearance);
+    else
         _appearance.RemoveData(uid, LockerVisuals.Open, appearance);
-    }
 }
+// Verify: SharedAppearanceSystem.cs — grep SetData / RemoveData / CheckIfApplyingState
 ```
 
-### Example 2: Client visualizer reads typed data
+### Example 2: client visualizer reads typed data
 
 ```csharp
-protected override void OnAppearanceChange(EntityUid uid, LockerVisualsComponent component, ref AppearanceChangeEvent args)
+protected override void OnAppearanceChange(EntityUid uid, LockerVisualsComponent component,
+    ref AppearanceChangeEvent args)
 {
     if (args.Sprite == null)
         return;
 
-    // We read AppearanceKey enum (LockerVisuals), and apply LayerKey enum (LockerVisualLayers).
+    // Reads AppearanceKey (LockerVisuals), applies to LayerKey (LockerVisualLayers).
     if (_appearance.TryGetData(uid, LockerVisuals.Open, out bool open, args.Component))
     {
         _sprite.LayerSetVisible((uid, args.Sprite), LockerVisualLayers.DoorOpen, open);
         _sprite.LayerSetVisible((uid, args.Sprite), LockerVisualLayers.DoorClosed, !open);
     }
 }
+// Verify: VisualizerSystem.cs — grep OnAppearanceChange
 ```
 
-### Example 3: complex payload in appearance
+The event struct also exposes `args.AppearanceData` (`IReadOnlyDictionary<Enum, object>`)
+for direct reads without resolving the component.
 
-```csharp
-[Serializable, NetSerializable]
-public sealed class ShowLayerData
-{
-    public string Key = string.Empty;   // Target layer key.
-    public bool Visible;                // Should I show the layer?
-    public string? State;               // Optional RSI state.
-}
-
-private void PushLayerPayload(EntityUid uid, AppearanceComponent appearance, ShowLayerData data)
-{
-    // A complex payload is more convenient than a set of disparate Boolean flags.
-    _appearance.SetData(uid, MapperVisuals.LayerData, data, appearance);
-}
-```
-
-### Example 4: Transferring visual data between entities
-
-```csharp
-private void CopyAppearance(Entity<AppearanceComponent?> source, Entity<AppearanceComponent?> target)
-{
-    // Complete replacement of destination data.
-    _appearance.CopyData(source, target);
-
-    // Or merge mode (append) for partial enrichment.
-    // _appearance.AppendData(source, target);
-}
-```
-
-### Example 5: GenericVisualizer YAML config (bool -> layer)
+### Example 3: GenericVisualizer YAML (bool -> visibility)
 
 ```yaml
 - type: GenericVisualizer
@@ -282,76 +224,75 @@ private void CopyAppearance(Entity<AppearanceComponent?> source, Entity<Appearan
           visible: false
         "False":
           visible: true
+  # Verify: GenericVisualizerSystem.cs — grep LayerMapReserveBlank
 ```
 
-### Example 6: GenericVisualizer YAML config (enum value -> state/shader)
+Variant strings must match `ToString()` output exactly — booleans serialize as `"True"`/`"False"`.
 
-```yaml
-- type: GenericVisualizer
-  visuals:
-    enum.PowerVisuals.ChargeState:
-      enum.PowerVisualLayers.Indicator:
-        "Empty":
-          state: empty
-          shader: unshaded
-        "Medium":
-          state: medium
-        "Full":
-          state: full
-          color: "#99ff99"
-```
-
-### Example 7: when you need a custom visualizer instead of a GenericVisualizer
-
-```csharp
-protected override void OnAppearanceChange(EntityUid uid, TriggerVisualsComponent component, ref AppearanceChangeEvent args)
-{
-    if (args.Sprite == null)
-        return;
-
-    if (!_appearance.TryGetData(uid, TriggerVisuals.Active, out bool active, args.Component))
-        return;
-
-    // This is no longer just mapping: it requires launching animation and additional functions. logics.
-    _sprite.LayerSetRsiState((uid, args.Sprite), TriggerLayers.Core, active ? "active" : "idle");
-    _animation.Play(uid, "pulse", active);
-}
-```
+Extended catalog lives in `references/examples.md`: typed payload class, `CopyData`/`AppendData`
+migration, enum value -> state/shader YAML, custom visualizer that starts animations, and the
+direct-state alternative without `AppearanceComponent`.
 
 ## Patterns 🙂
 
-- Keep appearance keys in shared-enum so that the server and client speak the same contract.
-- Pass “narrow” and semantic payload structures, rather than an amorphous set of `object`.
-- Use `GenericVisualizer` when the task is really declarative.
-- For complex logic, use custom `VisualizerSystem<T>` and explicit `OnAppearanceChange`.
-- For migrations/transformations of entities, use `CopyData`/`AppendData`.
-- Explicitly clean up stale keys via `RemoveData` if they are no longer valid.
+1. Keep appearance keys in shared enums so both sides speak one contract — prevents silent read misses.
+2. Prefer coarse semantic values over high-frequency raw data — prevents per-change full-dict resync spam.
+3. Write appearance only from server logic / non-predicted paths — prevents writes lost to state application.
+4. Guard `RemoveData` behind "key actually exists" knowledge — prevents no-op dirties that resync everything.
+5. Use `GenericVisualizer` for declarative mapping only; promote to custom `VisualizerSystem<T>` once timelines or cross-key logic appear.
+6. Clean up symmetrically: `RemoveData` for invalidated keys; `CopyData`/`AppendData` for entity migrations.
+7. Keep visualizers idempotent: derive everything from current data, never from event count or order.
+8. Reuse the dependencies provided by `VisualizerSystem<T>` instead of re-resolving systems.
 
 ## Anti-patterns ❌
 
-- Pass non-clonable/non-serializable reference objects to appearance.
-- Use strings instead of enum keys where you can set a shared enum.
-- Pass `LayerKey enum` to `SetData/TryGetData` instead of `AppearanceKey enum`.
-- Trying to stuff complex branches and animations into `GenericVisualizer`.
-- Duplicate the same visual logic in several unrelated visualizer systems.
-- Do not delete outdated appearance keys and get a “stuck” visual.
-- Mix server state calculation and client layer application in one method.
+- High-frequency `SetData` of continuously changing values (per-tick floats) — full-dict resync each change.
+- Re-pushing class payloads (`Equals` is reference equality) — every push resyncs despite identical content.
+- `RemoveData` for keys never written — still dirties and resyncs the whole dictionary.
+- Writing appearance from predicted/client gameplay paths — silently ignored during state application.
+- Passing non-clonable/non-serializable reference objects as values.
+- Using strings instead of shared enums for keys.
+- Passing the `LayerKey` enum into `SetData`/`TryGetData` instead of the `AppearanceKey` enum.
+- Stuffing branches/timers/animations into `GenericVisualizer` YAML.
+- Duplicating one visual logic across unrelated visualizer systems.
+- Leaving stale keys behind — "stuck" visuals after state reversal.
+- Mixing server state computation and client layer application in one method.
 
 ## Checklist before change ✅
 
-- Is the contract of keys and payload types described in the shared part?
-- Are appearance values ​​safe for clone/copy/state sync?
-- Have you selected the correct tool: `GenericVisualizer` or custom visualizer?
-- Are keys updated/cleared (`SetData`/`RemoveData`) symmetrical?
-- Is the client visualizer idempotent and does not depend on the random order of events?
-- Visual logic did not go to the server and vice versa?
+- Are key enums and payload types declared in shared code?
+- Are all appearance values clone/copy safe?
+- Right tool chosen: `GenericVisualizer` vs custom visualizer vs direct component-state visuals?
+- Are writes symmetric (`SetData`/`RemoveData`) and free of dead stores?
+- Is every `RemoveData` backed by a key that is actually set?
+- Is the visualizer idempotent and order-independent?
+- Does visual logic stay on the correct side of the wire?
 
 ## Common errors
 
-- In YAML-visuals, the key value does not match the `ToString()` line of the real enum/bool.
-- Enum roles are mixed up: `AppearanceKey` and `LayerKey` (the most common mistake during first implementation).
-- Custom payload is not serialized over the network and breaks the use of state.
-- The logic reads the appearance key, which is never set by the server.
-- The renderer updates the wrong layer due to inconsistent layer-keys.
-- `GenericVisualizer` is selected for a scenario where animation/timers are really needed.
-- Entity migration copied appearance (`CopyData`), but forgot to update dependent client components.
+- Variant string in YAML does not match `ToString()` of the actual value (`"True"` vs `"true"`).
+- Swapped roles of `AppearanceKey` and `LayerKey` (most common first-implementation mistake).
+- Payload not serializable -> exceptions during state application.
+- Reading an appearance key the server never sets.
+- Wrong layer addressed due to inconsistent layer keys.
+- After `CopyData` migration, dependent client components not refreshed.
+
+## SS14 dimension checklist
+
+| Dimension | Covered | Notes |
+|---|---|---|
+| Prediction gating | Covered | Writes no-op while `_timing.ApplyingState`; server-only writes |
+| Server / Client / Shared split | Covered | Shared system, server GetState, client queue/events, `[NetworkedComponent]` appearance |
+| Event / update ordering | Covered | `AppearanceChangeEvent` raised from client `FrameUpdate`, batched per frame |
+| Component lifecycle | Covered | Startup queues initial update; `CopyData`/`AppendData` for migrations |
+| Hot path & allocations | Covered | Full-dict resync per change; `SetData` dedupes via `Equals`, `RemoveData` never does |
+| PVS / network visibility | Covered | Detached entities skipped; PVS re-entry requeues update |
+
+## Extension and change rule
+
+Add new declarative mappings as YAML variants; move long catalogs to `references/examples.md`.
+Promote to a custom `VisualizerSystem<T>` when timelines or cross-key logic appear, keeping the
+enum contract intact. For high-frequency continuous data prefer the direct component-state path
+(decision tree item 5) over appearance. Re-verify API signatures against RobustToolbox HEAD on any upstream sync.
+
+Verified against code state: 2026-08-23

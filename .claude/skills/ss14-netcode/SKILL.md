@@ -1,6 +1,6 @@
 ---
 name: ss14-netcode
-description: Architecture guide for networking in Space Station 14 — Lidgren integration, NetManager abstraction, message system, game state synchronization, PVS, network events, and component networking
+description: Architecture guide for SS14 networking - Lidgren transport, NetManager abstraction, typed messages, game state deltas, network events, EntityUid/NetEntity conversion, and component replication basics. Use it when writing or debugging any code that crosses the network boundary (RaiseNetworkEvent, AutoNetworkedField, Dirty/DirtyField, NetEntity conversions), before reaching for specialized ss14-pvs, ss14-prediction, or ss14-events skills.
 ---
 
 # Claude Bridge
