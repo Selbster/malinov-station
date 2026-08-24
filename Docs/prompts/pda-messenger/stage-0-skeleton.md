@@ -1,11 +1,11 @@
-# PDA-мессенджер — Этап 0: Скелет картриджа «Мессенджер»
+# PDA-мессенджер — Этап 0: Скелет программы «Мессенджер»
 
 Ты — Senior DevOps/C# разработчик с 10-летним стажем, эксперт в архитектуре ECS (RobustToolbox / Space Station 14)
 и автоматизации CI/CD. Реализуешь этапы механики мессенджера для КПК в репозитории
 https://github.com/Selbster/malinov-station.
 
 🌿 ВЕТКА: работай в ветке `pda-messenger`. НЕ переключайся на `alpha-master`, НЕ мержи.
-Один этап = один атомарный коммит: `feat(pda-messenger): этап 0 — скелет картриджа мессенджера`.
+Один этап = один атомарный коммит: `feat(pda-messenger): этап 0 — скелет программы мессенджера`.
 
 ## 🛠️ DevOps Gate (из корня репозитория; копия CI проекта .github/workflows/build-test-debug.yml)
 
@@ -25,7 +25,7 @@ https://github.com/Selbster/malinov-station.
 4. ИЗОЛЯЦИЯ И КОНВЕНЦИИ ФОРКА: обязательно прочитай `.agents/skills/ss14-upstream-maintenance/SKILL.md`.
    Всё новое — только в `_MalinovStation`. Vanilla-файлы на этом этапе не менять НИ ОДНОГО.
 5. ОТЧЁТНОСТЬ: создай и обнови `Docs/messenger-rollout.md`:
-   `- [x] Этап 0 — скелет картриджа (commit: <hash>, CI: green)`.
+   `- [x] Этап 0 — скелет программы (commit: <hash>, CI: green)`.
 
 ## 🧠 Тестирование
 
@@ -38,14 +38,12 @@ Content.IntegrationTests — реальный headless сервер+клиент
 - Папки кода: `Content.Shared/_MalinovStation/Messenger/`, `Content.Server/_MalinovStation/Messenger/`,
   `Content.Client/_MalinovStation/Messenger/`.
   Namespace: `Content.<Проект>._MalinovStation.Messenger`.
-- Прототипы: картридж `MalinovMessengerCartridge` (parent: BasePDACartridge), сервер `MalinovMessengerServer` (этап 4a).
+- Прототипы: внутренняя программная сущность `MalinovMessengerCartridge` (parent: BasePDACartridge),
+  сервер `MalinovMessengerServer` (этап 4a).
 - Частота DeviceNetwork: прототип `- type: deviceFrequency`, id `MalinovMessengerFrequency`, значение **2210**,
   файл `Resources/Prototypes/_MalinovStation/Device/malinov_devicenet_frequencies.yml`.
 - Константы протокола: статический класс `MalinovMessengerConstants` в Shared
   (команды payload: `announce`, `msg`, `ack`, `directory_req`, `directory` — заполняются по этапам).
-- CVar'ы: файл `Content.Shared/_MalinovStation/Messenger/CCVars.Messenger.cs`
-  (partial class CCVars, namespace Content.Shared.CCVar, `#pragma warning disable IDE0130`),
-  все имена `malinov.messenger.*`.
 - Локализация: ключи с префиксом `malinov-messenger-*`; файлы
   `Resources/Locale/en-US/_MalinovStation/malinov-cartridges.ftl` и ru-RU аналог — ОБА языка всегда синхронно.
 - Транспорт уже есть: у `BasePDA` (`pda.yml`) есть `DeviceNetwork` (Wireless), `WirelessNetworkConnection range: 500`,
@@ -55,9 +53,9 @@ Content.IntegrationTests — реальный headless сервер+клиент
 
 ## 🎯 ЦЕЛЬ ЭТАПА 0
 
-Пустой, но архитектурно правильный каркас приложения КПК «Мессенджер»: картридж существует как прототип,
-программа устанавливается в PDA через CartridgeLoaderSystem, открывается и показывает заглушку без ошибок в логах.
-Никакой логики обмена сообщениями.
+Пустой, но архитектурно правильный каркас приложения КПК «Мессенджер»: программа существует как внутренний
+прототип-картридж и устанавливается в PDA автоматически при спавне через серверную систему, открывается и
+показывает заглушку без ошибок в логах. Никакой логики обмена сообщениями.
 
 ## 🚫 ЯВНО НЕ ДЕЛАТЬ
 
@@ -67,7 +65,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
 ## 📚 ОБЯЗАТЕЛЬНОЕ ЧТЕНИЕ (изучи структуру 1:1)
 
 1. `Content.Shared/CartridgeLoader/Cartridges/NotekeeperCartridgeComponent.cs` и `NotekeeperCartridgeSystem.cs`
-   — паттерн Component+System для картриджей (живут в Shared, не в Server!).
+   — паттерн Component+System для программ КПК (живут в Shared, не в Server!).
 2. `Content.Shared/CartridgeLoader/Cartridges/NotekeeperUiState.cs` — паттерн BUI-состояния.
 3. `Content.Client/CartridgeLoader/Cartridges/NotekeeperUi.cs` + `NotekeeperUiFragment.xaml(.cs)`
    — паттерн клиентского рендера: класс-наследник `UIFragment` + XAML-фрагмент.
@@ -94,23 +92,22 @@ Content.IntegrationTests — реальный headless сервер+клиент
 5. `Content.Client/_MalinovStation/Messenger/MalinovMessengerUi.cs` +
    `MalinovMessengerUiFragment.xaml(.cs)` — UIFragment-заглушка «Нет контактов».
    Отдельная регистрация на клиенте не нужна — тип резолвится сериализацией из YAML.
-6. Локализация: ключ `malinov-messenger-program-name` («Messenger» / «Мессенджер») + строки заглушки,
-   файлы `Resources/Locale/{en-US,ru-RU}/_MalinovStation/malinov-cartridges.ftl`.
-7. CVar: `Content.Shared/_MalinovStation/Messenger/CCVars.Messenger.cs` — поле
-   `public static readonly CVarDef<bool> MalinovMessengerEnabled = CVarDef.Create("malinov.messenger.enabled", false, CVar.SERVER);`
-   На этапе 0 CVar ни на что не влияет — задел под этап 8.
-8. `Content.IntegrationTests/Tests/_MalinovStation/Messenger/MalinovMessengerTest.cs` — GameTest.
-9. `Docs/messenger-rollout.md` — создать.
+ 6. Локализация: ключ `malinov-messenger-program-name` («Messenger» / «Мессенджер») + строки заглушки,
+    файлы `Resources/Locale/{en-US,ru-RU}/_MalinovStation/malinov-cartridges.ftl`.
+ 7. `Content.IntegrationTests/Tests/_MalinovStation/Messenger/MalinovMessengerTest.cs` — GameTest.
+    Проверяет автоустановку программы на обычный PDA и отсутствие программы на исключённых PDA (CentCom и др.).
+ 8. `Docs/messenger-rollout.md` — создать.
 
 ## ✅ DEFINITION OF DONE (Этап 0)
 
 - Все 5 команд гейта зелёные; `git status` подтверждает: vanilla-файлы не изменены.
 - Тест `MalinovMessengerTest.cs`:
-  1. Спавнит КОНКРЕТНЫЙ PDA (например PassengerPDA). ВНИМАНИЕ: `BasePDA` — abstract, спавнить его нельзя.
-  2. Спавнит сущность `MalinovMessengerCartridge` и устанавливает программу серверным вызовом
-     `CartridgeLoaderSystem.InstallCartridge(ent, cartridge)`.
-  3. Проверяет установку: `TryGetProgram<MalinovMessengerCartridgeComponent>` возвращает `Entity<T>?` —
-     ассерт `.HasValue == true` (либо `HasProgram<MalinovMessengerCartridgeComponent>() == true`).
+  1. Спавнит КОНКРЕТНЫЙ PDA (например PassengerPDA) на тестовой карте. ВНИМАНИЕ: `BasePDA` — abstract,
+     спавнить его нельзя.
+  2. Проверяет, что программа установилась автоматически:
+     `HasProgram<MalinovMessengerCartridgeComponent>() == true`.
+  3. Проверяет, что программа НЕ установилась на исключённый PDA (например `CentcomPDA`):
+     `HasProgram<MalinovMessengerCartridgeComponent>() == false`.
 - Программа видна в списке программ PDA; прогон тестов без ошибок/exceptions в логах.
 
 ## 📤 ФОРМАТ ОТЧЁТА

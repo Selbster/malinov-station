@@ -2,7 +2,6 @@ using Content.IntegrationTests.Fixtures;
 using Content.Shared._MalinovStation.Messenger;
 using Content.Shared.CartridgeLoader;
 using Robust.Shared.GameObjects;
-using Robust.Shared.Map;
 
 namespace Content.IntegrationTests.Tests._MalinovStation.Messenger;
 
@@ -11,7 +10,7 @@ namespace Content.IntegrationTests.Tests._MalinovStation.Messenger;
 public sealed class MalinovMessengerTest : GameTest
 {
     [Test]
-    public async Task InstallMessengerCartridgeIntoPda()
+    public async Task MessengerProgramAutoInstalledInPassengerPda()
     {
         var pair = Pair;
         var server = pair.Server;
@@ -19,21 +18,45 @@ public sealed class MalinovMessengerTest : GameTest
         var entityManager = server.ResolveDependency<IEntityManager>();
         var cartridgeLoaderSystem = entityManager.EntitySysManager.GetEntitySystem<CartridgeLoaderSystem>();
 
+        await pair.CreateTestMap();
+        var coords = pair.TestMap!.GridCoords;
+
         EntityUid pda = default;
-        EntityUid cartridge = default;
 
         await server.WaitAssertion(() =>
         {
-            pda = entityManager.SpawnEntity("PassengerPDA", MapCoordinates.Nullspace);
-            cartridge = entityManager.SpawnEntity("MalinovMessengerCartridge", MapCoordinates.Nullspace);
+            pda = entityManager.SpawnEntity("PassengerPDA", coords);
 
             Assert.That(entityManager.TryGetComponent(pda, out CartridgeLoaderComponent loader), Is.True);
+            Assert.That(cartridgeLoaderSystem.HasProgram<MalinovMessengerCartridgeComponent>((pda, loader)), Is.True,
+                "Messenger program should be auto-installed in PassengerPDA");
+        });
 
-            var installed = cartridgeLoaderSystem.InstallCartridge((pda, loader), cartridge);
-            Assert.That(installed, Is.True, "Failed to install MalinovMessengerCartridge into PDA");
+        await server.WaitRunTicks(2);
+        await server.WaitIdleAsync();
+    }
 
-            var hasProgram = cartridgeLoaderSystem.HasProgram<MalinovMessengerCartridgeComponent>((pda, loader));
-            Assert.That(hasProgram, Is.True, "PDA does not have MalinovMessengerCartridgeComponent program");
+    [Test]
+    public async Task MessengerProgramNotInstalledInCentcomPda()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var cartridgeLoaderSystem = entityManager.EntitySysManager.GetEntitySystem<CartridgeLoaderSystem>();
+
+        await pair.CreateTestMap();
+        var coords = pair.TestMap!.GridCoords;
+
+        EntityUid pda = default;
+
+        await server.WaitAssertion(() =>
+        {
+            pda = entityManager.SpawnEntity("CentcomPDA", coords);
+
+            Assert.That(entityManager.TryGetComponent(pda, out CartridgeLoaderComponent loader), Is.True);
+            Assert.That(cartridgeLoaderSystem.HasProgram<MalinovMessengerCartridgeComponent>((pda, loader)), Is.False,
+                "Messenger program should not be auto-installed in CentcomPDA");
         });
 
         await server.WaitRunTicks(2);

@@ -50,10 +50,10 @@ Content.IntegrationTests — реальный headless сервер+клиент
 
 ## 📦 КОНТЕКСТ: что уже сделано (Этап 0)
 
-В `_MalinovStation` создан скелет картриджа: прототип `MalinovMessengerCartridge`,
+В `_MalinovStation` создан скелет программы: внутренний прототип `MalinovMessengerCartridge`,
 `MalinovMessengerCartridgeComponent`, `MalinovMessengerCartridgeSystem` (отдаёт пустое состояние),
-`MalinovMessengerUiState`, клиентские `MalinovMessengerUi` + `MalinovMessengerUiFragment` («Нет контактов»),
-локаль `malinov-cartridges.ftl` (en/ru), CVar `malinov.messenger.enabled` (не используется),
+`MalinovMessengerUi` + `MalinovMessengerUiFragment` («Нет контактов»),
+локаль `malinov-cartridges.ftl` (en/ru), серверная система автоустановки `MalinovMessengerInstallerSystem`,
 тест `Content.IntegrationTests/Tests/_MalinovStation/Messenger/MalinovMessengerTest.cs`,
 файл `Docs/messenger-rollout.md`. Если чего-то из этого нет в ветке — СТОП, сообщи человеку.
 
@@ -98,12 +98,12 @@ Content.IntegrationTests — реальный headless сервер+клиент
 
 Все 5 команд гейта зелёные; vanilla не изменён. Интеграционные тесты:
 
-1. **Без станции**: спавн PassengerPDA вне станции (обычный пустой грид теста), установка картриджа,
+1. **Без станции**: спавн PassengerPDA вне станции (обычный пустой грид теста),
    активация программы → UiState содержит статус «недоступен» и пустой список контактов.
 2. **Со станцией**: по образцу `StationJobsTest` создать тестовую станцию (gameMap на `/Maps/Test/empty.yml`),
    добавить в StationRecords станции одну тестовую запись (имя+должность — найди публичный API
    `StationRecordsSystem` для добавления записи), спавнить PassengerPDA на гриде этой станции,
-   установить и активировать программу → UiState содержит ровно одну запись с ожидаемыми Name и JobTitle.
+   активировать программу → UiState содержит ровно одну запись с ожидаемыми Name и JobTitle.
 
 ## 📤 ФОРМАТ ОТЧЁТА
 

@@ -36,7 +36,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
 
 - Папки кода: `Content.{Shared|Server|Client}/_MalinovStation/Messenger/`.
   Namespace: `Content.<Проект>._MalinovStation.Messenger`.
-- Прототипы: картридж `MalinovMessengerCartridge`; НОВЫЙ сервер `MalinovMessengerServer`;
+- Прототипы: внутренняя программная сущность `MalinovMessengerCartridge`; НОВЫЙ сервер `MalinovMessengerServer`;
   частота `MalinovMessengerFrequency` = **2210**.
 - Константы протокола (`MalinovMessengerConstants`): команды `announce`, `msg` (уже есть),
   добавляются `directory_req`, `directory`; ключи payload: `command`, `sender_name`, `text`,
@@ -49,7 +49,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
 ## 📦 КОНТЕКСТ: что уже сделано
 
 Этапы 0–3: скелет; каталог из записей станции; прямая P2P доставка с анонсами; история переписки
-в компоненте картриджа. Если чего-то нет — СТОП.
+в компоненте программы. Если чего-то нет — СТОП.
 
 ## 🎯 ЦЕЛЬ ЭТАПА 4a
 
@@ -87,7 +87,7 @@ ack/таймауты, уведомления, антиспам, админ-ло�
    - Директория: `directory_req` → ответ `directory` {entries} запросившему.
    - Ретрансляция: `msg` {target(имя), sender_name, text} → резолвинг по директории → `QueuePacket` адресату;
      нет адресата → ответ об ошибке отправителю.
-4. Server (клиентская логика картриджа):
+4. Server (клиентская логика программы):
    - Адрес активного сервера через `TryGetActiveServerAddress<MalinovMessengerServerComponent>`;
      анонсы и сообщения шлются НА СЕРВЕР (не broadcast); директория подтягивается по `directory_req`
      и мерджится с каталогом записей станции (этап 1).

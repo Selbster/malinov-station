@@ -31,8 +31,8 @@ https://github.com/Selbster/malinov-station.
 ## 📐 Сквозные соглашения мессенджера
 
 - Namespace `Content.<Проект>._MalinovStation.Messenger`; префиксы `Malinov*`/`malinov-*`.
-- CVar'ы проекта: `malinov.messenger.enabled` (bool, false), `.history_per_contact`,
-  `.relay_timeout_sec`, `.rate_window_sec`, `.rate_max_msgs`, `.sound_enabled`.
+- CVar'ы проекта: `.history_per_contact`, `.relay_timeout_sec`, `.rate_window_sec`,
+  `.rate_max_msgs`, `.sound_enabled`.
 
 ---
 
@@ -44,18 +44,14 @@ https://github.com/Selbster/malinov-station.
 
 ## 🎯 ЦЕЛЬ ЭТАПА 8
 
-Финализация: включение программы через CVar-гейт, чистка долгов, аудит локализации,
+Финализация: аудит автоустановки программы и исключений, чистка долгов, аудит локализации,
 подготовка материалов для ручного плейтеста и мержа.
 
 ## 📝 ЧТО СДЕЛАТЬ
 
-1. **CVar-гейт программы** (`malinov.messenger.enabled`, default false):
-   - подписка на `ProgramInstallationAttempt` в `MalinovMessengerCartridgeSystem`;
-     если CVar выключен → `args.Cancelled = true` (образец:
-     `Content.Server/CartridgeLoader/Cartridges/CrewManifestCartridgeSystem.cs`, OnInstallationAttempt);
-   - при включении CVar во время раунда программа становится устанавливаемой
-     (реакция на смену CVar через `Subs.CVar`, как в CrewManifestCartridgeSystem);
-   - тест: CVar off → установка отменяется; CVar on → установка успешна.
+1. **Аудит автоустановки**: проверить, что `MalinovMessengerInstallerSystem` устанавливает программу на все
+   station-side PDA, кроме прописанных в исключениях (CentCom, ядерные оперативники, ERT/CBRN).
+   При необходимости обновить список `ExcludedPdaPrototypes`.
 2. **Чистка**: убрать все временные TODO этапов 1–6, кроме осознанно оставленных решений
    (упрощение сопоставления по имени — оставить с пометкой «known simplification»).
 3. **Аудит локализации en-US/ru-RU**: каждая строка UI имеет ключ в ОБЕИХ локалях, нет забытых
@@ -63,14 +59,14 @@ https://github.com/Selbster/malinov-station.
 4. **Аудит диффа**: `git diff alpha-master...HEAD --stat` — убедиться, что вне `_MalinovStation`,
    `Docs/` и тестов изменён только `Content.Shared.Database/LogType.cs` (этап 7). Отчёт приложить.
 5. **Документация для человека** (в `Docs/messenger-rollout.md`, раздел «Плейтест»):
-   чек-лист ручной проверки в игре: установка картриджа, каталог, переписка двух игроков,
+   чек-лист ручной проверки в игре: проверка наличия программы в КПК, каталог, переписка двух игроков,
    отказ сервера + failover, уведомления, rate-limit, mute, админ-логи.
    Плюс итоговое summary изменений для PR.
 
 ## ✅ DEFINITION OF DONE (Этап 8)
 
 - Двойной зелёный гейт (до и после коммита); дифф соответствует п.4.
-- CVar-гейт работает и покрыт тестом.
+- Автоустановка программы на обычные PDA и отсутствие на исключённых покрыты тестами.
 - Локализация полная (en+ru), TODO почищены.
 - `Docs/messenger-rollout.md`: все 9 строк этапов отмечены, есть раздел «Плейтест» и summary.
 
