@@ -10,8 +10,9 @@ malinov-messenger-input-hint = Enter message…
 malinov-messenger-send-button = Send
 malinov-messenger-chat-header = Chat with { $name }
 malinov-messenger-chat-header-empty = Select a contact
-malinov-messenger-session-empty = No messages yet.
+malinov-messenger-session-empty = No messages.
 malinov-messenger-message-format = { $name }: { $text }
+malinov-messenger-message-time-format = [{ $time }]
 malinov-messenger-error-offline = Recipient is offline or unknown.
 malinov-messenger-error-message-too-long = Message is too long.
 

@@ -25,9 +25,9 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     public string? SelectedContact;
 
     /// <summary>
-    ///     Lines of the chat session with the selected contact.
+    ///     Messages of the currently selected conversation.
     /// </summary>
-    public List<string> SessionLines;
+    public List<MalinovMessengerMessage> Messages;
 
     /// <summary>
     ///     Names of contacts currently considered online.
@@ -38,13 +38,13 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
         List<MalinovMessengerContact>? contacts = null,
         string? status = null,
         string? selectedContact = null,
-        List<string>? sessionLines = null,
+        List<MalinovMessengerMessage>? messages = null,
         HashSet<string>? onlineNames = null)
     {
         Contacts = contacts ?? new List<MalinovMessengerContact>();
         Status = status ?? string.Empty;
         SelectedContact = selectedContact;
-        SessionLines = sessionLines ?? new List<string>();
+        Messages = messages ?? new List<MalinovMessengerMessage>();
         OnlineNames = onlineNames ?? new HashSet<string>();
     }
 }

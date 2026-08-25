@@ -1,3 +1,5 @@
+using Content.Shared._MalinovStation.Messenger;
+
 namespace Content.Server._MalinovStation.Messenger;
 
 /// <summary>
@@ -13,10 +15,10 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     public string? SelectedContact;
 
     /// <summary>
-    ///     Per-contact chat session lines.
+    ///     Per-contact chat history. Messages are ordered from oldest to newest.
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
-    public Dictionary<string, List<string>> Sessions = new();
+    public Dictionary<string, List<MalinovMessengerMessage>> Sessions = new();
 
     /// <summary>
     ///     Known peers: display name -> cached address and expiry.

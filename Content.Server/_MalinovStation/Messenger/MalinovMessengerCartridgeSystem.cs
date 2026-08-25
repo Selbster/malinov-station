@@ -188,8 +188,8 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
         _deviceNetwork.QueuePacket(loaderUid, peer.Address, payload, MalinovMessengerConstants.Frequency);
 
-        var line = Loc.GetString("malinov-messenger-message-format", ("name", pda.OwnerName), ("text", text));
-        AddSessionLine(session, targetName, line);
+        var message = new MalinovMessengerMessage(pda.OwnerName, text, _timing.CurTime, outgoing: true);
+        AddSessionMessage(session, targetName, message);
 
         session.LastError = null;
         UpdateUiState(uid, loaderUid, component, session);
@@ -265,8 +265,8 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         if (!packet.Data.TryGetValue(MalinovMessengerConstants.TextKey, out var textObj) || textObj is not string text)
             return;
 
-        var line = Loc.GetString("malinov-messenger-message-format", ("name", sender), ("text", text));
-        AddSessionLine(session, sender, line);
+        var message = new MalinovMessengerMessage(sender, text, _timing.CurTime, outgoing: false);
+        AddSessionMessage(session, sender, message);
 
         // If the user has not selected a contact yet, automatically open the conversation with the sender.
         session.SelectedContact ??= sender;
@@ -317,23 +317,27 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         }
 
         var status = session.LastError ?? string.Empty;
-        var sessionLines = session.SelectedContact != null && session.Sessions.TryGetValue(session.SelectedContact, out var lines)
+        var messages = session.SelectedContact != null && session.Sessions.TryGetValue(session.SelectedContact, out var lines)
             ? lines
-            : new List<string>();
+            : new List<MalinovMessengerMessage>();
 
-        var state = new MalinovMessengerUiState(contacts, status, session.SelectedContact, sessionLines, onlineNames);
+        var state = new MalinovMessengerUiState(contacts, status, session.SelectedContact, messages, onlineNames);
         _cartridgeLoader.UpdateCartridgeUiState(loaderUid, state);
     }
 
-    private static void AddSessionLine(MalinovMessengerCartridgeSessionComponent session, string contactName, string line)
+    private void AddSessionMessage(MalinovMessengerCartridgeSessionComponent session, string contactName, MalinovMessengerMessage message)
     {
-        if (!session.Sessions.TryGetValue(contactName, out var lines))
+        if (!session.Sessions.TryGetValue(contactName, out var history))
         {
-            lines = new List<string>();
-            session.Sessions[contactName] = lines;
+            history = new List<MalinovMessengerMessage>();
+            session.Sessions[contactName] = history;
         }
 
-        lines.Add(line);
+        history.Add(message);
+
+        var limit = _cfg.GetCVar(CCVars.MalinovMessengerHistoryPerContact);
+        while (history.Count > limit && history.Count > 0)
+            history.RemoveAt(0);
     }
 
     #endregion

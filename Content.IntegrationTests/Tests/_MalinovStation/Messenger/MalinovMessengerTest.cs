@@ -4,6 +4,7 @@ using Content.Server._MalinovStation.Messenger;
 using Content.Server.Station.Systems;
 using Content.Shared._MalinovStation.Messenger;
 using Content.Shared.CartridgeLoader;
+using Content.Shared.CCVar;
 using Content.Shared.Maps;
 using Content.Shared.PDA;
 using Content.Shared.StationRecords;
@@ -388,15 +389,16 @@ public sealed class MalinovMessengerTest : GameTest
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             Assert.That(session2.Sessions, Does.ContainKey(senderName),
                 "Recipient should have a session from the sender");
-            Assert.That(session2.Sessions[senderName].Any(line => line.Contains(senderName) && line.Contains(messageText)),
-                Is.True, "Recipient session should contain the original message line");
+            Assert.That(session2.Sessions[senderName].Any(m =>
+                    m.SenderName == senderName && m.Text == messageText && !m.Outgoing),
+                Is.True, "Recipient session should contain the original incoming message");
 
             var evt = new CartridgeUiReadyEvent(pda2);
             entityManager.EventBus.RaiseLocalEvent(prog2, ref evt);
 
             Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda2, PdaUiKey.Key, out var state), Is.True,
                 "Recipient UI state should be set");
-            Assert.That(state.SessionLines.Any(line => line.Contains(senderName) && line.Contains(messageText)),
+            Assert.That(state.Messages.Any(m => m.SenderName == senderName && m.Text == messageText && !m.Outgoing),
                 Is.True, "Recipient UI state should show the incoming message");
         });
 
@@ -479,6 +481,180 @@ public sealed class MalinovMessengerTest : GameTest
                 "Sender UI state should be set");
             Assert.That(state.Status, Is.EqualTo("malinov-messenger-error-offline"),
                 "Sender UI state should expose the offline error");
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task MessengerHistory_PersistsAndLimits()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            entityManager.GetComponent<PdaComponent>(pda1).OwnerName = senderName;
+            entityManager.GetComponent<PdaComponent>(pda2).OwnerName = recipientName;
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            cartridgeLoaderSystem.ActivateProgram((pda1, entityManager.GetComponent<CartridgeLoaderComponent>(pda1)), prog1);
+            cartridgeLoaderSystem.ActivateProgram((pda2, entityManager.GetComponent<CartridgeLoaderComponent>(pda2)), prog2);
+        });
+
+        await server.WaitRunTicks(3);
+
+        // A -> B
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A1"), Is.True);
+        });
+        await server.WaitRunTicks(3);
+
+        // B -> A
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog2, senderName, "B1"), Is.True);
+        });
+        await server.WaitRunTicks(3);
+
+        // A -> B
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A2"), Is.True);
+        });
+        await server.WaitRunTicks(3);
+
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.Sessions, Does.ContainKey(recipientName),
+                "Sender should have a history with the recipient");
+
+            var history = session1.Sessions[recipientName];
+            Assert.That(history, Has.Count.EqualTo(3), "History should contain three messages");
+            Assert.That(history[0].Text, Is.EqualTo("A1"));
+            Assert.That(history[0].Outgoing, Is.True);
+            Assert.That(history[1].Text, Is.EqualTo("B1"));
+            Assert.That(history[1].Outgoing, Is.False);
+            Assert.That(history[2].Text, Is.EqualTo("A2"));
+            Assert.That(history[2].Outgoing, Is.True);
+        });
+
+        // Deactivate and reactivate the program; history must survive.
+        await server.WaitAssertion(() =>
+        {
+            var loader1 = entityManager.GetComponent<CartridgeLoaderComponent>(pda1);
+            cartridgeLoaderSystem.DeactivateProgram((pda1, loader1), prog1);
+            cartridgeLoaderSystem.ActivateProgram((pda1, loader1), prog1);
+
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            session1.SelectedContact = recipientName;
+
+            var evt = new CartridgeUiReadyEvent(pda1);
+            entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
+
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda1, PdaUiKey.Key, out var state), Is.True,
+                "UI state should be set after reactivation");
+            Assert.That(state.Messages, Has.Count.EqualTo(3), "UI state should still show the full history");
+            Assert.That(state.Messages[0].Text, Is.EqualTo("A1"));
+            Assert.That(state.Messages[2].Text, Is.EqualTo("A2"));
+        });
+
+        // Limit history to two messages and send a fourth one.
+        await server.WaitPost(() =>
+        {
+            server.CfgMan.SetCVar(CCVars.MalinovMessengerHistoryPerContact, 2);
+        });
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3"), Is.True);
+        });
+        await server.WaitRunTicks(3);
+
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            var history = session1.Sessions[recipientName];
+            Assert.That(history, Has.Count.EqualTo(2), "History should be capped at the configured limit");
+            Assert.That(history[0].Text, Is.EqualTo("A2"));
+            Assert.That(history[0].Outgoing, Is.True);
+            Assert.That(history[1].Text, Is.EqualTo("A3"));
+            Assert.That(history[1].Outgoing, Is.True);
+
+            var evt = new CartridgeUiReadyEvent(pda1);
+            entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
+
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda1, PdaUiKey.Key, out var state), Is.True);
+            Assert.That(state.Messages, Has.Count.EqualTo(2), "UI state should reflect the capped history");
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.CfgMan.SetCVar(CCVars.MalinovMessengerHistoryPerContact, CCVars.MalinovMessengerHistoryPerContact.DefaultValue);
         });
 
         await server.WaitIdleAsync();
