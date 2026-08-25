@@ -8,7 +8,7 @@ namespace Content.Server._MalinovStation.Messenger;
 
 /// <summary>
 ///     Automatically installs the Malinov Messenger program on every PDA spawned at runtime,
-///     except for off-station factions (CentCom, nuclear operatives, ERT/CBRN).
+///     except for off-station factions (CentCom, Syndicate, ERT/CBRN), visitors, and non-functional PDAs.
 /// </summary>
 public sealed partial class MalinovMessengerInstallerSystem : EntitySystem
 {
@@ -24,10 +24,13 @@ public sealed partial class MalinovMessengerInstallerSystem : EntitySystem
         "AdminPDA",
         "DeathsquadPDA",
 
-        // Nuclear operatives
+        // Syndicate antagonists
+        "SyndiPDA",
         "SyndiOperativePDA",
         "SyndiCorpsmanPDA",
         "SyndiCommanderPDA",
+        "PiratePDA",
+        "NinjaPDA",
 
         // ERT / CBRN
         "ERTLeaderPDA",
@@ -36,7 +39,20 @@ public sealed partial class MalinovMessengerInstallerSystem : EntitySystem
         "ERTJanitorPDA",
         "ERTMedicPDA",
         "ERTSecurityPDA",
-        "CBURNPDA"
+        "CBURNPDA",
+
+        // Visitors (no station records, messenger is useless)
+        "VisitorPDA",
+        "VisitorClownPDA",
+        "VisitorChaplainPDA",
+        "VisitorLibrarianPDA",
+        "VisitorLawyerPDA",
+        "VisitorMedicalPDA",
+        "VisitorMusicianPDA",
+
+        // Fun / non-functional
+        "CluwnePDA",
+        "ScurretPDA",
     };
 
     private static readonly EntProtoId MessengerProgramPrototype = "MalinovMessengerCartridge";
