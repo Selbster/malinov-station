@@ -5,6 +5,7 @@ using Content.Server.Chat.Systems;
 using Content.Shared.Hands.EntitySystems;
 using Content.Shared.Interaction;
 using Content.Shared.Mobs.Systems;
+using Content.Shared.Nutrition.EntitySystems;
 using Robust.Shared.Containers;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Timing;
@@ -31,6 +32,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     [Dependency] private EntityLookupSystem _lookup = default!;
     [Dependency] private SharedContainerSystem _container = default!;
     [Dependency] private SocialSystem _social = default!;
+    [Dependency] private IngestionSystem _ingestion = default!;
 
     private readonly Dictionary<string, IAiAction> _actions = new();
 
@@ -51,6 +53,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
         Register(new PickUpItemAction(_entManager, _hands, _interaction, _mobState));
         Register(new SearchAreaAction(_entManager, _lookup, _interaction, _container, _memory, _mobState));
         Register(new TalkToAction(_entManager, _social, _mobState));
+        Register(new EatOrDrinkAction(_entManager, _hands, _ingestion, _mobState));
     }
 
     private void Register(IAiAction action)

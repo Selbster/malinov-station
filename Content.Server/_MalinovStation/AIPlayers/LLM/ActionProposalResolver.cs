@@ -9,8 +9,9 @@ namespace Content.Server._MalinovStation.AIPlayers.LLM;
 /// validation → ActionRegistry" flow). A closed switch over exactly the small set of actions the LLM is
 /// allowed to select this milestone (now including <see cref="UseInteractableAction"/>, spec section 16's
 /// first AI Interaction slice; <see cref="PickUpItemAction"/>, spec section 15/18's first AI Inventory slice;
-/// <see cref="SearchAreaAction"/>, spec section 15's first AI Search slice; and <see cref="TalkToAction"/>,
-/// spec section 15's first AI Social slice) - deliberately smaller than the full
+/// <see cref="SearchAreaAction"/>, spec section 15's first AI Search slice; <see cref="TalkToAction"/>,
+/// spec section 15's first AI Social slice; and <see cref="EatOrDrinkAction"/>, AI Players 0.5.1's Hunger
+/// end-to-end scenario) - deliberately smaller than the full
 /// <see cref="Systems.AiActionRegistrySystem"/> catalog (e.g. <c>Talk</c>/<c>MoveTo</c> itself are registered
 /// and usable programmatically, but not directly LLM-selectable - <see cref="GoToKnownLocationAction"/> is how
 /// the LLM reaches the same underlying movement without ever handling raw coordinates). Only checks structural
@@ -86,6 +87,11 @@ public static class ActionProposalResolver
                 }
 
                 proposal = new ActionProposal(SearchAreaAction.ActionName, new SearchAreaActionParams(keyword));
+                failReason = null;
+                return true;
+
+            case EatOrDrinkAction.ActionName:
+                proposal = new ActionProposal(EatOrDrinkAction.ActionName, new EatOrDrinkActionParams());
                 failReason = null;
                 return true;
 
