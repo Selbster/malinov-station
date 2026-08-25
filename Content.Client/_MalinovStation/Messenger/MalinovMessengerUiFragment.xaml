@@ -2,10 +2,27 @@
                                       xmlns="https://spacestation14.io"
                                       Margin="1 0 2 0">
     <PanelContainer StyleClasses="BackgroundDark"></PanelContainer>
-    <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
+    <BoxContainer Name="MainContainer" Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True" Margin="4">
         <Label Name="HeaderLabel" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
         <Label Name="StatusLabel" HorizontalAlignment="Center" VerticalExpand="True" Visible="False" />
-        <ItemList Name="ContactsList" HorizontalExpand="True" VerticalExpand="True" Visible="False" />
-        <Label Name="PlaceholderLabel" HorizontalAlignment="Center" VerticalAlignment="Center" VerticalExpand="True" />
+        <Label Name="ErrorLabel" HorizontalAlignment="Center" StyleClasses="LabelSubText" Visible="False" />
+        <BoxContainer Orientation="Horizontal" HorizontalExpand="True" VerticalExpand="True" SeparationOverride="4">
+            <!-- Contacts -->
+            <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True" SetWidth="140">
+                <Label Text="{Loc 'malinov-messenger-contacts-header'}" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
+                <ItemList Name="ContactsList" HorizontalExpand="True" VerticalExpand="True" />
+            </BoxContainer>
+            <!-- Chat -->
+            <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
+                <Label Name="ChatHeaderLabel" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
+                <ScrollContainer HorizontalExpand="True" VerticalExpand="True">
+                    <BoxContainer Name="ChatContainer" Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True" />
+                </ScrollContainer>
+                <BoxContainer Orientation="Horizontal" HorizontalExpand="True" SetHeight="32" SeparationOverride="4">
+                    <LineEdit Name="Input" HorizontalExpand="True" PlaceHolder="{Loc 'malinov-messenger-input-hint'}" />
+                    <Button Name="SendButton" Text="{Loc 'malinov-messenger-send-button'}" />
+                </BoxContainer>
+            </BoxContainer>
+        </BoxContainer>
     </BoxContainer>
 </messenger:MalinovMessengerUiFragment>

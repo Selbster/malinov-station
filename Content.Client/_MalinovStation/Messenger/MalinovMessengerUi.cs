@@ -1,5 +1,6 @@
 using Content.Client.UserInterface.Fragments;
 using Content.Shared._MalinovStation.Messenger;
+using Content.Shared.CartridgeLoader;
 using Robust.Client.UserInterface;
 
 namespace Content.Client._MalinovStation.Messenger;
@@ -19,6 +20,18 @@ public sealed partial class MalinovMessengerUi : UIFragment
     public override void Setup(BoundUserInterface userInterface, EntityUid? fragmentOwner)
     {
         _fragment = new MalinovMessengerUiFragment();
+
+        _fragment.OnContactSelected += name =>
+        {
+            var message = new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.RefreshContacts, targetName: name);
+            userInterface.SendPredictedMessage(new CartridgeUiMessage(message));
+        };
+
+        _fragment.OnSendMessage += (target, text) =>
+        {
+            var message = new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.Send, targetName: target, text: text);
+            userInterface.SendPredictedMessage(new CartridgeUiMessage(message));
+        };
     }
 
     public override void UpdateState(BoundUserInterfaceState state)

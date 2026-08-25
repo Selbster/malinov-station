@@ -8,6 +8,13 @@ namespace Content.Client._MalinovStation.Messenger;
 [GenerateTypedNameReferences]
 public sealed partial class MalinovMessengerUiFragment : BoxContainer
 {
+    public event Action<string?>? OnContactSelected;
+    public event Action<string, string>? OnSendMessage;
+
+    private List<MalinovMessengerContact> _contacts = new();
+    private HashSet<string> _onlineNames = new();
+    private string? _selectedContact;
+
     public MalinovMessengerUiFragment()
     {
         RobustXamlLoader.Load(this);
@@ -16,40 +23,109 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         VerticalExpand = true;
 
         HeaderLabel.Text = Loc.GetString("malinov-messenger-contacts-header");
+
+        ContactsList.OnItemSelected += OnItemSelected;
+        SendButton.OnPressed += _ => TrySend();
+        Input.OnTextEntered += _ => TrySend();
+
         UpdateState(new MalinovMessengerUiState());
     }
 
     public void UpdateState(MalinovMessengerUiState state)
     {
-        if (!string.IsNullOrEmpty(state.Status))
+        _contacts = state.Contacts;
+        _onlineNames = state.OnlineNames;
+        _selectedContact = state.SelectedContact;
+
+        if (!string.IsNullOrEmpty(state.Status) && state.Contacts.Count == 0)
         {
             StatusLabel.Text = Loc.GetString(state.Status);
             StatusLabel.Visible = true;
-            ContactsList.Visible = false;
-            PlaceholderLabel.Visible = false;
+            MainContainer.Visible = false;
             return;
         }
 
         StatusLabel.Visible = false;
+        MainContainer.Visible = true;
+
+        if (!string.IsNullOrEmpty(state.Status))
+        {
+            ErrorLabel.Text = Loc.GetString(state.Status);
+            ErrorLabel.Visible = true;
+        }
+        else
+        {
+            ErrorLabel.Visible = false;
+        }
+
+        ContactsList.Clear();
 
         if (state.Contacts.Count == 0)
         {
-            ContactsList.Visible = false;
-            PlaceholderLabel.Text = Loc.GetString("malinov-messenger-no-contacts");
-            PlaceholderLabel.Visible = true;
+            ChatHeaderLabel.Text = Loc.GetString("malinov-messenger-chat-header-empty");
+            ChatContainer.RemoveAllChildren();
+            ChatContainer.AddChild(new Label { Text = Loc.GetString("malinov-messenger-session-empty") });
             return;
         }
 
-        PlaceholderLabel.Visible = false;
-        ContactsList.Clear();
-
-        foreach (var contact in state.Contacts)
+        for (var i = 0; i < state.Contacts.Count; i++)
         {
-            ContactsList.AddItem(Loc.GetString("malinov-messenger-contact-format",
+            var contact = state.Contacts[i];
+            var isOnline = state.OnlineNames.Contains(contact.Name);
+            var statusKey = isOnline
+                ? "malinov-messenger-status-online"
+                : "malinov-messenger-status-offline";
+            var statusText = Loc.GetString(statusKey);
+
+            ContactsList.AddItem(Loc.GetString("malinov-messenger-contact-format-status",
                 ("name", contact.Name),
-                ("job", contact.JobTitle)));
+                ("job", contact.JobTitle),
+                ("status", statusText)));
+
+            if (contact.Name == _selectedContact)
+                ContactsList[i].Selected = true;
         }
 
-        ContactsList.Visible = true;
+        ChatHeaderLabel.Text = _selectedContact != null
+            ? Loc.GetString("malinov-messenger-chat-header", ("name", _selectedContact))
+            : Loc.GetString("malinov-messenger-chat-header-empty");
+
+        ChatContainer.RemoveAllChildren();
+
+        if (state.SessionLines.Count == 0)
+        {
+            ChatContainer.AddChild(new Label { Text = Loc.GetString("malinov-messenger-session-empty") });
+        }
+        else
+        {
+            foreach (var line in state.SessionLines)
+            {
+                ChatContainer.AddChild(new Label
+                {
+                    Text = line,
+                    HorizontalExpand = true,
+                });
+            }
+        }
+    }
+
+    private void OnItemSelected(ItemList.ItemListSelectedEventArgs args)
+    {
+        if (args.ItemIndex < 0 || args.ItemIndex >= _contacts.Count)
+            return;
+
+        _selectedContact = _contacts[args.ItemIndex].Name;
+        OnContactSelected?.Invoke(_selectedContact);
+    }
+
+    private void TrySend()
+    {
+        var text = Input.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(text) || _selectedContact == null)
+            return;
+
+        OnSendMessage?.Invoke(_selectedContact, text);
+        Input.Clear();
     }
 }
