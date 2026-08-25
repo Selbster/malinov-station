@@ -42,7 +42,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
   `Content.Client/_MalinovStation/Messenger/`.
   Namespace: `Content.<Проект>._MalinovStation.Messenger`.
 - Прототипы: внутренняя программная сущность `MalinovMessengerCartridge` (parent: BasePDACartridge),
-  сервер `MalinovMessengerServer` (этап 4a).
+  сервер `MalinovMessengerServer` (этап 4).
 - Частота DeviceNetwork: прототип `- type: deviceFrequency`, id `MalinovMessengerFrequency`, значение **2210**,
   файл `Resources/Prototypes/_MalinovStation/Device/malinov_devicenet_frequencies.yml`.
 - Константы протокола: статический класс `MalinovMessengerConstants` в Shared

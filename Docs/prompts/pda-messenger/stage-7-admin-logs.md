@@ -5,7 +5,7 @@
 https://github.com/Selbster/malinov-station.
 
 🌿 ВЕТКА: работай в ветке `pda-messenger`. НЕ переключайся на `alpha-master`, НЕ мержи.
-Один этап = один атомарный коммит: `feat(pda-messenger): этап 7 — админ-логи`.
+Один этап = один атомарный коммит: `feat: админ-логи`.
 
 ## 🛠️ DevOps Gate (из корня репозитория; копия CI проекта .github/workflows/build-test-debug.yml)
 
@@ -58,7 +58,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
 
 ## 📦 КОНТЕКСТ: что уже сделано
 
-Этапы 0–6: полная цепочка доставки с failover, уведомления, rate-limit и mute/unmute команды.
+Этапы 0–6: полная цепочка доставки через сервер-ретранслятор, уведомления, rate-limit и mute/unmute команды.
 Если чего-то нет — СТОП.
 
 ## 🎯 ЦЕЛЬ ЭТАПА 7

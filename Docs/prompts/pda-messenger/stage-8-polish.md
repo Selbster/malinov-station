@@ -5,7 +5,7 @@
 https://github.com/Selbster/malinov-station.
 
 🌿 ВЕТКА: работай в ветке `pda-messenger`. НЕ переключайся на `alpha-master`, НЕ мержи.
-Один этап = один атомарный коммит: `feat(pda-messenger): этап 8 — полировка и подготовка к мержу`.
+Один этап = один атомарный коммит: `feat: полировка и подготовка к мержу`.
 
 ## 🛠️ DevOps Gate (из корня репозитория; копия CI проекта .github/workflows/build-test-debug.yml)
 
@@ -31,7 +31,7 @@ https://github.com/Selbster/malinov-station.
 ## 📐 Сквозные соглашения мессенджера
 
 - Namespace `Content.<Проект>._MalinovStation.Messenger`; префиксы `Malinov*`/`malinov-*`.
-- CVar'ы проекта: `.history_per_contact`, `.relay_timeout_sec`, `.rate_window_sec`,
+- CVar'ы проекта: `.history_per_contact`, `.rate_window_sec`,
   `.rate_max_msgs`, `.sound_enabled`.
 
 ---
@@ -39,7 +39,7 @@ https://github.com/Selbster/malinov-station.
 ## 📦 КОНТЕКСТ: что уже сделано
 
 Этапы 0–7 завершены и закоммичены: скелет; каталог из записей станции; P2P; история;
-сервер-релей; failover; уведомления; антиспам/mute; админ-логи. Проверь `Docs/messenger-rollout.md`
+сервер-релей; уведомления; антиспам/mute; админ-логи. Проверь `Docs/messenger-rollout.md`
 и фактическое состояние ветки; чего-то нет — СТОП.
 
 ## 🎯 ЦЕЛЬ ЭТАПА 8
@@ -60,7 +60,7 @@ https://github.com/Selbster/malinov-station.
    `Docs/` и тестов изменён только `Content.Shared.Database/LogType.cs` (этап 7). Отчёт приложить.
 5. **Документация для человека** (в `Docs/messenger-rollout.md`, раздел «Плейтест»):
    чек-лист ручной проверки в игре: проверка наличия программы в КПК, каталог, переписка двух игроков,
-   отказ сервера + failover, уведомления, rate-limit, mute, админ-логи.
+   отказ сервера, уведомления, rate-limit, mute, админ-логи.
    Плюс итоговое summary изменений для PR.
 
 ## ✅ DEFINITION OF DONE (Этап 8)

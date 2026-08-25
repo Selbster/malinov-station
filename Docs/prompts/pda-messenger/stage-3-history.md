@@ -5,7 +5,7 @@
 https://github.com/Selbster/malinov-station.
 
 🌿 ВЕТКА: работай в ветке `pda-messenger`. НЕ переключайся на `alpha-master`, НЕ мержи.
-Один этап = один атомарный коммит: `feat(pda-messenger): этап 3 — история переписки`.
+Один этап = один атомарный коммит: `feat: история переписки`.
 
 ## 🛠️ DevOps Gate (из корня репозитория; копия CI проекта .github/workflows/build-test-debug.yml)
 
@@ -40,7 +40,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
   Namespace: `Content.<Проект>._MalinovStation.Messenger`.
 - Прототипы: `MalinovMessengerCartridge`; частота `MalinovMessengerFrequency` = **2210**.
 - Константы протокола: класс `MalinovMessengerConstants`; команды `announce`, `msg` (этап 2);
-  `ack`, `directory_req`, `directory` — позже.
+  ``directory_req`, `directory` — позже.
 - CVar'ы: файл `CCVars.Messenger.cs`. На этом этапе добавляется
   `malinov.messenger.history_per_contact` (int, default 50, CVar.SERVER | CVar.REPLICATED? — реши по образцам).
 - Локализация: ключи `malinov-messenger-*`; файлы en-US и ru-RU синхронно.
@@ -60,8 +60,8 @@ DeviceNetwork с анонсами присутствия и временной �
 
 ## 🚫 ЯВНО НЕ ДЕЛАТЬ
 
-Персистентность между раундами (осознанно отклонена), вложения/стикеры, сервер-релей (4a),
-ack/failover (4b), уведомления (5), антиспам (6), админ-логи (7). Vanilla не трогать.
+Персистентность между раундами (осознанно отклонена), вложения/стикеры, сервер-релей (4),
+уведомления (5), антиспам (6), админ-логи (7). Vanilla не трогать.
 
 ## 📚 ОБЯЗАТЕЛЬНОЕ ЧТЕНИЕ
 

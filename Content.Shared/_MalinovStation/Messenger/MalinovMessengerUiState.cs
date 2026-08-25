@@ -11,28 +11,28 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     /// <summary>
     ///     Catalog of station crew contacts shown in the messenger.
     /// </summary>
-    public List<MalinovMessengerContact> Contacts { get; }
+    public List<MalinovMessengerContact> Contacts;
 
     /// <summary>
     ///     Localization key for a status message (e.g. manifest unavailable or send error).
     ///     Empty when no status should be shown.
     /// </summary>
-    public string Status { get; }
+    public string Status;
 
     /// <summary>
     ///     Name of the currently selected contact.
     /// </summary>
-    public string? SelectedContact { get; }
+    public string? SelectedContact;
 
     /// <summary>
     ///     Lines of the chat session with the selected contact.
     /// </summary>
-    public List<string> SessionLines { get; }
+    public List<string> SessionLines;
 
     /// <summary>
     ///     Names of contacts currently considered online.
     /// </summary>
-    public HashSet<string> OnlineNames { get; }
+    public HashSet<string> OnlineNames;
 
     public MalinovMessengerUiState(
         List<MalinovMessengerContact>? contacts = null,

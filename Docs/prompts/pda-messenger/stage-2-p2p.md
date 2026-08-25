@@ -5,7 +5,7 @@
 https://github.com/Selbster/malinov-station.
 
 🌿 ВЕТКА: работай в ветке `pda-messenger`. НЕ переключайся на `alpha-master`, НЕ мержи.
-Один этап = один атомарный коммит: `feat(pda-messenger): этап 2 — прямая отправка P2P`.
+Один этап = один атомарный коммит: `feat: прямая отправка P2P`.
 
 ## 🛠️ DevOps Gate (из корня репозитория; копия CI проекта .github/workflows/build-test-debug.yml)
 
@@ -37,13 +37,13 @@ Content.IntegrationTests — реальный headless сервер+клиент
 
 - Папки кода: `Content.{Shared|Server|Client}/_MalinovStation/Messenger/`.
   Namespace: `Content.<Проект>._MalinovStation.Messenger`.
-- Прототипы: `MalinovMessengerCartridge`; сервер `MalinovMessengerServer` появится на этапе 4a.
+- Прототипы: `MalinovMessengerCartridge`; сервер `MalinovMessengerServer` появится на этапе 4.
 - Частота DeviceNetwork: прототип `MalinovMessengerFrequency`, значение **2210**,
   файл `Resources/Prototypes/_MalinovStation/Device/malinov_devicenet_frequencies.yml`
   (создать на этом этапе).
 - Константы протокола: класс `MalinovMessengerConstants` (Shared): частота, ключи payload
-  (`command`, `sender_name`, `text`, `target`) и команды `announce`, `msg`. (`ack` — с этапа 4b,
-  `directory_*` — с этапа 4a.)
+  (`command`, `sender_name`, `text`, `target`) и команды `announce`, `msg`.
+  (`directory_*` — с этапа 4.)
 - CVar'ы: файл `CCVars.Messenger.cs`, имена `malinov.messenger.*`.
 - Локализация: ключи `malinov-messenger-*`; файлы
   `Resources/Locale/{en-US,ru-RU}/_MalinovStation/malinov-cartridges.ftl` — ОБА языка синхронно.
@@ -67,8 +67,8 @@ Content.IntegrationTests — реальный headless сервер+клиент
 
 ## 🚫 ЯВНО НЕ ДЕЛАТЬ
 
-Историю переписки между сессиями просмотра (этап 3), сервер-ретранслятор и директорию (4a),
-ack/таймауты/failover (4b), звуковые уведомления (5), rate-limit (6), админ-логи (7). Vanilla не трогать.
+Историю переписки между сессиями просмотра (этап 3), сервер-ретранслятор и директорию (4),
+звуковые уведомления (5), rate-limit (6), админ-логи (7). Vanilla не трогать.
 Известное упрощение: сопоставление «запись станции ↔ анонс» выполняется по имени владельца;
 задокументируй его TODO-комментарием в коде.
 

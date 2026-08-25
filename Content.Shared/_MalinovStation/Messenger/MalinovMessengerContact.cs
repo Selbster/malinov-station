@@ -11,12 +11,12 @@ public sealed class MalinovMessengerContact
     /// <summary>
     ///     Display name of the contact.
     /// </summary>
-    public string Name { get; }
+    public string Name;
 
     /// <summary>
     ///     Job title of the contact.
     /// </summary>
-    public string JobTitle { get; }
+    public string JobTitle;
 
     public MalinovMessengerContact(string name, string jobTitle)
     {

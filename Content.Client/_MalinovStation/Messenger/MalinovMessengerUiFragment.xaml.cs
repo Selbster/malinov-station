@@ -14,6 +14,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
     private List<MalinovMessengerContact> _contacts = new();
     private HashSet<string> _onlineNames = new();
     private string? _selectedContact;
+    private bool _updating;
 
     public MalinovMessengerUiFragment()
     {
@@ -33,6 +34,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
 
     public void UpdateState(MalinovMessengerUiState state)
     {
+        _updating = true;
         _contacts = state.Contacts;
         _onlineNames = state.OnlineNames;
         _selectedContact = state.SelectedContact;
@@ -42,6 +44,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
             StatusLabel.Text = Loc.GetString(state.Status);
             StatusLabel.Visible = true;
             MainContainer.Visible = false;
+            _updating = false;
             return;
         }
 
@@ -65,6 +68,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
             ChatHeaderLabel.Text = Loc.GetString("malinov-messenger-chat-header-empty");
             ChatContainer.RemoveAllChildren();
             ChatContainer.AddChild(new Label { Text = Loc.GetString("malinov-messenger-session-empty") });
+            _updating = false;
             return;
         }
 
@@ -107,10 +111,15 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
                 });
             }
         }
+
+        _updating = false;
     }
 
     private void OnItemSelected(ItemList.ItemListSelectedEventArgs args)
     {
+        if (_updating)
+            return;
+
         if (args.ItemIndex < 0 || args.ItemIndex >= _contacts.Count)
             return;
 
