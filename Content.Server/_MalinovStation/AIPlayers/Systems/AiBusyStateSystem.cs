@@ -30,6 +30,7 @@ public sealed partial class AiBusyStateSystem : EntitySystem
 {
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private AiLodSystem _lod = default!;
+    [Dependency] private HTNSystem _htn = default!;
 
     /// <summary>How often (in seconds) busy AI players are re-checked - scaled by LOD like every other
     /// periodic scan in this subsystem. Not per-tick: busy-state only ever changes on a real HTN/goal
@@ -123,7 +124,19 @@ public sealed partial class AiBusyStateSystem : EntitySystem
         }
 
         if (!IsStillActuallyBusy(uid, busy))
+        {
+            // AI Players 0.6.2: arriving is itself a meaningful event. A journey ending used to just clear the
+            // commitment silently, leaving the AI standing on the beacon it walked to until the routine
+            // reflection interval came round - up to 45s of doing visibly nothing at the very moment it has
+            // just reached somewhere new and has the most to react to. Treated like every other interruption
+            // here: decide what this place is for, now, rather than on the next tick of the clock.
+            var wasTravelling = IsForcedDestinationAction(busy.CurrentAction);
+
             Clear(busy);
+
+            if (wasTravelling && TryComp<CognitiveModeComponent>(uid, out var arrived))
+                arrived.ReflectionAccumulator = 0f;
+        }
     }
 
     /// <summary>
@@ -139,8 +152,33 @@ public sealed partial class AiBusyStateSystem : EntitySystem
     /// </summary>
     private void AbortForRelocation(EntityUid uid, AiBusyStateComponent busy)
     {
-        if (busy.CurrentAction == GoToKnownLocationAction.ActionName && TryComp<HTNComponent>(uid, out var htn))
+        if (IsForcedDestinationAction(busy.CurrentAction) && TryComp<HTNComponent>(uid, out var htn))
+        {
             htn.Blackboard.Remove<EntityCoordinates>(MoveToAction.ForcedDestinationKey);
+
+            // AI Players 0.6.2: removing the key is not enough on its own. Anything HTN has already planned -
+            // or is still planning, asynchronously - may contain a MoveTo task that reads this exact key at
+            // startup, unconditionally (MoveToOperator.Startup uses GetValue, not TryGetValue). Left alone,
+            // such a task starts a moment later against a key that no longer exists and takes the whole NPC
+            // update loop down with a KeyNotFoundException. So the stale plan and the in-flight planning job
+            // are torn down together with the key that justified them, using the engine's own public API and
+            // the same cancel-and-null idiom HTNSystem.SetHTNEnabled uses - no vanilla file is touched.
+            htn.PlanningToken?.Cancel();
+            htn.PlanningToken = null;
+
+            if (htn.Plan is { } plan)
+            {
+                // Both calls, in this order - exactly what HTNSystem.SetHTNEnabled does when it tears an NPC's
+                // plan down, and the order matters. MoveToOperator's cleanup (unregistering NPCSteeringComponent,
+                // cancelling the movement token, dropping the cached path) hangs off IHtnConditionalShutdown
+                // with ShutdownState = TaskFinished, and ShutdownPlan only fires conditional shutdowns flagged
+                // PlanFinished. ShutdownPlan alone therefore leaves steering still registered against the
+                // destination we just invalidated - the AI would keep being steered toward exactly the stale
+                // target this whole method exists to abandon.
+                _htn.ShutdownTask(plan.CurrentOperator, htn.Blackboard, HTNOperatorStatus.Failed);
+                _htn.ShutdownPlan(htn);
+            }
+        }
 
         // A relocated PursueGoal commitment (e.g. mid-repair) is just as stale as a relocated GoToKnownLocation
         // one - without this, GoalSystem.Reconsider would keep deferring to the abandoned override until it
@@ -160,7 +198,7 @@ public sealed partial class AiBusyStateSystem : EntitySystem
     /// </summary>
     private bool LandedAtOwnDestination(EntityUid uid, AiBusyStateComponent busy, EntityCoordinates current)
     {
-        return busy.CurrentAction == GoToKnownLocationAction.ActionName &&
+        return IsForcedDestinationAction(busy.CurrentAction) &&
             TryComp<HTNComponent>(uid, out var htn) &&
             htn.Blackboard.TryGetValue<EntityCoordinates>(MoveToAction.ForcedDestinationKey, out var destination, EntityManager) &&
             current.TryDistance(EntityManager, destination, out var distanceToDestination) &&
@@ -176,7 +214,7 @@ public sealed partial class AiBusyStateSystem : EntitySystem
         if (busy.CurrentAction == PursueGoalAction.ActionName)
             return TryComp<GoalComponent>(uid, out var goal) && goal.IsLlmOverride;
 
-        if (busy.CurrentAction == GoToKnownLocationAction.ActionName)
+        if (IsForcedDestinationAction(busy.CurrentAction))
         {
             return TryComp<HTNComponent>(uid, out var htn) &&
                 htn.Blackboard.TryGetValue<EntityCoordinates>(MoveToAction.ForcedDestinationKey, out _, EntityManager);
@@ -187,6 +225,16 @@ public sealed partial class AiBusyStateSystem : EntitySystem
         // unrecognized commitment stuck open forever.
         return false;
     }
+
+    /// <summary>
+    /// AI Players 0.6.2: the extended actions whose whole commitment *is* a destination on the HTN
+    /// blackboard, and which therefore share identical completion, relocation and arrival semantics here.
+    /// Kept as one predicate rather than repeated name comparisons because an unrecognised name silently
+    /// clears the busy state on the very next scan - so a new travelling action that forgot to appear here
+    /// would look like it had finished the instant it began.
+    /// </summary>
+    private static bool IsForcedDestinationAction(string? actionName) =>
+        actionName == GoToKnownLocationAction.ActionName || actionName == ExploreStationAction.ActionName;
 
     private static void Clear(AiBusyStateComponent busy)
     {

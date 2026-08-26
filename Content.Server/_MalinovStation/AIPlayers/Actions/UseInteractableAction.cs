@@ -77,7 +77,7 @@ public sealed class UseInteractableAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var use = (UseInteractableActionParams)parameters;
 
@@ -86,13 +86,14 @@ public sealed class UseInteractableAction : IAiAction
         // AiActionRegistrySystem.TryDoAction, so this can't observe a different result than CanDo just
         // confirmed.
         if (!_entManager.TryGetComponent<InteractionOpportunityComponent>(uid, out var opportunity))
-            return;
+            return AiActionResult.NoTarget("Рядом нет ничего, чем можно воспользоваться.");
 
         if (FindCandidate(uid, opportunity, use.Target) is not { } target)
-            return;
+            return AiActionResult.NoTarget($"Ты не видишь рядом «{use.Target}».");
 
         var coordinates = _entManager.GetComponent<TransformComponent>(uid).Coordinates;
         _interaction.UserInteraction(uid, coordinates, target);
+        return AiActionResult.Completed();
     }
 
     /// <summary>Case-insensitive substring match against each currently-visible candidate's live entity

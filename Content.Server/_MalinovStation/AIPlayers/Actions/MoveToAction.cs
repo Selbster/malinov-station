@@ -38,6 +38,10 @@ public sealed class MoveToAction : IAiAction
     public string Category => AiActionCategories.Movement;
     public bool IsExtended => true;
 
+    /// <summary>Driven programmatically (tests, other systems) with real coordinates - never a sensible
+    /// thing for a language model to name. See <see cref="IAiAction.IsLlmSelectable"/>.</summary>
+    public bool IsLlmSelectable => false;
+
     public bool IsEligible(EntityUid uid)
     {
         return _entManager.HasComponent<HTNComponent>(uid) && !_mobState.IsIncapacitated(uid);
@@ -67,10 +71,11 @@ public sealed class MoveToAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var move = (MoveToActionParams)parameters;
         var htn = _entManager.GetComponent<HTNComponent>(uid);
         htn.Blackboard.SetValue(ForcedDestinationKey, move.Destination);
+        return AiActionResult.Started();
     }
 }

@@ -85,7 +85,7 @@ public sealed class EatOrDrinkAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         // Re-resolved rather than smuggled through from CanDo, same convention every other action here
         // already established - CanDo/Do are only ever called back-to-back by
@@ -93,5 +93,6 @@ public sealed class EatOrDrinkAction : IAiAction
         // confirmed. Fire-and-forget: the actual nutrient transfer happens via vanilla's own DoAfter,
         // exactly like a real player's "use in hand" key press.
         _hands.TryUseItemInHand(uid);
+        return AiActionResult.Completed();
     }
 }

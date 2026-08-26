@@ -86,7 +86,18 @@ public sealed partial class PickRememberedOrAccessibleOperator : HTNOperator
 
     private Dictionary<string, object>? TryPickRemembered(EntityUid owner)
     {
-        var knownLocations = _memory.GetKnownLocationNames(owner);
+        // AI Players 0.6.2: ranked candidates, not GetKnownLocationNames. That method orders by memory
+        // importance, which SeedKnownBeacons gives every station beacon identically - so idle wander drew from
+        // the same arbitrary five beacons for an entire round, and since the weighting below is strongly
+        // distance-biased, an AI effectively ping-ponged between whichever two of those five happened to be
+        // nearest. Live play showed exactly that: movement only ever between adjacent rooms, never anywhere
+        // else. GetExplorationCandidates ranks by real familiarity and penalises somewhere just left, so idle
+        // wander now varies sensibly among nearby places.
+        //
+        // The distance weighting itself is deliberately kept: idle wander is meant to be local pottering
+        // about. Crossing the station is travel, which is the cognitive layer's job (GoToKnownLocation /
+        // ExploreStation) - collapsing that distinction here would make the two indistinguishable.
+        var knownLocations = _memory.GetExplorationCandidates(owner);
         if (knownLocations.Count == 0)
             return null;
 

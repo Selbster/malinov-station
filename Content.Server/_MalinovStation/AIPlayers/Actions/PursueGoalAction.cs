@@ -65,9 +65,11 @@ public sealed class PursueGoalAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var pursue = (PursueGoalActionParams)parameters;
-        _goal.TrySetExternalGoal(uid, pursue.GoalName, pursue.Priority, $"cognitive: {pursue.Reason}", out _);
+        return _goal.TrySetExternalGoal(uid, pursue.GoalName, pursue.Priority, $"cognitive: {pursue.Reason}", out _)
+            ? AiActionResult.Started($"Ты взял(а)сь за «{pursue.GoalName}».")
+            : AiActionResult.Failed($"Ты не знаешь, как заняться «{pursue.GoalName}».");
     }
 }

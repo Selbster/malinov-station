@@ -88,14 +88,14 @@ public sealed class SearchAreaAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var search = (SearchAreaActionParams)parameters;
 
         // Re-resolved rather than smuggled through from CanDo, same convention every other action here
         // already established.
         if (FindMatch(uid, search.Keyword) is not { } match)
-            return;
+            return AiActionResult.NoTarget($"Осмотревшись, ты не нашёл (нашла) ничего похожего на «{search.Keyword}».");
 
         _memory.AddMemory(
             uid,
@@ -105,6 +105,8 @@ public sealed class SearchAreaAction : IAiAction
             participants: new[] { match.Uid },
             location: match.Coordinates,
             subject: match.Name);
+
+        return AiActionResult.Completed($"Ты нашёл (нашла) «{match.Name}».");
     }
 
     /// <summary>

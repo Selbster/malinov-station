@@ -33,6 +33,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     [Dependency] private SharedContainerSystem _container = default!;
     [Dependency] private SocialSystem _social = default!;
     [Dependency] private IngestionSystem _ingestion = default!;
+    [Dependency] private ExplorationControllerSystem _exploration = default!;
 
     private readonly Dictionary<string, IAiAction> _actions = new();
 
@@ -54,6 +55,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
         Register(new SearchAreaAction(_entManager, _lookup, _interaction, _container, _memory, _mobState));
         Register(new TalkToAction(_entManager, _social, _mobState));
         Register(new EatOrDrinkAction(_entManager, _hands, _ingestion, _mobState));
+        Register(new ExploreStationAction(_entManager, _mobState, _exploration, _timing));
     }
 
     private void Register(IAiAction action)
@@ -80,15 +82,33 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     }
 
     /// <summary>
+    /// AI Players 0.6.2: the subset of <see cref="GetEligibleActions"/> the LLM may actually choose between -
+    /// see <see cref="IAiAction.IsLlmSelectable"/>. Every LLM-facing path uses this; programmatic callers keep
+    /// using <see cref="GetEligibleActions"/>/<see cref="TryDoAction"/> unchanged.
+    /// </summary>
+    public IReadOnlyList<IAiAction> GetLlmSelectableActions(EntityUid uid)
+    {
+        var selectable = new List<IAiAction>();
+        foreach (var action in _actions.Values)
+        {
+            if (action.IsLlmSelectable && action.IsEligible(uid))
+                selectable.Add(action);
+        }
+
+        return selectable;
+    }
+
+    /// <summary>
     /// The distinct <see cref="AiActionCategories"/> with at least one currently-eligible action for
     /// <paramref name="uid"/> - what the Cognitive LLM role's prompt is built from
     /// (see <see cref="LLM.PromptBuilder.BuildCognitiveSystemPrompt"/>), instead of the fixed "all categories
-    /// always" set.
+    /// always" set. Counts only LLM-selectable actions: offering a category whose sole occupant the model is
+    /// not allowed to name would strand it with nothing to pick.
     /// </summary>
     public IReadOnlySet<string> GetEligibleCategories(EntityUid uid)
     {
         var categories = new HashSet<string>();
-        foreach (var action in GetEligibleActions(uid))
+        foreach (var action in GetLlmSelectableActions(uid))
             categories.Add(action.Category);
 
         return categories;
@@ -120,9 +140,22 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
         if (!action.CanDo(uid, parameters, out failReason))
             return false;
 
-        action.Do(uid, parameters);
+        // AI Players 0.6.2: an action can now fail at execution time even after CanDo passed - the normal
+        // case for anything that picks its own target while running (exploration). Surfaced through the same
+        // out-parameter every existing caller already handles, so a non-success outcome reads exactly like a
+        // CanDo rejection to them, and never silently looks like it worked.
+        var result = action.Do(uid, parameters);
 
-        if (action.IsExtended && _entManager.TryGetComponent<AiBusyStateComponent>(uid, out var busy))
+        if (!result.IsSuccess)
+        {
+            failReason = result.Reason;
+            return false;
+        }
+
+        // Only a genuine hand-off to extended execution arms the busy state. Previously this keyed off
+        // IsExtended alone, so an extended action that bailed out mid-Do still marked the actor committed to
+        // something it was not in fact doing.
+        if (result.Outcome == AiActionOutcome.Started && _entManager.TryGetComponent<AiBusyStateComponent>(uid, out var busy))
         {
             busy.CurrentAction = action.Name;
             busy.StartedAt = _timing.CurTime;

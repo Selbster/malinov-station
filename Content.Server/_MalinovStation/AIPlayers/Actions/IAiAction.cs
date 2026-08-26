@@ -51,6 +51,18 @@ public interface IAiAction
     bool IsExtended { get; }
 
     /// <summary>
+    /// AI Players 0.6.2: whether the LLM is allowed to pick this action by name. Defaults to true; an action
+    /// opts out when its parameters cannot meaningfully be produced by a language model - today only
+    /// <see cref="MoveToAction"/>, which needs raw <see cref="EntityCoordinates"/> and is driven
+    /// programmatically. Such an action stays fully usable through
+    /// <see cref="Systems.AiActionRegistrySystem.TryDoAction"/>; it simply stops being advertised as a choice.
+    /// Without this it was still listed to the model, still counted toward its category being offered, and
+    /// then rejected by <see cref="LLM.ActionProposalResolver"/> whenever the model actually picked it -
+    /// burning a whole decision cycle on an option that could never execute.
+    /// </summary>
+    bool IsLlmSelectable => true;
+
+    /// <summary>
     /// Deterministic pre-filter: "could this actor perform *some* instance of this action right now", with no
     /// specific target/parameters chosen yet - reusing whatever passive candidate data (opportunity components,
     /// known-location memory, etc.) this action's own <see cref="CanDo"/> already consults. Must not mutate
@@ -70,6 +82,14 @@ public interface IAiAction
     /// <summary>
     /// Performs the action. Only ever called after <see cref="CanDo"/> has returned true for the same
     /// parameters.
+    ///
+    /// AI Players 0.6.2: returns an <see cref="AiActionResult"/> rather than <c>void</c>. CanDo answers "are
+    /// these parameters feasible" before anything happens; this answers "what actually became of it" - the
+    /// distinction matters for any action whose target is only chosen during execution (exploration picks its
+    /// own destination), where passing CanDo is no guarantee there was anything to do. A non-success result is
+    /// real feedback: <see cref="Systems.AiActionRegistrySystem.TryDoAction"/> refuses to mark the actor busy,
+    /// and <see cref="Systems.AiTraceSystem.ActionFailed"/> turns it into the outcome memory the LLM reads on
+    /// its next reflection.
     /// </summary>
-    void Do(EntityUid uid, IAiActionParams parameters);
+    AiActionResult Do(EntityUid uid, IAiActionParams parameters);
 }

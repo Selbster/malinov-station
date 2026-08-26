@@ -120,6 +120,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
             AddComp<InteractionOpportunityComponent>(mobUid);
             AddComp<ItemOpportunityComponent>(mobUid);
             AddComp<LocationKnowledgeComponent>(mobUid);
+            AddComp<ExplorationComponent>(mobUid);
 
             // AI Players 0.6: both default to TimeSpan.Zero, which - unlike a real "just chose this" moment -
             // reads as infinitely stale against a nonzero _timing.CurTime, which would make NeedsSystem.BoredomDelta

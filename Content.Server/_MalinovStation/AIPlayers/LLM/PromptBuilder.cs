@@ -355,6 +355,9 @@ public static class PromptBuilder
         "PickUpItem" => "(параметры: {\"target\": \"<название ближайшего предмета>\"})",
         "SearchArea" => "(параметры: {\"keyword\": \"<что искать>\"})",
         "TalkTo" => "(параметры: {\"target\": \"<имя человека, которого ты видишь>\"})",
+        // Explicit rather than falling through to the default: the model must understand it does not get
+        // to say *where* - that is chosen for it from what this character actually knows.
+        "ExploreStation" => "(без параметров — куда именно идти, ты решишь на месте)",
         _ => "(без параметров)",
     };
 

@@ -33,8 +33,9 @@ public sealed class ContinueActivityAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
-        // Deliberate no-op.
+        // Deliberate no-op - "keep doing what you were doing" succeeds by definition.
+        return AiActionResult.Completed();
     }
 }

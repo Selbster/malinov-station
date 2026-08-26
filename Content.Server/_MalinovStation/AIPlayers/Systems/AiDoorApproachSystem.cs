@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server.NPC.Components;
@@ -54,6 +55,7 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
     [Dependency] private SharedMapSystem _mapSystem = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private AiLodSystem _lod = default!;
+    [Dependency] private MemorySystem _memory = default!;
 
     /// <summary>How many upcoming polys of <see cref="NPCSteeringComponent.CurrentPath"/> to check for a door
     /// obstacle - bounded so this stays cheap and only ever considers the door the AI is actually about to
@@ -138,6 +140,17 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
             if (door.State != DoorState.Closed)
                 continue;
 
+            // AI Players 0.6.2: shutters and blast doors only ever move on a button or a signal - clicking one
+            // does nothing whatsoever. Pathfinding still routes through them (they are ordinary Door polys), so
+            // an AI would walk up and click at one forever. DoorComponent.ClickOpen is the door's own statement
+            // that this is so, which means no prototype needs hardcoding here: anything configured that way is
+            // treated as a wall, and recorded as impassable so the next path request goes around it instead.
+            if (!door.ClickOpen)
+            {
+                MarkDenied(uid, approach, doorUid, "эту створку не открыть руками");
+                continue;
+            }
+
             // AI Players 0.6.1: only ever engage a door that's actually part of the AI's current route - see
             // this system's own class doc comment. A door merely nearby but irrelevant to where the AI is
             // going is left alone entirely.
@@ -181,7 +194,7 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
 
         if (_timing.CurTime - approach.ActiveSince > ApproachTimeout)
         {
-            MarkDenied(approach, doorUid);
+            MarkDenied(uid, approach, doorUid, "до неё не получается дойти");
             approach.ActiveDoor = null;
             return;
         }
@@ -204,14 +217,14 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
 
             // Grace period elapsed and it's still Closed (the check at the top of this method would have
             // already handed back if it changed) - no power, welded, or any other silent failure. Back off.
-            MarkDenied(approach, doorUid);
+            MarkDenied(uid, approach, doorUid, "она не открывается");
             approach.ActiveDoor = null;
             return;
         }
 
         if (!_accessReader.IsAllowed(uid, doorUid))
         {
-            MarkDenied(approach, doorUid);
+            MarkDenied(uid, approach, doorUid, "у тебя нет доступа");
             approach.ActiveDoor = null;
             return;
         }
@@ -241,8 +254,55 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         RaiseLocalEvent(uid, ref ev);
     }
 
-    private void MarkDenied(DoorApproachComponent approach, EntityUid doorUid) =>
-        approach.DeniedDoors[doorUid] = _timing.CurTime + DeniedMemoryDuration;
+    /// <summary>
+    /// AI Players 0.6.2: records a door this AI cannot get through - in three places, because each one is read
+    /// by something different and only having the first was the cause of the "dancing at a door it will never
+    /// open" behaviour reported from live play.
+    ///
+    /// (1) This system's own map, so it stops re-approaching the door itself. This is all that used to happen.
+    /// (2) Vanilla <see cref="NPCDeniedAccessComponent"/>, which <c>PathfindingSystem.GetDeniedTiles</c> reads
+    ///     when building a path request. Without it the router kept producing routes straight back through the
+    ///     same locked door, so the AI walked up, failed, walked away, replanned into it again - forever. This
+    ///     is the difference between "I refuse to touch that door" and "that door is not a way through".
+    /// (3) A memory, so the cognitive layer actually learns it - "the bot does not understand it has no
+    ///     access" was the other half of the same report. Cognitive-only, matching the convention every other
+    ///     memory-writing side effect in this tree follows.
+    ///
+    /// Entries expire (see <see cref="DeniedMemoryDuration"/>): access can legitimately change, and a shutter
+    /// someone opens from a console should stop being a wall.
+    /// </summary>
+    private void MarkDenied(EntityUid uid, DoorApproachComponent approach, EntityUid doorUid, string reason)
+    {
+        var expiry = _timing.CurTime + DeniedMemoryDuration;
+
+        approach.DeniedDoors[doorUid] = expiry;
+        EnsureComp<NPCDeniedAccessComponent>(uid).DeniedDoors[doorUid] = expiry;
+
+        if (!HasComp<CognitiveModeComponent>(uid))
+            return;
+
+        // Deduped against the recent past rather than written every retry - otherwise a door the AI passes
+        // repeatedly would crowd out everything else it remembers.
+        if (TryComp<MemoryComponent>(uid, out var memory) &&
+            memory.Memories.Any(m => m.Source == "door-denied" && m.Participants.Contains(doorUid) &&
+                _timing.CurTime - m.Timestamp < DeniedMemoryDuration))
+        {
+            return;
+        }
+
+        var where = TryComp<LandmarkPerceptionComponent>(uid, out var landmark) && landmark.CurrentAreaLabel is { } area
+            ? $" в «{area}»"
+            : string.Empty;
+
+        _memory.AddMemory(
+            uid,
+            content: $"Ты не смог(ла) пройти через дверь{where}: {reason}.",
+            importance: 0.35f,
+            source: "door-denied",
+            participants: new[] { doorUid },
+            location: Transform(doorUid).Coordinates,
+            emotionalWeight: -0.2f);
+    }
 
     private bool IsDenied(DoorApproachComponent approach, EntityUid doorUid) =>
         approach.DeniedDoors.TryGetValue(doorUid, out var expiry) && _timing.CurTime < expiry;

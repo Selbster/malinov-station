@@ -89,10 +89,11 @@ public sealed class TalkAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var talk = (TalkActionParams)parameters;
         _entManager.EnsureComponent<TalkCooldownComponent>(uid).LastTalkAt = _timing.CurTime;
         _chat.TrySendInGameICMessage(uid, talk.Text, InGameICChatType.Speak, hideChat: false);
+        return AiActionResult.Completed();
     }
 }

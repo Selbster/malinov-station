@@ -37,6 +37,13 @@ public static class ActionProposalResolver
                 failReason = null;
                 return true;
 
+            // AI Players 0.6.2: parameterless on purpose - the destination is chosen deterministically by
+            // ExplorationControllerSystem, never named by the model (spec sections 9 and 11).
+            case ExploreStationAction.ActionName:
+                proposal = new ActionProposal(ExploreStationAction.ActionName, new ExploreStationActionParams());
+                failReason = null;
+                return true;
+
             case ContinueActivityAction.ActionName:
                 proposal = new ActionProposal(ContinueActivityAction.ActionName, new ContinueActivityActionParams());
                 failReason = null;

@@ -74,7 +74,7 @@ public sealed class GoToKnownLocationAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var goTo = (GoToKnownLocationActionParams)parameters;
 
@@ -82,9 +82,10 @@ public sealed class GoToKnownLocationAction : IAiAction
         // established - CanDo/Do are only ever called back-to-back by AiActionRegistrySystem.TryDoAction, so
         // this can't observe a different result than CanDo just confirmed.
         if (_memory.FindKnownLocation(uid, goTo.LocationHint) is not { } destination)
-            return;
+            return AiActionResult.NoTarget($"Ты не помнишь, где находится «{goTo.LocationHint}».");
 
         var htn = _entManager.GetComponent<HTNComponent>(uid);
         htn.Blackboard.SetValue(MoveToAction.ForcedDestinationKey, destination);
+        return AiActionResult.Started($"Ты направляешься к «{goTo.LocationHint}».");
     }
 }

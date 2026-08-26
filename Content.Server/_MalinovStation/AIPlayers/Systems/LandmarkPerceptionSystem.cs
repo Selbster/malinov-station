@@ -26,11 +26,11 @@ namespace Content.Server._MalinovStation.AIPlayers.Systems;
 /// </summary>
 public sealed partial class LandmarkPerceptionSystem : EntitySystem
 {
-    [Dependency] private NavMapSystem _navMap = default!;
     [Dependency] private SharedInteractionSystem _interaction = default!;
     [Dependency] private MemorySystem _memory = default!;
     [Dependency] private AiLodSystem _lod = default!;
     [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private SharedTransformSystem _transform = default!;
 
     public override void Update(float frameTime)
     {
@@ -52,37 +52,78 @@ public sealed partial class LandmarkPerceptionSystem : EntitySystem
     {
         string? nearbyText = null;
 
-        if (_navMap.TryGetNearestBeacon((uid, xform), out var beacon, out _))
+        if (FindNearestVisibleBeacon(uid, xform, landmark.ScanRadius) is var (beaconUid, text) && text is not null)
         {
-            var beaconUid = beacon.Value.Owner;
-            var text = beacon.Value.Comp.Text;
+            nearbyText = text;
 
-            if (!string.IsNullOrWhiteSpace(text) && _interaction.InRangeUnobstructed(uid, beaconUid, landmark.ScanRadius, CollisionGroup.Opaque))
+            // Already remembered this exact beacon - nothing new to learn. Query-based rather than tracked
+            // in a separate "known beacons" set: if this memory later gets evicted under
+            // MemoryComponent.MaxMemories, re-noticing and re-adding it here is fine/self-healing, not a
+            // bug to design around.
+            var alreadyKnown = TryComp<MemoryComponent>(uid, out var memory) &&
+                memory.Memories.Any(m => m.Source == "landmark" && m.Participants.Contains(beaconUid));
+
+            if (!alreadyKnown)
             {
-                nearbyText = text;
-
-                // Already remembered this exact beacon - nothing new to learn. Query-based rather than tracked
-                // in a separate "known beacons" set: if this memory later gets evicted under
-                // MemoryComponent.MaxMemories, re-noticing and re-adding it here is fine/self-healing, not a
-                // bug to design around.
-                var alreadyKnown = TryComp<MemoryComponent>(uid, out var memory) &&
-                    memory.Memories.Any(m => m.Source == "landmark" && m.Participants.Contains(beaconUid));
-
-                if (!alreadyKnown)
-                {
-                    _memory.AddMemory(
-                        uid,
-                        content: $"Неподалёку есть место под названием «{text}».",
-                        importance: 0.25f,
-                        source: "landmark",
-                        participants: new[] { beaconUid },
-                        location: Transform(beaconUid).Coordinates,
-                        subject: text);
-                }
+                _memory.AddMemory(
+                    uid,
+                    content: $"Неподалёку есть место под названием «{text}».",
+                    importance: 0.25f,
+                    source: "landmark",
+                    participants: new[] { beaconUid },
+                    location: Transform(beaconUid).Coordinates,
+                    subject: text);
             }
         }
 
         UpdateCurrentArea(uid, landmark, nearbyText);
+    }
+
+    /// <summary>
+    /// AI Players 0.6.2: the nearest beacon this AI can actually <em>see</em>, within
+    /// <paramref name="radius"/>.
+    ///
+    /// This used to ask vanilla's <c>NavMapSystem.TryGetNearestBeacon</c> for the single nearest beacon
+    /// station-wide and then test line of sight to that one. On a real station that is subtly wrong and it is
+    /// the reason visits mostly stopped being recorded: beacons are dense, so the raw-nearest one is often in
+    /// an adjacent room behind a wall. Line of sight to it fails, the whole scan concludes "not in any named
+    /// area", and an AI standing directly on the beacon it just walked to never registers as having arrived
+    /// anywhere - so <see cref="LocationKnowledge"/> never moves off zero and every place stays equally
+    /// unfamiliar forever.
+    ///
+    /// Same candidate set and enabled/text filters vanilla itself uses, just ranked among the beacons that
+    /// pass the sight check rather than ranking first and checking afterwards.
+    /// </summary>
+    private (EntityUid Uid, string? Text) FindNearestVisibleBeacon(EntityUid uid, TransformComponent xform, float radius)
+    {
+        var origin = _transform.GetWorldPosition(xform);
+        var mapId = xform.MapID;
+
+        EntityUid nearestUid = default;
+        string? nearestText = null;
+        var nearestDistanceSquared = radius * radius;
+
+        var query = EntityQueryEnumerator<ConfigurableNavMapBeaconComponent, NavMapBeaconComponent, TransformComponent>();
+        while (query.MoveNext(out var beaconUid, out _, out var navBeacon, out var beaconXform))
+        {
+            if (!navBeacon.Enabled || string.IsNullOrWhiteSpace(navBeacon.Text) || beaconXform.MapID != mapId)
+                continue;
+
+            var distanceSquared = (origin - _transform.GetWorldPosition(beaconXform)).LengthSquared();
+            if (distanceSquared > nearestDistanceSquared)
+                continue;
+
+            // Checked last: it is the expensive part, and only ever for a beacon already close enough to beat
+            // the best candidate so far.
+            if (!_interaction.InRangeUnobstructed(uid, beaconUid, radius, CollisionGroup.Opaque))
+                continue;
+
+            nearestDistanceSquared = distanceSquared;
+            nearestUid = beaconUid;
+            nearestText = navBeacon.Text;
+        }
+
+        return (nearestUid, nearestText);
     }
 
     /// <summary>

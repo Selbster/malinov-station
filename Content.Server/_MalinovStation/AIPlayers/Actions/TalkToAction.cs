@@ -119,19 +119,20 @@ public sealed class TalkToAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var talkTo = (TalkToActionParams)parameters;
 
         // Re-resolved rather than smuggled through from CanDo, same convention every other action here
         // already established.
         if (!_entManager.TryGetComponent<PerceptionComponent>(uid, out var perception) || perception.LastObservation is not { } observation)
-            return;
+            return AiActionResult.NoTarget("Ты сейчас никого не видишь.");
 
         if (FindTarget(observation, talkTo.Target) is not { } target)
-            return;
+            return AiActionResult.NoTarget($"Ты не видишь рядом «{talkTo.Target}».");
 
         _social.TryInitiateConversation(uid, target, talkTo.Reason);
+        return AiActionResult.Completed();
     }
 
     /// <summary>Case-insensitive substring match against each currently-visible character's live entity

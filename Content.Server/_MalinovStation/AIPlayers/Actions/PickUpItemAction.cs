@@ -94,7 +94,7 @@ public sealed class PickUpItemAction : IAiAction
         return true;
     }
 
-    public void Do(EntityUid uid, IAiActionParams parameters)
+    public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var pickUp = (PickUpItemActionParams)parameters;
 
@@ -102,12 +102,13 @@ public sealed class PickUpItemAction : IAiAction
         // established - CanDo/Do are only ever called back-to-back by AiActionRegistrySystem.TryDoAction, so
         // this can't observe a different result than CanDo just confirmed.
         if (!_entManager.TryGetComponent<ItemOpportunityComponent>(uid, out var opportunity))
-            return;
+            return AiActionResult.NoTarget("Рядом нет ничего, что можно взять.");
 
         if (FindCandidate(uid, opportunity, pickUp.Target) is not { } target)
-            return;
+            return AiActionResult.NoTarget($"Ты не видишь рядом «{pickUp.Target}».");
 
         _hands.TryPickupAnyHand(uid, target);
+        return AiActionResult.Completed();
     }
 
     /// <summary>Case-insensitive substring match against each currently-visible candidate's live entity

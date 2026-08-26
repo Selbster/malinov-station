@@ -374,11 +374,29 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         intentComp.Confidence = Math.Clamp(intent.Confidence, 0f, 1f);
         intentComp.DesireServed = intent.Desire;
 
-        var eligibleInCategory = _actionRegistry.GetEligibleActions(uid).Where(a => a.Category == intent.Category).ToList();
+        // AI Players 0.6.2: category matching used to be an ordinal, case-sensitive `==` against a token the
+        // model returns inside an otherwise wholly-Russian prompt that explicitly forbids English elsewhere -
+        // so "movement", " Movement" or a translated "Движение" all silently killed the decision *after*
+        // IntentComponent had already been written. That is precisely the observed "the AI states an intention
+        // and then never moves" symptom. Now: forgiving comparison first, and if the category still matches
+        // nothing, fall back to every selectable action rather than abandoning the cycle - a mislabelled
+        // category is a formatting slip, not a reason to do nothing at all.
+        var selectable = _actionRegistry.GetLlmSelectableActions(uid);
+
+        var eligibleInCategory = selectable
+            .Where(a => string.Equals(a.Category, intent.Category?.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
         if (eligibleInCategory.Count == 0)
         {
-            _sawmill.Warning($"LLM proposed category \"{intent.Category}\" for {ToPrettyString(uid)}, which has no eligible actions right now.");
+            _sawmill.Debug($"LLM proposed category \"{intent.Category}\" for {ToPrettyString(uid)}, which matched no eligible action; offering all selectable actions instead.");
+            _trace.LlmFailure(uid, "UnmatchedCategory");
+            eligibleInCategory = selectable.ToList();
+        }
+
+        if (eligibleInCategory.Count == 0)
+        {
+            _sawmill.Warning($"No LLM-selectable actions at all for {ToPrettyString(uid)}.");
             _trace.LlmFailure(uid, "NoEligibleActionsInCategory");
             return;
         }
@@ -461,7 +479,11 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         // Re-checked fresh rather than trusting the eligible list stage two was originally offered - the same
         // "CanDo/Do never trust an earlier scan" convention every IAiAction already follows, since eligibility
         // can genuinely change during the round-trip (e.g. someone else picked up the same item).
-        if (!_actionRegistry.GetEligibleActions(uid).Any(a => a.Name == selection.Action && a.Category == intent.Category))
+        // AI Players 0.6.2: no longer re-asserts the category. Stage two is now sometimes deliberately offered
+        // every selectable action (see HandleCompletedIntentRequest's unmatched-category fallback), so
+        // demanding the pick match the originally-stated category would reject the very choice we just invited.
+        // What must still hold is that the action is real, selectable and eligible right now.
+        if (!_actionRegistry.GetLlmSelectableActions(uid).Any(a => a.Name == selection.Action))
         {
             _sawmill.Warning($"LLM selected action \"{selection.Action}\" for {ToPrettyString(uid)}, which wasn't among the eligible actions it was offered.");
             _trace.LlmFailure(uid, "ActionNotEligible");
