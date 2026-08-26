@@ -36,6 +36,24 @@ public sealed partial class AiBusyStateSystem : EntitySystem
     /// transition, never faster than that.</summary>
     private const float ScanCooldown = 1f;
 
+    /// <summary>
+    /// AI Players 0.6: the fastest an AI player could plausibly cover ground under its own steering, in
+    /// tiles/second - well above any real run speed, so a higher implied speed between two checks means
+    /// something moved this entity out of band (an admin teleport, a test setting <c>Transform.Coordinates</c>
+    /// directly) rather than its own steering. A speed, not a flat per-check distance: this system's own scan
+    /// interval is LOD-scaled up to <see cref="AiLodComponent.BackgroundMultiplier"/>x for a Background-tier AI
+    /// (~15s between checks, not ~1s), and a flat distance threshold sized for the common case would misfire on
+    /// perfectly ordinary long-distance travel once that much real time has actually passed.
+    /// </summary>
+    private const float MaxPlausibleWalkSpeed = 10f;
+
+    /// <summary>
+    /// AI Players 0.6: how close counts as "landed at the destination" for
+    /// <see cref="LandedAtOwnDestination"/> - loose enough to tolerate the same kind of margin
+    /// <c>MoveToOperator</c>'s own <c>MovementRange</c> arrival tolerance allows.
+    /// </summary>
+    private const float NearDestinationTolerance = 3f;
+
     private float _accumulator;
 
     public override void Update(float frameTime)
@@ -73,6 +91,29 @@ public sealed partial class AiBusyStateSystem : EntitySystem
             return;
         }
 
+        if (TryComp(uid, out TransformComponent? xform))
+        {
+            var current = xform.Coordinates;
+            var elapsed = (_timing.CurTime - busy.LastCheckedAt).TotalSeconds;
+            var movedImplausibly = elapsed > 0 &&
+                busy.LastCheckedPosition is { } last &&
+                last.TryDistance(EntityManager, current, out var moved) &&
+                moved / elapsed > MaxPlausibleWalkSpeed;
+
+            busy.LastCheckedPosition = current;
+            busy.LastCheckedAt = _timing.CurTime;
+
+            // A sudden jump that lands the AI at (or very near) its own intended destination isn't a
+            // disruptive relocation to abort - it's arrival, however it actually happened (a real pathfind
+            // finishing between checks, an external shortcut). Only a jump that leaves the AI somewhere
+            // unrelated to what it was already doing counts as the kind of relocation spec section 9/30 means.
+            if (movedImplausibly && !LandedAtOwnDestination(uid, busy, current))
+            {
+                AbortForRelocation(uid, busy);
+                return;
+            }
+        }
+
         if (busy.CancellationAllowed && !busy.InterruptionNoticed && IsDangerActive(uid))
         {
             busy.InterruptionNoticed = true;
@@ -83,6 +124,47 @@ public sealed partial class AiBusyStateSystem : EntitySystem
 
         if (!IsStillActuallyBusy(uid, busy))
             Clear(busy);
+    }
+
+    /// <summary>
+    /// AI Players 0.6: the concrete fix for "passenger drifts back toward where it was headed after being
+    /// moved" (spec section 9/30) - identified by audit as a stale-plan bug, not a spawn-anchor feature: a
+    /// <c>GoToKnownLocation</c> commitment's destination lives on the HTN blackboard
+    /// (<see cref="Actions.MoveToAction.ForcedDestinationKey"/>) and nothing previously invalidated it after an
+    /// out-of-band relocation, so HTN just kept pathfinding toward wherever it was already headed (which,
+    /// absent any real reason to have travelled far, was usually somewhere close to the AI's original
+    /// position). Aborts the stale destination and forces an immediate fresh cognitive decision - the same
+    /// "meaningful event, don't wait for the routine reflection interval" treatment every other interruption
+    /// here already gets.
+    /// </summary>
+    private void AbortForRelocation(EntityUid uid, AiBusyStateComponent busy)
+    {
+        if (busy.CurrentAction == GoToKnownLocationAction.ActionName && TryComp<HTNComponent>(uid, out var htn))
+            htn.Blackboard.Remove<EntityCoordinates>(MoveToAction.ForcedDestinationKey);
+
+        // A relocated PursueGoal commitment (e.g. mid-repair) is just as stale as a relocated GoToKnownLocation
+        // one - without this, GoalSystem.Reconsider would keep deferring to the abandoned override until it
+        // naturally expires instead of resuming normal arbitration immediately.
+        if (busy.CurrentAction == PursueGoalAction.ActionName && TryComp<GoalComponent>(uid, out var goal))
+            goal.IsLlmOverride = false;
+
+        Clear(busy);
+
+        if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
+            cognitive.ReflectionAccumulator = 0f;
+    }
+
+    /// <summary>
+    /// AI Players 0.6: whether <paramref name="current"/> is close enough to the AI's own <c>GoToKnownLocation</c>
+    /// target to count as having arrived there, rather than having been relocated somewhere unrelated.
+    /// </summary>
+    private bool LandedAtOwnDestination(EntityUid uid, AiBusyStateComponent busy, EntityCoordinates current)
+    {
+        return busy.CurrentAction == GoToKnownLocationAction.ActionName &&
+            TryComp<HTNComponent>(uid, out var htn) &&
+            htn.Blackboard.TryGetValue<EntityCoordinates>(MoveToAction.ForcedDestinationKey, out var destination, EntityManager) &&
+            current.TryDistance(EntityManager, destination, out var distanceToDestination) &&
+            distanceToDestination <= NearDestinationTolerance;
     }
 
     private bool IsDangerActive(EntityUid uid) =>

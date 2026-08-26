@@ -128,6 +128,14 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
             busy.StartedAt = _timing.CurTime;
             busy.Reason = reason;
             busy.InterruptionNoticed = false;
+
+            // AI Players 0.6: the "was this entity relocated out of band" baseline AiBusyStateSystem.CheckBusyState
+            // compares against - seeded right here rather than left for that system's own next scan to fill in,
+            // since a relocation that happens between this commitment starting and that scan's first run would
+            // otherwise never have a "before" position to compare against at all.
+            if (_entManager.TryGetComponent<TransformComponent>(uid, out var xform))
+                busy.LastCheckedPosition = xform.Coordinates;
+            busy.LastCheckedAt = _timing.CurTime;
         }
 
         failReason = null;

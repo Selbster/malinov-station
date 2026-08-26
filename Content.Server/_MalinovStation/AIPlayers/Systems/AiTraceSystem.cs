@@ -302,4 +302,19 @@ public sealed partial class AiTraceSystem : EntitySystem
         TraceEventsMetric.WithLabels("ActionProposed").Inc();
         _sawmill.Info($"[AI:{ToPrettyString(uid)}] ActionProposed: {actionName} (reason={reason})");
     }
+
+    /// <summary>
+    /// AI Players 0.6, spec section 34: a richer trace specifically for a successful travel decision
+    /// (<c>GoToKnownLocation</c>) - desire/intent/destination/reason together on one line, on top of the
+    /// generic <see cref="ActionProposed"/> line every successful action already gets. Called only from
+    /// <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/> when the resolved action is
+    /// <c>GoToKnownLocation</c> - same "meaningful events only, never per-tick" discipline as every other trace
+    /// call in this file.
+    /// </summary>
+    public void TravelDecided(EntityUid uid, string desire, string intention, string selectedLocation, string reason)
+    {
+        TraceEventsMetric.WithLabels("TravelDecided").Inc();
+        _sawmill.Info(
+            $"[AI:{ToPrettyString(uid)}] TravelDecided: {intention} (desire={desire}, destination={selectedLocation}, reason={reason})");
+    }
 }

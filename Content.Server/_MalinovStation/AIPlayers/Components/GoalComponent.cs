@@ -113,6 +113,16 @@ public static class AIGoals
     /// <summary>Milestone 7: react to seeing another character incapacitated nearby.</summary>
     public const string HelpInjured = "HelpInjured";
 
+    /// <summary>
+    /// AI Players 0.6: a cognitive-only Desire candidate name for boredom (see
+    /// <see cref="Systems.GoalSystem.ComputeCandidates"/>) - deliberately NOT in <see cref="All"/>, since
+    /// nothing ever needs to <see cref="Systems.GoalSystem.TrySetExternalGoal"/> to it directly (a cognitive AI
+    /// acts on restlessness via <c>GoToKnownLocation</c>, not <c>PursueGoal</c>) and no HTN branch reacts to it -
+    /// same "observability-only" precedent as <see cref="SatisfyHunger"/>/<see cref="SatisfyThirst"/> if it
+    /// ever did win a reflex-layer reconsideration for a cognitive AI.
+    /// </summary>
+    public const string Restlessness = "Restlessness";
+
     public static readonly IReadOnlySet<string> All = new HashSet<string>
     {
         Idle,

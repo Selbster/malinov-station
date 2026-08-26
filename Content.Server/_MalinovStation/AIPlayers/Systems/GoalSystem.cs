@@ -69,6 +69,7 @@ public sealed partial class GoalSystem : EntitySystem
         ["social-need"] = "SocialNeed",
         ["hungry"] = "Hunger",
         ["thirsty"] = "Thirst",
+        ["boredom"] = "Boredom",
     };
 
     // Same threshold keys the vanilla FoodCompound gates on, so our goal reporting doesn't drift from
@@ -314,6 +315,16 @@ public sealed partial class GoalSystem : EntitySystem
 
         var socializePriority = needs.SocialNeed * personality.Sociability;
         candidates.Add(new Desire(AIGoals.Socialize, socializePriority, "social-need"));
+
+        // AI Players 0.6: cognitive-only, same precedent LandmarkPerceptionSystem/ItemOpportunitySystem/
+        // InteractionOpportunitySystem already established for "new side-effect is cognitive-only" - a legacy
+        // AI player has no use for a desire it has no LLM to interpret, and needs.Boredom never grows for one
+        // anyway (see NeedsSystem.BoredomDelta), so this candidate would always be priority 0 for it regardless.
+        if (HasComp<CognitiveModeComponent>(uid))
+        {
+            var restlessnessPriority = needs.Boredom * (0.3f + personality.Curiosity * 0.7f);
+            candidates.Add(new Desire(AIGoals.Restlessness, restlessnessPriority, "boredom"));
+        }
 
         if (TryComp<SatiationComponent>(uid, out var satiation))
         {

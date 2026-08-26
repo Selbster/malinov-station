@@ -620,6 +620,12 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         }
 
         _trace.ActionProposed(uid, proposal.ActionName, decision.Reason);
+
+        // AI Players 0.6, spec section 34: a richer trace specifically for travel decisions, on top of the
+        // generic ActionProposed line above.
+        if (proposal is { ActionName: GoToKnownLocationAction.ActionName, Parameters: GoToKnownLocationActionParams goTo })
+            _trace.TravelDecided(uid, decision.Desire, decision.Intention, goTo.LocationHint, decision.Reason);
+
         return true;
     }
 }

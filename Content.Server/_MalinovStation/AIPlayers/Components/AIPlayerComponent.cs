@@ -1,4 +1,5 @@
 using Content.Shared.Roles;
+using Robust.Shared.Map;
 using Robust.Shared.Prototypes;
 
 namespace Content.Server._MalinovStation.AIPlayers.Components;
@@ -25,4 +26,13 @@ public sealed partial class AIPlayerComponent : Component
     /// </summary>
     [DataField]
     public string? PersistentId;
+
+    /// <summary>
+    /// AI Players 0.6: where this AI player woke up, captured once at spawn - purely informational (spec
+    /// section 10: "must NOT become a mandatory return point"). Nothing reads this except prompt rendering
+    /// (surfaced as one more place the LLM could reference if it ever has an actual in-character reason to go
+    /// back); no movement/navigation code consumes it, by construction.
+    /// </summary>
+    [ViewVariables]
+    public EntityCoordinates? SpawnCoordinates;
 }

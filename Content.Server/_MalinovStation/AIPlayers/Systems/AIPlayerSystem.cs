@@ -9,6 +9,7 @@ using Content.Shared.Roles;
 using Content.Shared.Station.Components;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
+using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
 
@@ -27,6 +28,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
     [Dependency] private AiPlayerPersistenceSystem _persistence = default!;
     [Dependency] private LandmarkPerceptionSystem _landmarkPerception = default!;
     [Dependency] private IRobustRandom _random = default!;
+    [Dependency] private IGameTiming _timing = default!;
 
     /// <summary>
     /// Root HTN compound every AI player starts on. Milestone 1 just wanders (proves navigation);
@@ -52,7 +54,8 @@ public sealed partial class AIPlayerSystem : EntitySystem
     /// <see cref="CognitiveModeComponent"/> plus the cognitive-only overlay components
     /// (<see cref="IntentComponent"/>/<see cref="DesireComponent"/>/<see cref="EmotionComponent"/>/
     /// <see cref="BeliefComponent"/>/<see cref="LandmarkPerceptionComponent"/>/
-    /// <see cref="InteractionOpportunityComponent"/>/<see cref="ItemOpportunityComponent"/>) - everything else
+    /// <see cref="InteractionOpportunityComponent"/>/<see cref="ItemOpportunityComponent"/>/
+    /// <see cref="LocationKnowledgeComponent"/>) - everything else
     /// about spawning stays identical either way.
     /// </param>
     /// <returns>The spawned entity, or null if spawning failed (e.g. no station/spawn point available).</returns>
@@ -87,6 +90,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
         var aiPlayer = AddComp<AIPlayerComponent>(mobUid);
         aiPlayer.Job = job;
         aiPlayer.PersistentId = persistentId;
+        aiPlayer.SpawnCoordinates = Transform(mobUid).Coordinates;
 
         _personality.RandomizePersonality(mobUid);
         AddComp<NeedsComponent>(mobUid);
@@ -108,13 +112,22 @@ public sealed partial class AIPlayerSystem : EntitySystem
         if (cognitiveMode)
         {
             AddComp<CognitiveModeComponent>(mobUid);
-            AddComp<IntentComponent>(mobUid);
+            var intentComp = AddComp<IntentComponent>(mobUid);
             AddComp<DesireComponent>(mobUid);
             AddComp<EmotionComponent>(mobUid);
             AddComp<BeliefComponent>(mobUid);
-            AddComp<LandmarkPerceptionComponent>(mobUid);
+            var landmarkComp = AddComp<LandmarkPerceptionComponent>(mobUid);
             AddComp<InteractionOpportunityComponent>(mobUid);
             AddComp<ItemOpportunityComponent>(mobUid);
+            AddComp<LocationKnowledgeComponent>(mobUid);
+
+            // AI Players 0.6: both default to TimeSpan.Zero, which - unlike a real "just chose this" moment -
+            // reads as infinitely stale against a nonzero _timing.CurTime, which would make NeedsSystem.BoredomDelta
+            // treat a freshly-spawned AI as having already been bored for the server's entire uptime. Stamping
+            // "now" here is what makes the boredom grace period actually mean "unchanged since spawn", not
+            // "unchanged since the Unix epoch".
+            intentComp.ChosenAt = _timing.CurTime;
+            landmarkComp.AreaEnteredAt = _timing.CurTime;
 
             // Pre-seed the station's real beacons as known landmarks (general "I already work here" layout
             // knowledge, not live perception) so a cognitive AI doesn't have to rediscover its own workplace

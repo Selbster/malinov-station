@@ -1,3 +1,5 @@
+using Robust.Shared.Map;
+
 namespace Content.Server._MalinovStation.AIPlayers.Components;
 
 /// <summary>
@@ -53,4 +55,19 @@ public sealed partial class AiBusyStateComponent : Component
     /// </summary>
     [ViewVariables]
     public bool InterruptionNoticed;
+
+    /// <summary>
+    /// AI Players 0.6: this entity's position (and, in <see cref="LastCheckedAt"/>, when) the last time
+    /// <see cref="Systems.AiBusyStateSystem.CheckBusyState"/> ran, so it can tell ordinary walking apart from an
+    /// out-of-band relocation (e.g. an admin teleport) - see that method for why a stale commitment needs to be
+    /// aborted rather than kept executing toward wherever it was already headed. A speed (distance/elapsed),
+    /// not a flat distance: this system's own scan interval is LOD-scaled up to
+    /// <see cref="AiLodComponent.BackgroundMultiplier"/>x for a Background-tier AI, so a flat "moved more than
+    /// N tiles" threshold would misfire on perfectly ordinary long-distance travel during a long interval.
+    /// </summary>
+    [ViewVariables]
+    public EntityCoordinates? LastCheckedPosition;
+
+    [ViewVariables]
+    public TimeSpan LastCheckedAt;
 }

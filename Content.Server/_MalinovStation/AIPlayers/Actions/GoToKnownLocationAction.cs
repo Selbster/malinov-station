@@ -41,7 +41,7 @@ public sealed class GoToKnownLocationAction : IAiAction
     {
         return _entManager.HasComponent<HTNComponent>(uid) &&
             !_mobState.IsIncapacitated(uid) &&
-            _memory.GetKnownLocationNames(uid).Count > 0;
+            _memory.HasAnyKnownDestination(uid);
     }
 
     public bool CanDo(EntityUid uid, IAiActionParams parameters, [NotNullWhen(false)] out string? failReason)

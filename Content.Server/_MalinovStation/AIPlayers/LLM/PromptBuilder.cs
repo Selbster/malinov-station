@@ -108,8 +108,8 @@ public static class PromptBuilder
     /// <paramref name="allowedGoals"/> is still the combined AIGoals/professional-goal whitelist (same list
     /// <see cref="Systems.LlmGatewaySystem.GetAllowedIntents"/> always computed) - it validates the "goal"
     /// parameter of the "PursueGoal" action, not "intention" (which is free-form and unvalidated). NOTE: the
-    /// seven available actions described below (PursueGoal, ContinueActivity, GoToKnownLocation,
-    /// UseInteractable, PickUpItem, SearchArea, TalkTo) must stay in sync with
+    /// eight available actions described below (PursueGoal, ContinueActivity, GoToKnownLocation,
+    /// UseInteractable, PickUpItem, SearchArea, EatOrDrink, TalkTo) must stay in sync with
     /// <see cref="ActionProposalResolver"/>'s switch - acceptable to hardcode at this size, revisit once the
     /// action catalog grows.</summary>
     public static string BuildCognitiveSystemPrompt(IReadOnlyCollection<string> allowedGoals)
@@ -131,7 +131,7 @@ public static class PromptBuilder
                "\"priority\": <number 0.0 to 1.0>, " +
                "\"confidence\": <number 0.0 to 1.0, how sure you are this is the right call>, " +
                "\"reason\": \"<short in-character reason>\", " +
-               "\"action\": \"<one of: PursueGoal, ContinueActivity, GoToKnownLocation, UseInteractable, PickUpItem, SearchArea, TalkTo>\", " +
+               "\"action\": \"<one of: PursueGoal, ContinueActivity, GoToKnownLocation, UseInteractable, PickUpItem, SearchArea, EatOrDrink, TalkTo>\", " +
                "\"parameters\": {\"goal\": \"<required only for PursueGoal - one of the allowed goals below>\", " +
                "\"location\": \"<required only for GoToKnownLocation - one of the places you know below>\", " +
                "\"target\": \"<required only for UseInteractable, PickUpItem or TalkTo - the name of the thing " +
@@ -145,7 +145,8 @@ public static class PromptBuilder
                "loose item into your hand - use it ONLY for an item actually listed below, never one you merely " +
                "guess the name of. \"SearchArea\" actively looks around right now for something matching a " +
                "keyword that ISN'T already listed below - use it when you want something you don't currently " +
-               "see or know how to reach, e.g. to look for food when none is listed. \"TalkTo\" starts a real " +
+               "see or know how to reach, e.g. to look for food when none is listed. \"EatOrDrink\" eats or " +
+               "drinks whatever is currently in your hand, with no parameters. \"TalkTo\" starts a real " +
                "conversation with someone you can currently see - use it ONLY for someone actually listed among " +
                "who you can see, never one you merely guess is nearby; your own \"reason\" field becomes why " +
                "you're approaching them, and shapes what you actually say. \"ContinueActivity\" means keep " +
@@ -169,6 +170,20 @@ public static class PromptBuilder
             $"Грусть={context.Emotion.Sadness:0.00}, Тревога={context.Emotion.Anxiety:0.00}, " +
             $"Радость={context.Emotion.Joy:0.00}, Уверенность={context.Emotion.Confidence:0.00}.");
         sb.AppendLine($"Сейчас делаешь: {context.CurrentActivity}.");
+
+        // AI Players 0.6: was computed (ContextBuilderSystem.BuildCognitiveState) but never actually rendered
+        // here - without this the LLM had no way to know what IT itself decided last cycle (only CurrentActivity,
+        // the reflex-layer goal name, and Busy for an IsExtended action specifically), which blocked any real
+        // "resume or replace my previous intention" reasoning (spec sections 16-17). Guarded on
+        // CurrentIntent.Reason (= IntentComponent.DesireServed, which desire this intent commits to) rather
+        // than Name, since Name defaults to "Idle" even before any real decision has ever been applied, while
+        // DesireServed is only ever non-empty after a genuine LlmGatewaySystem.TryApplyCognitiveDecision.
+        if (!string.IsNullOrWhiteSpace(context.CurrentIntent.Reason))
+        {
+            sb.AppendLine(
+                $"Недавно ты решил(а): «{context.CurrentIntent.Name}» (уверенность {context.IntentConfidence:0.00}), " +
+                $"в ответ на желание «{context.CurrentIntent.Reason}».");
+        }
 
         if (context.Busy is { } busy)
         {

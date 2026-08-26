@@ -150,8 +150,13 @@ public sealed partial class MemorySystem : EntitySystem, IMemoryStore, IMemoryRe
         if (!Resolve(uid, ref memory, false) || string.IsNullOrWhiteSpace(nameHint))
             return null;
 
+        // AI Players 0.6: "social-location" (where a known person was last seen, written by
+        // ContextBuilderSystem.BuildCognitiveState) resolves through this exact same lookup - the entire
+        // mechanism behind "Sarah is often in Medbay" -> GoToKnownLocation("Сара") needing no new action or
+        // resolver path (spec section 32).
         return memory.Memories
-            .Where(m => (m.Source == "landmark" || m.Source == "search-result") && m.Location is not null && m.Subject is { } subject &&
+            .Where(m => (m.Source == "landmark" || m.Source == "search-result" || m.Source == "social-location") &&
+                m.Location is not null && m.Subject is { } subject &&
                 (subject.Contains(nameHint, StringComparison.OrdinalIgnoreCase) ||
                  nameHint.Contains(subject, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(m => m.Importance)
@@ -179,6 +184,84 @@ public sealed partial class MemorySystem : EntitySystem, IMemoryStore, IMemoryRe
             .Distinct()
             .Take(max)
             .ToList();
+    }
+
+    /// <summary>
+    /// AI Players 0.6: whether <c>GoToKnownLocationAction</c> has any legal destination to offer right
+    /// now - a named place (<see cref="GetKnownLocationNames"/>'s sources) or a known person's last-seen
+    /// location, which resolves through the exact same <see cref="FindKnownLocation"/> rails. Kept separate
+    /// from <see cref="GetKnownLocationNames"/> itself (which stays place-only - it also feeds
+    /// <see cref="Systems.ContextBuilderSystem"/>'s place-specific familiarity phrasing, and mixing person
+    /// names into it would duplicate what <see cref="GetKnownPersonLocations"/> already surfaces more
+    /// naturally) so eligibility doesn't need to guess a location-hint string upfront - it only needs to know
+    /// whether <em>something</em> would resolve.
+    /// </summary>
+    public bool HasAnyKnownDestination(EntityUid uid, MemoryComponent? memory = null)
+    {
+        if (!Resolve(uid, ref memory, false))
+            return false;
+
+        return memory.Memories.Any(m => m.Subject is not null &&
+            (m.Source == "landmark" || m.Source == "search-result" || m.Source == "social-location"));
+    }
+
+    /// <summary>
+    /// AI Players 0.6: every distinct person this AI has a "where I usually see them" memory about
+    /// (<c>"social-location"</c>, written by <see cref="Systems.ContextBuilderSystem.BuildCognitiveState"/>),
+    /// most-relevant first, one already-human-readable line per person - the destination side of spec section
+    /// 32's Sarah/Medbay scenario surfaced to the LLM (see <see cref="Systems.ContextBuilderSystem"/>, which
+    /// appends this into the same <c>KnownLocations</c> list <see cref="GetKnownLocationNames"/> already feeds,
+    /// since <see cref="FindKnownLocation"/> now resolves a person's name exactly like a place's).
+    /// </summary>
+    public IReadOnlyList<string> GetKnownPersonLocations(EntityUid uid, int max = 3, MemoryComponent? memory = null)
+    {
+        if (!Resolve(uid, ref memory, false))
+            return Array.Empty<string>();
+
+        var now = _timing.CurTime;
+        return memory.Memories
+            .Where(m => m.Source == "social-location" && m.Subject is not null)
+            .OrderByDescending(m => GetEffectiveImportance(m, now))
+            .ThenByDescending(m => m.Timestamp)
+            .GroupBy(m => m.Subject)
+            .Select(g => g.First().Content)
+            .Take(max)
+            .ToList();
+    }
+
+    /// <summary>
+    /// AI Players 0.6: how many times this AI has actually visited <paramref name="placeName"/> and how
+    /// familiar it is as a result (0 if never visited, even if the name is already known - see
+    /// <see cref="Components.LocationKnowledge"/>'s own doc comment for the "known by name" vs "familiar"
+    /// distinction this whole milestone hinges on). Returns <c>(0, 0f)</c> for a legacy AI player (no
+    /// <see cref="Components.LocationKnowledgeComponent"/>) or a place never actually visited.
+    /// </summary>
+    public (int VisitCount, float Familiarity) GetLocationFamiliarity(EntityUid uid, string placeName)
+    {
+        if (!TryComp<LocationKnowledgeComponent>(uid, out var knowledge) ||
+            !knowledge.Places.TryGetValue(placeName, out var place))
+        {
+            return (0, 0f);
+        }
+
+        return (place.VisitCount, place.Familiarity);
+    }
+
+    /// <summary>
+    /// AI Players 0.6, spec section 21's "habits": the average <see cref="AiMemory.EmotionalWeight"/> of every
+    /// memory whose <see cref="AiMemory.Subject"/> exactly matches <paramref name="placeName"/> (visit/landmark/
+    /// social-location memories all carry a subject, but only visit memories currently stamp a real emotional
+    /// weight - see <see cref="Systems.LandmarkPerceptionSystem.RecordVisit"/>) - positive means fond memories
+    /// of the place, negative means bad ones, 0 (the default for a never-visited place) means neutral/unknown.
+    /// Purely a query over existing memory state - no new stored value.
+    /// </summary>
+    public float GetLocationSentiment(EntityUid uid, string placeName, MemoryComponent? memory = null)
+    {
+        if (!Resolve(uid, ref memory, false))
+            return 0f;
+
+        var matching = memory.Memories.Where(m => m.Subject == placeName).ToList();
+        return matching.Count == 0 ? 0f : matching.Average(m => m.EmotionalWeight);
     }
 
     IReadOnlyList<AiMemory> IMemoryRetriever.Recall(EntityUid uid, RecallQuery query, int max) => Recall(uid, query, max);

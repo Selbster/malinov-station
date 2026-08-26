@@ -25,6 +25,19 @@ public sealed partial class NeedsComponent : Component
     public float SocialNeed;
 
     /// <summary>
+    /// AI Players 0.6: restlessness from doing the same thing in the same place for too long. Cognitive-only
+    /// in practice - <see cref="Systems.NeedsSystem"/> only grows this when both
+    /// <see cref="Components.IntentComponent"/> and <see cref="Components.LandmarkPerceptionComponent"/> are
+    /// present (legacy AI players have neither), so this stays 0 and inert for a legacy AI player without
+    /// needing an explicit <see cref="Components.CognitiveModeComponent"/> check. Scaled by
+    /// <see cref="PersonalityComponent.Curiosity"/> - see <see cref="Systems.GoalSystem.ComputeCandidates"/>
+    /// for how this turns into a "Restlessness" desire the cognitive LLM can actually reason about, never a
+    /// hardcoded "boredom > X -&gt; random room" rule.
+    /// </summary>
+    [DataField, ViewVariables(VVAccess.ReadWrite)]
+    public float Boredom;
+
+    /// <summary>
     /// Base fatigue gained per second while awake. Scaled by <see cref="PersonalityComponent.Laziness"/>.
     /// </summary>
     [DataField]
@@ -41,4 +54,19 @@ public sealed partial class NeedsComponent : Component
 
     [DataField]
     public float SafetyDecayPerSecond = 0.02f;
+
+    /// <summary>Base boredom gained per second once both current intent and current area have been unchanged
+    /// for longer than <see cref="BoredomGraceSeconds"/>. Scaled by <see cref="PersonalityComponent.Curiosity"/>.</summary>
+    [DataField]
+    public float BaseBoredomGainPerSecond = 0.003f;
+
+    /// <summary>How fast boredom drains back down while the intent/area is still "fresh" (within
+    /// <see cref="BoredomGraceSeconds"/> of having last changed), or a conversation only just ended.</summary>
+    [DataField]
+    public float BoredomResetPerSecond = 0.15f;
+
+    /// <summary>How long the current intent/area must have been unchanged before boredom starts accumulating -
+    /// avoids boredom growing the instant a new intent/area is picked.</summary>
+    [DataField]
+    public float BoredomGraceSeconds = 20f;
 }

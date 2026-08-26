@@ -4,6 +4,7 @@ using Content.Server._MalinovStation.AIPlayers.LLM;
 using Content.Shared.Nutrition.Components;
 using Content.Shared.Nutrition.EntitySystems;
 using Content.Shared.Nutrition.Prototypes;
+using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
 
@@ -20,6 +21,7 @@ public sealed partial class ContextBuilderSystem : EntitySystem
     [Dependency] private MemorySystem _memory = default!;
     [Dependency] private RelationshipSystem _relationships = default!;
     [Dependency] private SatiationSystem _satiation = default!;
+    [Dependency] private IGameTiming _timing = default!;
 
     // Same threshold keys GoalSystem/vanilla FoodCompound gate on - deliberately duplicated (not shared via a
     // public field) rather than reaching into GoalSystem's private state, same "each file mirrors the exact
@@ -140,8 +142,10 @@ public sealed partial class ContextBuilderSystem : EntitySystem
                 var relationship = _relationships.GetRelationship(uid, other);
                 var recent = _memory.GetMemoriesAbout(uid, other, max: 3);
 
+                var otherName = Comp<MetaDataComponent>(other).EntityName;
+
                 visible.Add(new CognitivePerceivedCharacter(
-                    Comp<MetaDataComponent>(other).EntityName,
+                    otherName,
                     relationship.Trust,
                     relationship.Respect,
                     relationship.Fear,
@@ -151,13 +155,18 @@ public sealed partial class ContextBuilderSystem : EntitySystem
                     recent.Count > 0 ? recent[0].Content : null));
 
                 relevantMemories.AddRange(recent.Select(m => m.Content));
+
+                RecordSocialLocationSighting(uid, other, otherName);
             }
         }
 
         // "landmark" memories get their own structured channel below (KnownLocations) rather than appearing
         // here too as generic prose - avoids telling the LLM the same thing twice in two different shapes.
+        // AI Players 0.6: "visit"/"social-location" memories join that same channel (familiarity-annotated
+        // KnownLocations entries and GetKnownPersonLocations respectively - see BuildKnownLocationDescriptions
+        // below), so they're excluded here for the exact same reason.
         var knownFacts = _memory.GetMostImportant(uid, max: 5)
-            .Where(m => m.Source != "rumor" && m.Source != "landmark")
+            .Where(m => m.Source is not ("rumor" or "landmark" or "visit" or "social-location"))
             .Select(m => m.Content)
             .ToList();
 
@@ -170,7 +179,7 @@ public sealed partial class ContextBuilderSystem : EntitySystem
                 .ToList()
             : new List<BeliefSummary>();
 
-        var knownLocations = _memory.GetKnownLocationNames(uid, max: 5);
+        var knownLocations = BuildKnownLocationDescriptions(uid);
 
         // AI Players 0.3, spec section 16: names resolved fresh off each live EntityUid, same convention as
         // VisibleWorld above - this list is transient (InteractionOpportunitySystem's own scan), never memory,
@@ -241,6 +250,77 @@ public sealed partial class ContextBuilderSystem : EntitySystem
             partnerJustSaid,
             rumorToShare,
             reasonForApproaching);
+    }
+
+    /// <summary>
+    /// AI Players 0.6: <see cref="MemorySystem.GetKnownLocationNames"/>'s raw place names, annotated with this
+    /// AI's own familiarity/visit count/sentiment (see <see cref="MemorySystem.GetLocationFamiliarity"/>/
+    /// <see cref="MemorySystem.GetLocationSentiment"/>) plus known people's typical locations
+    /// (<see cref="MemorySystem.GetKnownPersonLocations"/>) - still the same flat <c>IReadOnlyList&lt;string&gt;</c>
+    /// shape <see cref="CognitiveState.KnownLocations"/> always had, just richer text, so a place known only by
+    /// name reads differently to the LLM from one it's actually familiar with (spec section 6's own
+    /// "known=true, familiarity=0.2" example) instead of the two being indistinguishable as they were before
+    /// this milestone.
+    /// </summary>
+    private List<string> BuildKnownLocationDescriptions(EntityUid uid)
+    {
+        var descriptions = new List<string>();
+
+        foreach (var name in _memory.GetKnownLocationNames(uid, max: 5))
+        {
+            var (visits, familiarity) = _memory.GetLocationFamiliarity(uid, name);
+
+            if (visits == 0)
+            {
+                descriptions.Add($"{name} (знаешь название, ни разу не был(а) там)");
+                continue;
+            }
+
+            var sentiment = _memory.GetLocationSentiment(uid, name);
+            var feeling = sentiment switch
+            {
+                > 0.2f => ", тёплые воспоминания",
+                < -0.2f => ", неприятные воспоминания",
+                _ => string.Empty,
+            };
+
+            descriptions.Add($"{name} (бывал(а) там {visits} раз(а), знакомо на {familiarity:0.00}{feeling})");
+        }
+
+        descriptions.AddRange(_memory.GetKnownPersonLocations(uid));
+
+        return descriptions;
+    }
+
+    /// <summary>
+    /// AI Players 0.6, spec section 32: opportunistically remembers "I usually see {name} in {area}" while
+    /// standing in a named area (<see cref="LandmarkPerceptionComponent.CurrentAreaLabel"/>) and seeing them -
+    /// the write side of the Sarah/Medbay scenario; <see cref="MemorySystem.FindKnownLocation"/>'s widened
+    /// filter and <see cref="MemorySystem.GetKnownPersonLocations"/> are the read side. Time-windowed dedup
+    /// (same idiom <see cref="Systems.LandmarkPerceptionSystem.Scan"/> already uses for landmark memories, just
+    /// bounded rather than forever - a person's usual location can genuinely change) so this doesn't spam a new
+    /// memory every single cognitive decision while the same two characters are both just standing around.
+    /// </summary>
+    private void RecordSocialLocationSighting(EntityUid uid, EntityUid other, string otherName)
+    {
+        if (!TryComp<LandmarkPerceptionComponent>(uid, out var landmark) || landmark.CurrentAreaLabel is not { } area)
+            return;
+
+        if (TryComp<MemoryComponent>(uid, out var memory) &&
+            memory.Memories.Any(m => m.Source == "social-location" && m.Participants.Contains(other) &&
+                _timing.CurTime - m.Timestamp < TimeSpan.FromSeconds(60)))
+        {
+            return;
+        }
+
+        _memory.AddMemory(
+            uid,
+            content: $"Видел(а) {otherName} в «{area}».",
+            importance: 0.2f,
+            source: "social-location",
+            participants: new[] { other },
+            location: Transform(uid).Coordinates,
+            subject: otherName);
     }
 
     /// <summary>

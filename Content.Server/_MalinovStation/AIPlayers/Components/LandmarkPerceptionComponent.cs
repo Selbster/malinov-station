@@ -20,4 +20,17 @@ public sealed partial class LandmarkPerceptionComponent : Component
     /// to know a place it could actually see.</summary>
     [DataField]
     public float ScanRadius = 10f;
+
+    /// <summary>
+    /// AI Players 0.6: the nearest in-range beacon's <c>Text</c> right now, or null if none is in range -
+    /// distinct from "ever remembered this beacon" (the landmark-memory check <see cref="Systems.LandmarkPerceptionSystem.Scan"/>
+    /// already did before this milestone). Doubles as the "which area am I currently in" signal
+    /// <see cref="Systems.NeedsSystem"/>'s boredom tracking reads and the visit-arrival trigger for
+    /// <see cref="LocationKnowledgeComponent"/>.
+    /// </summary>
+    [ViewVariables]
+    public string? CurrentAreaLabel;
+
+    [ViewVariables]
+    public TimeSpan AreaEnteredAt;
 }
