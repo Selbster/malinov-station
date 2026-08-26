@@ -3,6 +3,7 @@ using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Shared._MalinovStation.AIPlayers;
 using Robust.Shared.Configuration;
 using Robust.Shared.Map;
+using Robust.Shared.Random;
 using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
@@ -20,6 +21,12 @@ public sealed partial class MemorySystem : EntitySystem, IMemoryStore, IMemoryRe
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IEntityManager _entManager = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
+    [Dependency] private IRobustRandom _random = default!;
+
+    /// <summary>AI Players 0.6.1: how recently-visited counts as "just came from there" for
+    /// <see cref="GetExplorationCandidates"/> - long enough that a single loop through a familiar wing
+    /// doesn't just re-suggest the room the AI left thirty seconds ago (spec section 22).</summary>
+    private static readonly TimeSpan RecentVisitPenaltyWindow = TimeSpan.FromMinutes(10);
 
     private float _decayHalfLifeSeconds;
 
@@ -245,6 +252,51 @@ public sealed partial class MemorySystem : EntitySystem, IMemoryStore, IMemoryRe
         }
 
         return (place.VisitCount, place.Familiarity);
+    }
+
+    /// <summary>
+    /// AI Players 0.6.1: known-by-name place candidates ranked for exploration rather than "important/recent
+    /// first" - <see cref="GetKnownLocationNames"/> orders by <see cref="AiMemory.Importance"/> then
+    /// <see cref="AiMemory.Timestamp"/>, but <see cref="Systems.LandmarkPerceptionSystem.SeedKnownBeacons"/>
+    /// writes every station beacon with the exact same importance and (within one spawn) near-identical
+    /// timestamp, so that ordering is a tie broken by stable enumeration order in practice - every AI player
+    /// sees the same fixed handful of names forever, regardless of what it's actually visited (spec section
+    /// 6/22 - destination diversity). This ranks by <see cref="LocationKnowledge.Familiarity"/> instead (never
+    /// visited scores highest, matching spec section 6's own "known=true, familiarity=low" example), with a
+    /// flat penalty for anywhere visited within <see cref="RecentVisitPenaltyWindow"/> so a just-left room
+    /// doesn't immediately win again - randomness only breaks ties between otherwise equally-scored places
+    /// (spec section 7), it's never the primary mechanism.
+    /// </summary>
+    public IReadOnlyList<string> GetExplorationCandidates(EntityUid uid, int max = 6, MemoryComponent? memory = null)
+    {
+        if (!Resolve(uid, ref memory, false))
+            return Array.Empty<string>();
+
+        TryComp<LocationKnowledgeComponent>(uid, out var knowledge);
+        var now = _timing.CurTime;
+
+        return memory.Memories
+            .Where(m => (m.Source == "landmark" || m.Source == "search-result") && m.Subject is not null)
+            .Select(m => m.Subject!)
+            .Distinct()
+            .Select(name =>
+            {
+                var familiarity = 0f;
+                var recentlyVisited = false;
+
+                if (knowledge is not null && knowledge.Places.TryGetValue(name, out var place))
+                {
+                    familiarity = place.Familiarity;
+                    recentlyVisited = now - place.LastVisitedAt < RecentVisitPenaltyWindow;
+                }
+
+                var score = (1f - familiarity) - (recentlyVisited ? 1f : 0f) + _random.NextFloat(-0.01f, 0.01f);
+                return (name, score);
+            })
+            .OrderByDescending(x => x.score)
+            .Select(x => x.name)
+            .Take(max)
+            .ToList();
     }
 
     /// <summary>

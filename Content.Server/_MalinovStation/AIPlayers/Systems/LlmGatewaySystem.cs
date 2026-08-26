@@ -369,11 +369,10 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         if (Deleted(uid) || !TryComp<IntentComponent>(uid, out var intentComp))
             return;
 
-        intentComp.Name = intent.Intention;
+        ApplyIntentName(intentComp, intent.Intention);
         intentComp.Priority = Math.Clamp(intent.Priority, 0f, 1f);
         intentComp.Confidence = Math.Clamp(intent.Confidence, 0f, 1f);
         intentComp.DesireServed = intent.Desire;
-        intentComp.ChosenAt = _timing.CurTime;
 
         var eligibleInCategory = _actionRegistry.GetEligibleActions(uid).Where(a => a.Category == intent.Category).ToList();
 
@@ -570,6 +569,23 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     }
 
     /// <summary>
+    /// AI Players 0.6.1: writes a new intent name, stamping <see cref="IntentComponent.ChosenAt"/> only when
+    /// the name actually changed. Both cognitive decision call sites used to unconditionally re-stamp this on
+    /// every successful reflection, even one that just reconfirmed the same ongoing activity - since
+    /// <see cref="NeedsSystem"/> reads this timestamp as "how long has the AI been doing the same thing" to
+    /// grow Boredom, that meant a normal ~45s reflection cadence kept resetting boredom's clock before it
+    /// could ever meaningfully compound (<see cref="NeedsComponent.BoredomGraceSeconds"/> is 20s - most of
+    /// every cycle looked "fresh"). A genuinely new intent still resets the clock as before.
+    /// </summary>
+    private void ApplyIntentName(IntentComponent intent, string newName)
+    {
+        if (intent.Name != newName)
+            intent.ChosenAt = _timing.CurTime;
+
+        intent.Name = newName;
+    }
+
+    /// <summary>
     /// AI Players 0.3: validates and applies a cognitive decision. Unlike the legacy path, this no longer
     /// forces the decision through <see cref="TryApplyDecision"/>/<see cref="GoalComponent"/> at all - Intent
     /// and Goal are now independent writes (see <see cref="IntentComponent"/>'s own doc comment). Steps:
@@ -593,11 +609,10 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         if (Deleted(uid) || !TryComp<IntentComponent>(uid, out var intent))
             return false;
 
-        intent.Name = decision.Intention;
+        ApplyIntentName(intent, decision.Intention);
         intent.Priority = Math.Clamp(decision.Priority, 0f, 1f);
         intent.Confidence = Math.Clamp(decision.Confidence, 0f, 1f);
         intent.DesireServed = decision.Desire;
-        intent.ChosenAt = _timing.CurTime;
 
         if (!ActionProposalResolver.TryResolve(decision, out var proposal, out var resolveFailReason))
         {

@@ -4,6 +4,19 @@ using Robust.Shared.Map;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
 
+file static class AiLevelOfDetailExtensions
+{
+    /// <summary>Multiplier a given tier applies, mirroring <see cref="AiLodComponent.GetMultiplier"/> -
+    /// needed here to compute what an entity's *new* tier's multiplier will be before that component's
+    /// own <see cref="AiLodComponent.Level"/> field has actually been updated to it yet.</summary>
+    public static float MultiplierFor(this AiLevelOfDetail level, AiLodComponent lod) => level switch
+    {
+        AiLevelOfDetail.Reduced => lod.ReducedMultiplier,
+        AiLevelOfDetail.Background => lod.BackgroundMultiplier,
+        _ => 1f,
+    };
+}
+
 /// <summary>
 /// Classifies every AI player's <see cref="AiLevelOfDetail"/> by distance to the nearest connected player,
 /// on its own throttled cadence (spec section 25). Other systems (Perception, Danger, Goal, the LLM
@@ -27,7 +40,21 @@ public sealed partial class AiLodSystem : EntitySystem
                 continue;
 
             lod.ReassessAccumulator = lod.ReassessCooldown;
+
+            var previousLevel = lod.Level;
             lod.Level = ComputeLevel(xform, lod);
+
+            // AI Players 0.6.1: a tier *improvement* (someone just got close enough to notice this AI)
+            // must not leave a cognitive reflection stuck counting down a wait sized for the old, less
+            // attentive tier - see AiLodComponent's own doc comment on why state here isn't supposed to
+            // visibly "freeze" like this. Only ever shrinks the wait, never extends it, and only on
+            // improvement - a tier downgrade doesn't need to touch anything, IsBackground already gates
+            // new decisions out for that case.
+            if (lod.Level < previousLevel && TryComp<CognitiveModeComponent>(uid, out var cognitive))
+            {
+                var rescaledWait = cognitive.ReflectionCooldown * lod.Level.MultiplierFor(lod);
+                cognitive.ReflectionAccumulator = MathF.Min(cognitive.ReflectionAccumulator, rescaledWait);
+            }
         }
     }
 

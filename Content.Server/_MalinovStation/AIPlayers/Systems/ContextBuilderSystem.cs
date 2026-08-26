@@ -253,20 +253,23 @@ public sealed partial class ContextBuilderSystem : EntitySystem
     }
 
     /// <summary>
-    /// AI Players 0.6: <see cref="MemorySystem.GetKnownLocationNames"/>'s raw place names, annotated with this
+    /// AI Players 0.6: <see cref="MemorySystem.GetExplorationCandidates"/>'s place names, annotated with this
     /// AI's own familiarity/visit count/sentiment (see <see cref="MemorySystem.GetLocationFamiliarity"/>/
     /// <see cref="MemorySystem.GetLocationSentiment"/>) plus known people's typical locations
     /// (<see cref="MemorySystem.GetKnownPersonLocations"/>) - still the same flat <c>IReadOnlyList&lt;string&gt;</c>
     /// shape <see cref="CognitiveState.KnownLocations"/> always had, just richer text, so a place known only by
     /// name reads differently to the LLM from one it's actually familiar with (spec section 6's own
     /// "known=true, familiarity=0.2" example) instead of the two being indistinguishable as they were before
-    /// this milestone.
+    /// this milestone. AI Players 0.6.1: switched from <see cref="MemorySystem.GetKnownLocationNames"/> (which
+    /// ties on identical seeded importance/timestamp and so returns the same fixed few names forever) to
+    /// <see cref="MemorySystem.GetExplorationCandidates"/>, which actually ranks by familiarity - see that
+    /// method's own doc comment.
     /// </summary>
     private List<string> BuildKnownLocationDescriptions(EntityUid uid)
     {
         var descriptions = new List<string>();
 
-        foreach (var name in _memory.GetKnownLocationNames(uid, max: 5))
+        foreach (var name in _memory.GetExplorationCandidates(uid, max: 6))
         {
             var (visits, familiarity) = _memory.GetLocationFamiliarity(uid, name);
 
