@@ -3,8 +3,6 @@
                                       Margin="1 0 2 0">
     <PanelContainer StyleClasses="BackgroundDark"></PanelContainer>
     <BoxContainer Name="MainContainer" Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
-        <Label Name="HeaderLabel" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
-        <Label Name="ServerStatusLabel" HorizontalAlignment="Center" StyleClasses="LabelSubText" Visible="False" />
         <Label Name="StatusLabel" HorizontalAlignment="Center" VerticalExpand="True" Visible="False" />
         <Label Name="ErrorLabel" HorizontalAlignment="Center" StyleClasses="LabelSubText" Visible="False" />
         <BoxContainer Orientation="Horizontal" HorizontalExpand="True" VerticalExpand="True" SeparationOverride="4">

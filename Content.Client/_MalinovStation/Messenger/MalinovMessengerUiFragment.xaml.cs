@@ -36,8 +36,6 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         HorizontalExpand = true;
         VerticalExpand = true;
 
-        HeaderLabel.Text = Loc.GetString("malinov-messenger-contacts-header");
-
         ContactsList.OnItemSelected += OnItemSelected;
         SendButton.OnPressed += _ => TrySend();
         Input.OnTextEntered += _ => TrySend();
@@ -52,16 +50,6 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         _contacts = state.Contacts;
         _onlineNames = state.OnlineNames;
         _selectedContact = state.SelectedContact;
-
-        if (!string.IsNullOrEmpty(state.ServerStatus))
-        {
-            ServerStatusLabel.Text = Loc.GetString(state.ServerStatus);
-            ServerStatusLabel.Visible = true;
-        }
-        else
-        {
-            ServerStatusLabel.Visible = false;
-        }
 
         if (!string.IsNullOrEmpty(state.Status) && state.Contacts.Count == 0)
         {
