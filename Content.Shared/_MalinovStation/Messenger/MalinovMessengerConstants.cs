@@ -33,7 +33,12 @@ public static class MalinovMessengerConstants
     public const string TextKey = "text";
 
     /// <summary>
-    ///     Payload key for the intended recipient name (used by future server logic).
+    ///     Payload key for the intended recipient name (used by server relay logic).
     /// </summary>
     public const string TargetKey = "target";
+
+    /// <summary>
+    ///     Payload key for the directory entries returned by the server.
+    /// </summary>
+    public const string EntriesKey = "entries";
 }

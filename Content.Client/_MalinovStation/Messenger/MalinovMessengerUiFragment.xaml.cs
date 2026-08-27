@@ -44,6 +44,16 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         _onlineNames = state.OnlineNames;
         _selectedContact = state.SelectedContact;
 
+        if (!string.IsNullOrEmpty(state.ServerStatus))
+        {
+            ServerStatusLabel.Text = Loc.GetString(state.ServerStatus);
+            ServerStatusLabel.Visible = true;
+        }
+        else
+        {
+            ServerStatusLabel.Visible = false;
+        }
+
         if (!string.IsNullOrEmpty(state.Status) && state.Contacts.Count == 0)
         {
             StatusLabel.Text = Loc.GetString(state.Status);

@@ -3,11 +3,23 @@ using Content.Shared._MalinovStation.Messenger;
 namespace Content.Server._MalinovStation.Messenger;
 
 /// <summary>
-/// Server-only runtime state for a Malinov Messenger cartridge.
+///     Server-only runtime state for a Malinov Messenger cartridge.
 /// </summary>
 [RegisterComponent]
 public sealed partial class MalinovMessengerCartridgeSessionComponent : Component
 {
+    /// <summary>
+    ///     ID card currently providing the messenger account. Null when no card is inserted.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public EntityUid? LinkedAccount;
+
+    /// <summary>
+    ///     Display name taken from the linked ID card. Null when no card is inserted.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public string? IdentityName;
+
     /// <summary>
     ///     Name of the contact currently selected in the UI.
     /// </summary>
@@ -15,10 +27,11 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     public string? SelectedContact;
 
     /// <summary>
-    ///     Per-contact chat history. Messages are ordered from oldest to newest.
+    ///     Local per-contact chat history used when no ID card is linked.
+    ///     Messages are ordered from oldest to newest.
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
-    public Dictionary<string, List<MalinovMessengerMessage>> Sessions = new();
+    public Dictionary<string, List<MalinovMessengerMessage>> LocalSessions = new();
 
     /// <summary>
     ///     Known peers: display name -> cached address and expiry.
@@ -31,6 +44,30 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
     public string? LastError;
+
+    /// <summary>
+    ///     Whether the station messenger server is currently reachable.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public bool ServerAvailable;
+
+    /// <summary>
+    ///     Cached address of the active station messenger server.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public string? ServerAddress;
+
+    /// <summary>
+    ///     Last time an announce was sent to the server.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public TimeSpan LastAnnounceTime;
+
+    /// <summary>
+    ///     Last time a directory request was sent to the server.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public TimeSpan LastDirectoryRequestTime;
 }
 
 /// <summary>

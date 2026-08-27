@@ -15,5 +15,11 @@ malinov-messenger-message-format = { $name }: { $text }
 malinov-messenger-message-time-format = [{ $time }]
 malinov-messenger-error-offline = Получатель не в сети или неизвестен.
 malinov-messenger-error-message-too-long = Сообщение слишком длинное.
+malinov-messenger-error-server-unavailable = Сервер недоступен.
+malinov-messenger-no-idcard = Вставьте свою ID-карту.
+
+
+malinov-messenger-server-online = через сервер
+malinov-messenger-server-unavailable = сервер недоступен
 
 device-frequency-malinov-messenger = Мессенджер Малинова

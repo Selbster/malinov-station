@@ -20,6 +20,12 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     public string Status;
 
     /// <summary>
+    ///     Localization key describing the server relay mode
+    ///     (e.g. "via server" or "server unavailable").
+    /// </summary>
+    public string ServerStatus;
+
+    /// <summary>
     ///     Name of the currently selected contact.
     /// </summary>
     public string? SelectedContact;
@@ -37,12 +43,14 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     public MalinovMessengerUiState(
         List<MalinovMessengerContact>? contacts = null,
         string? status = null,
+        string? serverStatus = null,
         string? selectedContact = null,
         List<MalinovMessengerMessage>? messages = null,
         HashSet<string>? onlineNames = null)
     {
         Contacts = contacts ?? new List<MalinovMessengerContact>();
         Status = status ?? string.Empty;
+        ServerStatus = serverStatus ?? string.Empty;
         SelectedContact = selectedContact;
         Messages = messages ?? new List<MalinovMessengerMessage>();
         OnlineNames = onlineNames ?? new HashSet<string>();
