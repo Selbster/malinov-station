@@ -16,7 +16,7 @@
             <!-- Chat -->
             <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
                 <Label Name="ChatHeaderLabel" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
-                <ScrollContainer HorizontalExpand="True" VerticalExpand="True">
+                <ScrollContainer HorizontalExpand="True" VerticalExpand="True" HScrollEnabled="False">
                     <BoxContainer Name="ChatContainer" Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True" />
                 </ScrollContainer>
                 <BoxContainer Orientation="Horizontal" HorizontalExpand="True" SetHeight="32" SeparationOverride="4">

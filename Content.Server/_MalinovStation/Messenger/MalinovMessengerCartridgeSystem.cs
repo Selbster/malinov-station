@@ -463,6 +463,10 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         if (!packet.Data.TryGetValue(MalinovMessengerConstants.TextKey, out var textObj) || textObj is not string text)
             return;
 
+        var maxLength = _cfg.GetCVar(CCVars.MalinovMessengerMaxMessageLength);
+        if (text.Length > maxLength)
+            text = text[..maxLength];
+
         // Server-side delivery error: empty sender name marks a relay-level failure.
         if (string.IsNullOrEmpty(sender))
         {

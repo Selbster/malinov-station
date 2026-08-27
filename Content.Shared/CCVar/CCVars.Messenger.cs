@@ -8,7 +8,7 @@ public sealed partial class CCVars
     ///     Maximum length of a single P2P messenger message.
     /// </summary>
     public static readonly CVarDef<int> MalinovMessengerMaxMessageLength =
-        CVarDef.Create("malinov.messenger.max-message-length", 512, CVar.REPLICATED);
+        CVarDef.Create("malinov.messenger.max-message-length", 100, CVar.REPLICATED);
 
     /// <summary>
     ///     How long (in seconds) a peer remains "online" after its last announce.

@@ -1129,6 +1129,118 @@ public sealed class MalinovMessengerTest : GameTest
         await server.WaitIdleAsync();
     }
 
+    [Test]
+    public async Task MessengerServer_TruncatesLongMessage()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+        var longText = new string('a', 150);
+        var expectedText = longText[..100];
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, longText), Is.True,
+                "Sending a long message should succeed and be truncated");
+
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            var sessions1 = GetAccountSessions(entityManager, session1);
+            Assert.That(sessions1, Does.ContainKey(recipientName),
+                "Sender should have a history with the recipient");
+            Assert.That(sessions1[recipientName], Has.Count.EqualTo(1));
+            Assert.That(sessions1[recipientName][0].Text, Is.EqualTo(expectedText),
+                "Sender history should store the truncated message");
+            Assert.That(sessions1[recipientName][0].Text.Length, Is.EqualTo(100));
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            Assert.That(sessions2, Does.ContainKey(senderName),
+                "Recipient should have a history from the sender");
+            Assert.That(sessions2[senderName], Has.Count.EqualTo(1));
+            Assert.That(sessions2[senderName][0].Text, Is.EqualTo(expectedText),
+                "Recipient history should store the truncated message");
+            Assert.That(sessions2[senderName][0].Text.Length, Is.EqualTo(100));
+        });
+
+        await server.WaitIdleAsync();
+    }
+
     private static void SetPdaIdentity(IEntityManager entityManager, EntityUid pda, string name)
     {
         var pdaComp = entityManager.GetComponent<PdaComponent>(pda);
