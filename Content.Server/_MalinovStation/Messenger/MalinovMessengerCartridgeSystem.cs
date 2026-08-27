@@ -343,6 +343,12 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             return;
         }
 
+        if (targetName == session.IdentityName)
+        {
+            SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-self");
+            return;
+        }
+
         var now = _timing.CurTime;
         if (!session.Peers.TryGetValue(targetName, out var peer) || peer.Expiry < now)
         {
@@ -353,6 +359,9 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         var maxLength = _cfg.GetCVar(CCVars.MalinovMessengerMaxMessageLength);
         if (text.Length > maxLength)
             text = text[..maxLength];
+
+        // Ensure the sent message is visible in the currently-open conversation.
+        session.SelectedContact = targetName;
 
         var payload = new NetworkPayload
         {
@@ -434,6 +443,9 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         if (string.IsNullOrWhiteSpace(name))
             return;
 
+        if (name == session.IdentityName)
+            return;
+
         var ttl = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerPeerTtlSeconds));
         session.Peers[name] = new PeerCache(packet.SenderAddress, _timing.CurTime + ttl);
     }
@@ -458,6 +470,10 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             return;
         }
 
+        // Ignore looped-back messages addressed to the local account.
+        if (sender == session.IdentityName)
+            return;
+
         var message = new MalinovMessengerMessage(sender, text, _timing.CurTime, outgoing: false);
         AddSessionMessage(session, sender, message);
 
@@ -476,6 +492,9 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         foreach (var (name, address) in entries)
         {
             if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            if (name == session.IdentityName)
                 continue;
 
             session.Peers[name] = new PeerCache(address, expiry);
@@ -518,9 +537,16 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         {
             foreach (var entry in entries.Entries)
             {
+                if (entry.Name == session.IdentityName)
+                    continue;
+
                 contacts.Add(new MalinovMessengerContact(entry.Name, entry.JobTitle));
             }
         }
+
+        // A previously selected self-contact should no longer stay selected after the filter is applied.
+        if (session.SelectedContact == session.IdentityName)
+            session.SelectedContact = null;
 
         var now = _timing.CurTime;
         var onlineNames = new HashSet<string>();

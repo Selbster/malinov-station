@@ -346,8 +346,176 @@ public sealed class MalinovMessengerTest : GameTest
 
             Assert.That(session1.Peers, Does.ContainKey(recipientName),
                 "Sender should see recipient online after receiving the server directory");
+            Assert.That(session1.Peers, Does.Not.ContainKey(senderName),
+                "Sender should not see itself in the peer directory");
             Assert.That(session2.Peers, Does.ContainKey(senderName),
                 "Recipient should see sender online after receiving the server directory");
+            Assert.That(session2.Peers, Does.Not.ContainKey(recipientName),
+                "Recipient should not see itself in the peer directory");
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task MessengerUiStateExcludesSelf()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string selfName = "Self Test";
+
+        await server.WaitAssertion(() =>
+        {
+            var record = new GeneralStationRecord
+            {
+                Name = selfName,
+                JobTitle = "Test Specialist",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene
+            };
+
+            var key = recordsSystem.AddRecordEntry(station, record);
+            Assert.That(key.IsValid, Is.True, "Station record should be added");
+            recordsSystem.Synchronize(key);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid pda = default;
+        EntityUid program = default;
+
+        await server.WaitAssertion(() =>
+        {
+            pda = entityManager.SpawnEntity("PassengerPDA", coords);
+            SetPdaIdentity(entityManager, pda, selfName);
+
+            var programEnt = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda);
+            Assert.That(programEnt, Is.Not.Null, "Messenger program should be auto-installed");
+            program = programEnt!.Value.Owner;
+        });
+
+        // Wait for the cartridge Update loop to pick up the new ID card identity.
+        await server.WaitRunTicks(2);
+
+        await server.WaitAssertion(() =>
+        {
+            var evt = new CartridgeUiReadyEvent(pda);
+            entityManager.EventBus.RaiseLocalEvent(program, ref evt);
+
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda, PdaUiKey.Key, out var state), Is.True,
+                "Messenger UI state should be set");
+            Assert.That(state.Contacts, Is.Empty,
+                "Contact list should exclude the owner's own identity");
+            Assert.That(state.SelectedContact, Is.Null,
+                "Self-contact selection should be cleared");
+        });
+
+        await server.WaitRunTicks(2);
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task MessengerServer_CannotSendToSelf()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string selfName = "Alice Test";
+
+        await server.WaitAssertion(() =>
+        {
+            var key = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = selfName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            Assert.That(key.IsValid, Is.True);
+            recordsSystem.Synchronize(key);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid pda1 = default;
+        EntityUid prog1 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            SetPdaIdentity(entityManager, pda1, selfName);
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var result = messengerSystem.TrySendMessage(prog1, selfName, "Hello me!");
+            Assert.That(result, Is.False, "Sending a message to yourself should fail");
+
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-self"),
+                "Session should store the self-send error key");
+
+            var evt = new CartridgeUiReadyEvent(pda1);
+            entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
+
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda1, PdaUiKey.Key, out var state), Is.True,
+                "Sender UI state should be set");
+            Assert.That(state.Status, Is.EqualTo("malinov-messenger-error-self"),
+                "Sender UI state should expose the self-send error");
         });
 
         await server.WaitIdleAsync();
@@ -443,6 +611,14 @@ public sealed class MalinovMessengerTest : GameTest
 
             Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True,
                 "Sending to a known online contact through the server should succeed");
+
+            var evt1 = new CartridgeUiReadyEvent(pda1);
+            entityManager.EventBus.RaiseLocalEvent(prog1, ref evt1);
+
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda1, PdaUiKey.Key, out var senderState), Is.True,
+                "Sender UI state should be set immediately after sending");
+            Assert.That(senderState.Messages.Any(m => m.SenderName == senderName && m.Text == messageText && m.Outgoing),
+                Is.True, "Sender UI state should show the just-sent outgoing message without re-entering the messenger");
         });
 
         await server.WaitRunTicks(5);
