@@ -1241,6 +1241,346 @@ public sealed class MalinovMessengerTest : GameTest
         await server.WaitIdleAsync();
     }
 
+    [Test]
+    public async Task Notification_NotSentWhenProgramActive()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+        const string messageText = "Hello Bob!";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+            SetPdaOwner(entityManager, pda2, pda2);
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            // Activate the recipient program so notifications should be suppressed.
+            cartridgeLoaderSystem.ActivateProgram((pda2, entityManager.GetComponent<CartridgeLoaderComponent>(pda2)), prog2);
+        });
+
+        await server.WaitRunTicks(5);
+
+        EntityUid? notifiedLoader = null;
+        string? notifiedSender = null;
+        void OnNotification(EntityUid loader, string sender)
+        {
+            notifiedLoader = loader;
+            notifiedSender = sender;
+        }
+
+        await server.WaitAssertion(() =>
+        {
+            messengerSystem.OnNotificationSent += OnNotification;
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True);
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            messengerSystem.OnNotificationSent -= OnNotification;
+            Assert.That(notifiedLoader, Is.Null, "Notification should not fire while the recipient program is active");
+            Assert.That(notifiedSender, Is.Null);
+
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            Assert.That(session2.IsProgramActive, Is.True);
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task Notification_SentWhenProgramInactive()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+        const string messageText = "Hello Bob!";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+            SetPdaOwner(entityManager, pda2, pda2);
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            // Activate then deactivate the recipient program so it is running in the background
+            // but not currently open in the UI.
+            var loader2 = entityManager.GetComponent<CartridgeLoaderComponent>(pda2);
+            cartridgeLoaderSystem.ActivateProgram((pda2, loader2), prog2);
+            cartridgeLoaderSystem.DeactivateProgram((pda2, loader2), prog2);
+        });
+
+        await server.WaitRunTicks(5);
+
+        EntityUid? notifiedLoader = null;
+        string? notifiedSender = null;
+        void OnNotification(EntityUid loader, string sender)
+        {
+            notifiedLoader = loader;
+            notifiedSender = sender;
+        }
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            Assert.That(session2.IsProgramActive, Is.False, "Recipient program should be inactive");
+
+            messengerSystem.OnNotificationSent += OnNotification;
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True);
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            messengerSystem.OnNotificationSent -= OnNotification;
+            Assert.That(notifiedLoader, Is.EqualTo(pda2), "Notification should fire for the recipient PDA");
+            Assert.That(notifiedSender, Is.EqualTo(senderName), "Notification should carry the sender name");
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task Notification_NoExceptionWhenSoundDisabled()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+        const string messageText = "Hello Bob!";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        await server.WaitPost(() =>
+        {
+            server.CfgMan.SetCVar(CCVars.MalinovMessengerSoundEnabled, false);
+        });
+
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+            SetPdaOwner(entityManager, pda2, pda2);
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            var loader2 = entityManager.GetComponent<CartridgeLoaderComponent>(pda2);
+            cartridgeLoaderSystem.ActivateProgram((pda2, loader2), prog2);
+            cartridgeLoaderSystem.DeactivateProgram((pda2, loader2), prog2);
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True,
+                "Sending with sound disabled should succeed");
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            Assert.That(sessions2, Does.ContainKey(senderName),
+                "Message should still be delivered when sound is disabled");
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.CfgMan.SetCVar(CCVars.MalinovMessengerSoundEnabled, CCVars.MalinovMessengerSoundEnabled.DefaultValue);
+        });
+
+        await server.WaitIdleAsync();
+    }
+
     private static void SetPdaIdentity(IEntityManager entityManager, EntityUid pda, string name)
     {
         var pdaComp = entityManager.GetComponent<PdaComponent>(pda);
@@ -1248,6 +1588,12 @@ public sealed class MalinovMessengerTest : GameTest
 
         var idCard = entityManager.GetComponent<IdCardComponent>(pdaComp.ContainedId!.Value);
         idCard.FullName = name;
+    }
+
+    private static void SetPdaOwner(IEntityManager entityManager, EntityUid pda, EntityUid owner)
+    {
+        var pdaComp = entityManager.GetComponent<PdaComponent>(pda);
+        pdaComp.PdaOwner = owner;
     }
 
     private static Dictionary<string, List<MalinovMessengerMessage>> GetAccountSessions(

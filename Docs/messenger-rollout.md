@@ -6,7 +6,7 @@
 - [x] Этап 3 — история переписки (commit: TBD, CI: green)
 - [x] Этап 4 — сервер-ретранслятор через vanilla `TelecomServer` (commit: TBD, CI: green)
   - Ручной тест-кейс: [Docs/messenger-test-case.md](messenger-test-case.md)
-- [ ] Этап 5 — уведомления
+- [x] Этап 5 — уведомления (commit: TBD, CI: green)
 - [ ] Этап 6 — анти-спам
 - [ ] Этап 7 — админ-логи
 - [ ] Этап 8 — полировка

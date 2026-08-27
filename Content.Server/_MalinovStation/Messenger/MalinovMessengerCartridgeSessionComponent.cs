@@ -58,6 +58,13 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     public string? ServerAddress;
 
     /// <summary>
+    ///     Whether the messenger UI is currently active (opened) on the PDA.
+    ///     Used to suppress notifications for the active conversation.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public bool IsProgramActive;
+
+    /// <summary>
     ///     Last time an announce was sent to the server.
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]

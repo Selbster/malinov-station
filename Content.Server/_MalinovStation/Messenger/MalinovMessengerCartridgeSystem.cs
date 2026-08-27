@@ -1,16 +1,21 @@
 using Content.Server.CrewManifest;
 using Content.Server.DeviceNetwork.Systems;
+using Content.Server.Popups;
 using Content.Server.Power.Components;
 using Content.Server.Station.Systems;
 using Content.Shared._MalinovStation.Messenger;
 using Content.Shared.Access.Components;
+using Content.Shared.Audio;
 using Content.Shared.CartridgeLoader;
 using Content.Shared.CCVar;
 using Content.Shared.DeviceNetwork;
 using Content.Shared.DeviceNetwork.Components;
 using Content.Shared.DeviceNetwork.Events;
+using Content.Shared.Popups;
 using Content.Shared.PDA;
 using Content.Shared.Radio.Components;
+using Robust.Shared.Audio;
+using Robust.Shared.Audio.Systems;
 using Robust.Shared.Configuration;
 using Robust.Shared.Timing;
 
@@ -22,10 +27,17 @@ namespace Content.Server._MalinovStation.Messenger;
 /// </summary>
 public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 {
+    /// <summary>
+    ///     Test-only hook fired after an incoming message triggers a notification.
+    /// </summary>
+    public event Action<EntityUid, string>? OnNotificationSent;
+
     [Dependency] private CartridgeLoaderSystem _cartridgeLoader = default!;
     [Dependency] private CrewManifestSystem _crewManifest = default!;
     [Dependency] private StationSystem _stationSystem = default!;
     [Dependency] private DeviceNetworkSystem _deviceNetwork = default!;
+    [Dependency] private PopupSystem _popup = default!;
+    [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
 
@@ -163,13 +175,17 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     {
         var loaderUid = args.Loader.Owner;
         var session = EnsureComp<MalinovMessengerCartridgeSessionComponent>(ent);
+        session.IsProgramActive = true;
         session.LastError = null;
         UpdateUiState(ent, loaderUid, session: session);
     }
 
     private void OnDeactivated(Entity<MalinovMessengerCartridgeComponent> ent, ref CartridgeDeactivatedEvent args)
     {
-        // Intentionally left blank: the messenger stays connected in the background
+        var session = EnsureComp<MalinovMessengerCartridgeSessionComponent>(ent);
+        session.IsProgramActive = false;
+
+        // Intentionally left blank for networking: the messenger stays connected in the background
         // so it can receive messages even when the user switches to another program.
     }
 
@@ -483,6 +499,28 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
         // If the user has not selected a contact yet, automatically open the conversation with the sender.
         session.SelectedContact ??= sender;
+
+        if (!session.IsProgramActive)
+        {
+            NotifyIncomingMessage(loaderUid, sender);
+        }
+    }
+
+    private void NotifyIncomingMessage(EntityUid loaderUid, string sender)
+    {
+        if (!TryComp<PdaComponent>(loaderUid, out var pda) || pda.PdaOwner is not { } ownerUid)
+            return;
+
+        var popupMessage = Loc.GetString("malinov-messenger-notification-popup", ("sender", sender));
+        _popup.PopupEntity(popupMessage, loaderUid, ownerUid, PopupType.Medium);
+
+        if (!_cfg.GetCVar(CCVars.MalinovMessengerSoundEnabled))
+            return;
+
+        var sound = new SoundCollectionSpecifier(MalinovMessengerConstants.NotificationSoundCollection);
+        _audio.PlayPvs(sound, loaderUid);
+
+        OnNotificationSent?.Invoke(loaderUid, sender);
     }
 
     private void HandleDirectory(EntityUid uid, MalinovMessengerCartridgeSessionComponent session, DeviceNetworkPacketEvent packet)

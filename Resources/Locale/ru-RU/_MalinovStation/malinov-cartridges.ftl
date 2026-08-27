@@ -18,6 +18,7 @@ malinov-messenger-error-message-too-long = Сообщение слишком д�
 malinov-messenger-error-server-unavailable = Сервер недоступен.
 malinov-messenger-error-self = Нельзя отправлять сообщения самому себе.
 malinov-messenger-no-idcard = Вставьте свою ID-карту.
+malinov-messenger-notification-popup = Новое сообщение от { $sender }
 
 
 malinov-messenger-server-online = через сервер

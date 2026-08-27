@@ -41,4 +41,9 @@ public static class MalinovMessengerConstants
     ///     Payload key for the directory entries returned by the server.
     /// </summary>
     public const string EntriesKey = "entries";
+
+    /// <summary>
+    ///     Sound collection played for incoming messenger notifications.
+    /// </summary>
+    public const string NotificationSoundCollection = "malinov_messenger_notification";
 }

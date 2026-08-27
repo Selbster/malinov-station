@@ -5,7 +5,7 @@ namespace Content.Shared.CCVar;
 public sealed partial class CCVars
 {
     /// <summary>
-    ///     Maximum length of a single P2P messenger message.
+    ///     Maximum length of a single messenger message.
     /// </summary>
     public static readonly CVarDef<int> MalinovMessengerMaxMessageLength =
         CVarDef.Create("malinov.messenger.max-message-length", 100, CVar.REPLICATED);
@@ -21,4 +21,10 @@ public sealed partial class CCVars
     /// </summary>
     public static readonly CVarDef<int> MalinovMessengerHistoryPerContact =
         CVarDef.Create("malinov.messenger.history_per_contact", 50, CVar.SERVER | CVar.REPLICATED);
+
+    /// <summary>
+    ///     Whether incoming messenger notifications play a sound.
+    /// </summary>
+    public static readonly CVarDef<bool> MalinovMessengerSoundEnabled =
+        CVarDef.Create("malinov.messenger.sound_enabled", true, CVar.SERVER | CVar.REPLICATED);
 }
