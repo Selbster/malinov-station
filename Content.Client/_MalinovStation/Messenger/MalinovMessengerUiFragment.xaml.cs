@@ -7,6 +7,7 @@ using Robust.Client.UserInterface.XAML;
 using Robust.Shared.Configuration;
 using Robust.Shared.IoC;
 using Robust.Shared.Maths;
+using System.Numerics;
 
 namespace Content.Client._MalinovStation.Messenger;
 
@@ -118,6 +119,8 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
             {
                 ChatContainer.AddChild(BuildMessageRow(message));
             }
+
+            ChatScrollContainer.SetScrollValue(new Vector2(0, float.MaxValue));
         }
 
         _updating = false;
