@@ -46,7 +46,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
 - Частота DeviceNetwork: прототип `- type: deviceFrequency`, id `MalinovMessengerFrequency`, значение **2210**,
   файл `Resources/Prototypes/_MalinovStation/Device/malinov_devicenet_frequencies.yml`.
 - Константы протокола: статический класс `MalinovMessengerConstants` в Shared
-  (команды payload: `announce`, `msg`, `ack`, `directory_req`, `directory` — заполняются по этапам).
+  (команды payload: `announce`, `msg`, `directory_req`, `directory` — заполняются по этапам).
 - Локализация: ключи с префиксом `malinov-messenger-*`; файлы
   `Resources/Locale/en-US/_MalinovStation/malinov-cartridges.ftl` и ru-RU аналог — ОБА языка всегда синхронно.
 - Транспорт уже есть: у `BasePDA` (`pda.yml`) есть `DeviceNetwork` (Wireless), `WirelessNetworkConnection range: 500`,
@@ -77,7 +77,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
 5. `Resources/Locale/en-US/cartridge-loader/cartridges.ftl` и ru-RU аналог — образец ключа programName.
 6. `Content.Shared/CCVar/CCVars.Misc.cs` (пример партиала CCVars) +
    `Content.Shared/_MalinovStation/Audio/MalinovSoundCollections.cs` (образец кода и именования форка).
-7. `Content.Shared/CartridgeLoader/CartridgeLoaderSystem.Programs.cs` — API: `InstallCartridge`,
+7. `Content.Shared/CartridgeLoader/CartridgeLoaderSystem.Programs.cs` — API: `InstallProgram`,
    `TryGetProgram<T>`, `HasProgram<T>`.
 8. `Content.IntegrationTests/Tests/DeviceNetwork/DeviceNetworkTest.cs` — шаблон теста.
 

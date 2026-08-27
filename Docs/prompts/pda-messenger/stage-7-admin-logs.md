@@ -86,7 +86,7 @@ rate-limit, глушение/разглушение.
    `MalinovMessengerRateLimited = 1202`, `MalinovMessengerMute = 1203` с XML-doc.
 2. `_MalinovStation/Messenger`: инжект `IAdminLogManager`; логировать:
    - Send (Low): отправитель → получатель (имена/адреса, БЕЗ текста сообщения);
-   - DeliveryFail (Low): причина (нет адресата / таймаут ack);
+   - DeliveryFail (Low): причина (нет адресата / сервер недоступен);
    - RateLimited (Medium): кто, окно/лимит;
    - Mute (Medium): админ, цель, действие (mute/unmute).
 3. Тесты (см. DoD). Обнови `Docs/messenger-rollout.md`.

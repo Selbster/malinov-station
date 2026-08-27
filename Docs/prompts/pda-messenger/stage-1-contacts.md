@@ -40,7 +40,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
 - Прототипы: `MalinovMessengerCartridge`, сервер `MalinovMessengerServer` (этап 4, пока не существует).
 - Частота DeviceNetwork: прототип `MalinovMessengerFrequency`, значение **2210**
   (`Resources/Prototypes/_MalinovStation/Device/malinov_devicenet_frequencies.yml`) — на этом этапе не используется.
-- Константы протокола: класс `MalinovMessengerConstants` (Shared); команды: `announce`, `msg`, `ack`,
+- Константы протокола: класс `MalinovMessengerConstants` (Shared); команды: `announce`, `msg`,
   `directory_req`, `directory` — заполняются по этапам.
 - CVar'ы: файл `CCVars.Messenger.cs`, имена `malinov.messenger.*`.
 - Локализация: ключи `malinov-messenger-*`; файлы

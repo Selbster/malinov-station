@@ -41,13 +41,13 @@ Content.IntegrationTests — реальный headless сервер+клиент
 - CVar'ы: файл `CCVars.Messenger.cs`. Новый:
   `malinov.messenger.sound_enabled` (bool, default true).
 - Локализация: ключи `malinov-messenger-*`; en-US/ru-RU синхронно.
-- ВАЖНО: новые бинарные ассеты (.ogg/.wav) НЕ добавлять — только существующие ресурсы репозитория.
+- Аудио: используется кастомный звук уведомления из `Resources/Audio/_MalinovStation/Effects/`.
 
 ---
 
 ## 📦 КОНТЕКСТ: что уже сделано
 
-Этапы 0–4: скелет; каталог; прямая доставка; история; сервер-релей.
+Этапы 0–4: скелет; каталог; доставка через сервер-ретранслятор; история; сервер-релей.
 Если чего-то нет — СТОП.
 
 ## 🎯 ЦЕЛЬ ЭТАПА 5
@@ -59,7 +59,7 @@ Content.IntegrationTests — реальный headless сервер+клиент
 ## 🚫 ЯВНО НЕ ДЕЛАТЬ
 
 Мигание спрайта PDA, всплывающие окна BUI поверх PDA, вибро/рингтон-редактор, антиспам (6), логи (7).
-Vanilla не трогать. Новые аудиофайлы не добавлять.
+Vanilla не трогать.
 
 ## 📚 ОБЯЗАТЕЛЬНОЕ ЧТЕНИЕ
 
@@ -73,10 +73,11 @@ Vanilla не трогать. Новые аудиофайлы не добавля
 
 ## 📝 ЧТО СОЗДАТЬ/ИЗМЕНИТЬ (только _MalinovStation)
 
-1. YAML: sound collection `malinov_messenger_notification`
-   (`Resources/Prototypes/_MalinovStation/SoundCollections/malinov_messenger.yml`) со ссылкой
-   на ОДИН существующий короткий звук из `Resources/Audio/` (подбери нейтральный «блип»;
-   укажи выбранный файл в отчёте для ручной проверки).
+1. Аудио и YAML:
+   - Поместить файл уведомления в `Resources/Audio/_MalinovStation/Effects/malinov_messenger_notification.ogg`
+     (файл предоставляет пользователь).
+   - Sound collection `malinov_messenger_notification` в
+     `Resources/Prototypes/_MalinovStation/SoundCollections/malinov_messenger.yml` со ссылкой на файл выше.
 2. Shared: константа звука; флаг/логика «нужно ли уведомление» (программа активна?).
 3. Server: при входящем сообщении, если программа получателя НЕ активна:
    - `PopupEntity` над КПК получателя с локализованным текстом «Новое сообщение от {sender}»
@@ -87,7 +88,8 @@ Vanilla не трогать. Новые аудиофайлы не добавля
 
 ## ✅ DEFINITION OF DONE (Этап 5)
 
-Все 5 команд гейта зелёные; vanilla не изменён; новых бинарников нет. Интеграционный тест:
+Все 5 команд гейта зелёные; vanilla не изменён. Добавлен кастомный аудиофайл
+`Resources/Audio/_MalinovStation/Effects/malinov_messenger_notification.ogg`. Интеграционный тест:
 
 1. A→B при АКТИВНОЙ программе B → уведомления не возникает (ассерт логики условия через
    наблюдаемое состояние/флаг системы или отсутствие вызова — оформи проверяемо).
