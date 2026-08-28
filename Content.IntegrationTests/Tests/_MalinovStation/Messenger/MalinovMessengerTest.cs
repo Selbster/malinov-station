@@ -16,6 +16,9 @@ using Content.Shared.PDA;
 using Content.Shared.Radio.Components;
 using Content.Shared.StationRecords;
 using Content.Shared.StationRecords.Systems;
+using Robust.Server.Containers;
+using Robust.Server.Player;
+using Robust.Shared.Containers;
 using Robust.Shared.Enums;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
@@ -1254,6 +1257,8 @@ public sealed class MalinovMessengerTest : GameTest
         var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
         var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
         var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var containerSystem = entSysMan.GetEntitySystem<ContainerSystem>();
+        var playerManager = server.ResolveDependency<IPlayerManager>();
 
         var testMap = await pair.CreateTestMap();
         var grid = testMap.Grid.Owner;
@@ -1313,7 +1318,7 @@ public sealed class MalinovMessengerTest : GameTest
 
             SetPdaIdentity(entityManager, pda1, senderName);
             SetPdaIdentity(entityManager, pda2, recipientName);
-            SetPdaOwner(entityManager, pda2, pda2);
+            HoldPdaWithSession(entityManager, containerSystem, playerManager, pda2, coords);
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
@@ -1366,6 +1371,8 @@ public sealed class MalinovMessengerTest : GameTest
         var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
         var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
         var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var containerSystem = entSysMan.GetEntitySystem<ContainerSystem>();
+        var playerManager = server.ResolveDependency<IPlayerManager>();
 
         var testMap = await pair.CreateTestMap();
         var grid = testMap.Grid.Owner;
@@ -1425,7 +1432,7 @@ public sealed class MalinovMessengerTest : GameTest
 
             SetPdaIdentity(entityManager, pda1, senderName);
             SetPdaIdentity(entityManager, pda2, recipientName);
-            SetPdaOwner(entityManager, pda2, pda2);
+            HoldPdaWithSession(entityManager, containerSystem, playerManager, pda2, coords);
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
@@ -1481,6 +1488,8 @@ public sealed class MalinovMessengerTest : GameTest
         var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
         var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
         var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var containerSystem = entSysMan.GetEntitySystem<ContainerSystem>();
+        var playerManager = server.ResolveDependency<IPlayerManager>();
 
         var testMap = await pair.CreateTestMap();
         var grid = testMap.Grid.Owner;
@@ -1545,7 +1554,7 @@ public sealed class MalinovMessengerTest : GameTest
 
             SetPdaIdentity(entityManager, pda1, senderName);
             SetPdaIdentity(entityManager, pda2, recipientName);
-            SetPdaOwner(entityManager, pda2, pda2);
+            HoldPdaWithSession(entityManager, containerSystem, playerManager, pda2, coords);
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
@@ -1590,10 +1599,21 @@ public sealed class MalinovMessengerTest : GameTest
         idCard.FullName = name;
     }
 
-    private static void SetPdaOwner(IEntityManager entityManager, EntityUid pda, EntityUid owner)
+    private static void HoldPdaWithSession(
+        IEntityManager entityManager,
+        ContainerSystem containerSystem,
+        Robust.Server.Player.IPlayerManager playerManager,
+        EntityUid pda,
+        EntityCoordinates coords)
     {
-        var pdaComp = entityManager.GetComponent<PdaComponent>(pda);
-        pdaComp.PdaOwner = owner;
+        // Create a simple holder entity, put the PDA inside it, and attach the test client session
+        // so the holder has ActorComponent. This mirrors a player wearing/holding the PDA.
+        var holder = entityManager.SpawnEntity(null, coords);
+        var container = containerSystem.EnsureContainer<Container>(holder, "malinov-test-pda");
+        Assert.That(containerSystem.Insert(pda, container), Is.True, "PDA should be inserted into test holder container");
+
+        var session = playerManager.Sessions.Single();
+        playerManager.SetAttachedEntity(session, holder);
     }
 
     private static Dictionary<string, List<MalinovMessengerMessage>> GetAccountSessions(

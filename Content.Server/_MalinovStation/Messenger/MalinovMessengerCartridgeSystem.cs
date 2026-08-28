@@ -4,6 +4,7 @@ using Content.Server.Popups;
 using Content.Server.Power.Components;
 using Content.Server.Station.Systems;
 using Content.Shared._MalinovStation.Messenger;
+using Robust.Server.Containers;
 using Content.Shared.Access.Components;
 using Content.Shared.Audio;
 using Content.Shared.CartridgeLoader;
@@ -38,6 +39,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     [Dependency] private DeviceNetworkSystem _deviceNetwork = default!;
     [Dependency] private PopupSystem _popup = default!;
     [Dependency] private SharedAudioSystem _audio = default!;
+    [Dependency] private ContainerSystem _containerSystem = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
 
@@ -508,19 +510,47 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
     private void NotifyIncomingMessage(EntityUid loaderUid, string sender)
     {
-        if (!TryComp<PdaComponent>(loaderUid, out var pda) || pda.PdaOwner is not { } ownerUid)
+        if (!TryGetPdaHolder(loaderUid, out var holderUid))
             return;
 
         var popupMessage = Loc.GetString("malinov-messenger-notification-popup", ("sender", sender));
-        _popup.PopupEntity(popupMessage, loaderUid, ownerUid, PopupType.Medium);
+        _popup.PopupEntity(popupMessage, loaderUid, holderUid, PopupType.Medium);
 
-        if (!_cfg.GetCVar(CCVars.MalinovMessengerSoundEnabled))
-            return;
-
-        var sound = new SoundCollectionSpecifier(MalinovMessengerConstants.NotificationSoundCollection);
-        _audio.PlayPvs(sound, loaderUid);
+        if (_cfg.GetCVar(CCVars.MalinovMessengerSoundEnabled))
+        {
+            var sound = new SoundCollectionSpecifier(MalinovMessengerConstants.NotificationSoundCollection);
+            _audio.PlayPvs(sound, loaderUid);
+        }
 
         OnNotificationSent?.Invoke(loaderUid, sender);
+    }
+
+    /// <summary>
+    ///     Walks up the container chain of the PDA and returns the first entity that has an
+    ///     <see cref="Robust.Shared.Player.ActorComponent"/> (i.e. the player currently holding/wearing it).
+    ///     Returns false if the PDA is not inside a player-owned container (e.g. lying on the floor).
+    /// </summary>
+    private bool TryGetPdaHolder(EntityUid pdaUid, out EntityUid holderUid)
+    {
+        holderUid = EntityUid.Invalid;
+        var current = pdaUid;
+
+        while (current != EntityUid.Invalid)
+        {
+            if (!_containerSystem.TryGetContainingContainer((current, null, null), out var container))
+                return false;
+
+            var owner = container.Owner;
+            if (TryComp<Robust.Shared.Player.ActorComponent>(owner, out _))
+            {
+                holderUid = owner;
+                return true;
+            }
+
+            current = owner;
+        }
+
+        return false;
     }
 
     private void HandleDirectory(EntityUid uid, MalinovMessengerCartridgeSessionComponent session, DeviceNetworkPacketEvent packet)
