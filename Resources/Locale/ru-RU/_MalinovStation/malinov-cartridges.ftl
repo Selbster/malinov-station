@@ -17,11 +17,22 @@ malinov-messenger-error-offline = Получатель не в сети или �
 malinov-messenger-error-message-too-long = Сообщение слишком длинное.
 malinov-messenger-error-server-unavailable = Сервер недоступен.
 malinov-messenger-error-self = Нельзя отправлять сообщения самому себе.
+malinov-messenger-error-rate-limited = Слишком много сообщений, подождите.
+malinov-messenger-error-muted = Вы заглушены ЦК.
 malinov-messenger-no-idcard = Вставьте свою ID-карту.
 malinov-messenger-notification-popup = Новое сообщение от { $sender }
 
 
 malinov-messenger-server-online = через сервер
 malinov-messenger-server-unavailable = сервер недоступен
+
+malinov-messenger-mute-command-description = Заглушает отправителя мессенджера до конца раунда.
+malinov-messenger-mute-command-help = Использование: messengermute <имя>
+malinov-messenger-mute-command-success = Отправитель { $name } заглушен.
+malinov-messenger-unmute-command-description = Снимает глушение с отправителя мессенджера.
+malinov-messenger-unmute-command-help = Использование: messengerunmute <имя>
+malinov-messenger-unmute-command-success = Глушение с отправителя { $name } снято.
+malinov-messenger-command-wrong-arguments-number = Укажите ровно одно имя отправителя.
+malinov-messenger-command-no-server = Нет активного сервера мессенджера.
 
 device-frequency-malinov-messenger = Мессенджер Малинова

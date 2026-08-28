@@ -374,12 +374,20 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             return;
         }
 
+        if (IsRateLimited(session, now))
+        {
+            SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-rate-limited");
+            return;
+        }
+
         var maxLength = _cfg.GetCVar(CCVars.MalinovMessengerMaxMessageLength);
         if (text.Length > maxLength)
             text = text[..maxLength];
 
         // Ensure the sent message is visible in the currently-open conversation.
         session.SelectedContact = targetName;
+
+        session.SentTimestamps.Add(now);
 
         var payload = new NetworkPayload
         {
@@ -413,6 +421,21 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     {
         return TryComp<DeviceNetworkComponent>(loaderUid, out var device)
                && _deviceNetwork.IsAddressPresent(device.DeviceNetId, address);
+    }
+
+    /// <summary>
+    ///     Enforces the sliding rate-limit window on the sender side: no more than
+    ///     <see cref="CCVars.MalinovMessengerRateMaxMessages"/> messages per
+    ///     <see cref="CCVars.MalinovMessengerRateWindowSeconds"/>. Prunes stale timestamps.
+    /// </summary>
+    private bool IsRateLimited(MalinovMessengerCartridgeSessionComponent session, TimeSpan now)
+    {
+        var window = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds));
+        var maxMessages = _cfg.GetCVar(CCVars.MalinovMessengerRateMaxMessages);
+
+        session.SentTimestamps.RemoveAll(t => now - t > window);
+
+        return session.SentTimestamps.Count >= maxMessages;
     }
 
     #endregion

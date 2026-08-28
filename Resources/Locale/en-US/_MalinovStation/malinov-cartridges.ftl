@@ -17,11 +17,22 @@ malinov-messenger-error-offline = Recipient is offline or unknown.
 malinov-messenger-error-message-too-long = Message is too long.
 malinov-messenger-error-server-unavailable = Server unavailable.
 malinov-messenger-error-self = You cannot send messages to yourself.
+malinov-messenger-error-rate-limited = Too many messages, please wait.
+malinov-messenger-error-muted = You are muted by Central Command.
 malinov-messenger-no-idcard = Insert your ID card.
 malinov-messenger-notification-popup = New message from { $sender }
 
 
 malinov-messenger-server-online = via server
 malinov-messenger-server-unavailable = server unavailable
+
+malinov-messenger-mute-command-description = Mutes a messenger sender for the rest of the round.
+malinov-messenger-mute-command-help = Usage: messengermute <name>
+malinov-messenger-mute-command-success = Muted messenger sender { $name }.
+malinov-messenger-unmute-command-description = Unmutes a messenger sender.
+malinov-messenger-unmute-command-help = Usage: messengerunmute <name>
+malinov-messenger-unmute-command-success = Unmuted messenger sender { $name }.
+malinov-messenger-command-wrong-arguments-number = Usage: provide exactly one sender name.
+malinov-messenger-command-no-server = No active messenger server.
 
 device-frequency-malinov-messenger = Malinov Messenger

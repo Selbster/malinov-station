@@ -7,6 +7,6 @@
 - [x] Этап 4 — сервер-ретранслятор через vanilla `TelecomServer` (commit: TBD, CI: green)
   - Ручной тест-кейс: [Docs/messenger-test-case.md](messenger-test-case.md)
 - [x] Этап 5 — уведомления (commit: TBD, CI: green)
-- [ ] Этап 6 — анти-спам
+- [x] Этап 6 — антиспам и глушение (commit: TBD, CI: green)
 - [ ] Этап 7 — админ-логи
 - [ ] Этап 8 — полировка

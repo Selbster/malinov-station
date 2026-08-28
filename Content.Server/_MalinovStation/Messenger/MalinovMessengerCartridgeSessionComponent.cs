@@ -75,6 +75,12 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
     public TimeSpan LastDirectoryRequestTime;
+
+    /// <summary>
+    ///     Timestamps of recently sent messages used to enforce the outbound rate-limit window.
+    ///     Old entries are pruned on each send.
+    /// </summary>
+    public List<TimeSpan> SentTimestamps = new();
 }
 
 /// <summary>

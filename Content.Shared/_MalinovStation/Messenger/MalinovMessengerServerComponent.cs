@@ -11,4 +11,11 @@ public sealed partial class MalinovMessengerServerComponent : Component
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
     public Dictionary<string, string> Directory = new();
+
+    /// <summary>
+    ///     Sender display names that are muted by admins and must be silently dropped
+    ///     by the relay. Lives for the duration of the round only.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public HashSet<string> Muted = new();
 }

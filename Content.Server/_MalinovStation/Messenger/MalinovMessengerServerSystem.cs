@@ -2,9 +2,12 @@ using Content.Server.DeviceNetwork.Components;
 using Content.Server.DeviceNetwork.Systems;
 using Content.Server.Power.Components;
 using Content.Shared._MalinovStation.Messenger;
+using Content.Shared.CCVar;
 using Content.Shared.DeviceNetwork;
 using Content.Shared.DeviceNetwork.Components;
 using Content.Shared.DeviceNetwork.Events;
+using Robust.Shared.Configuration;
+using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.Messenger;
 
@@ -15,6 +18,14 @@ namespace Content.Server._MalinovStation.Messenger;
 public sealed partial class MalinovMessengerServerSystem : EntitySystem
 {
     [Dependency] private DeviceNetworkSystem _deviceNetwork = default!;
+    [Dependency] private IConfigurationManager _cfg = default!;
+    [Dependency] private IGameTiming _timing = default!;
+
+    /// <summary>
+    ///     Per-sender-name timestamps of messages routed through the relay, used to duplicate
+    ///     the sender-side rate-limit and protect against clients that bypass it.
+    /// </summary>
+    private readonly Dictionary<string, List<TimeSpan>> _rateWindows = new();
 
     public override void Initialize()
     {
@@ -55,11 +66,15 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
     private void OnRemove(EntityUid uid, MalinovMessengerServerComponent component, ComponentRemove args)
     {
         component.Directory.Clear();
+        component.Muted.Clear();
+        _rateWindows.Clear();
     }
 
     private void OnDisconnected(EntityUid uid, MalinovMessengerServerComponent component, ref DeviceNetServerDisconnectedEvent args)
     {
         component.Directory.Clear();
+        component.Muted.Clear();
+        _rateWindows.Clear();
     }
 
     private void HandleAnnounce(EntityUid uid, MalinovMessengerServerComponent component, DeviceNetworkPacketEvent args)
@@ -123,6 +138,18 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
             return;
         }
 
+        if (component.Muted.Contains(senderName))
+        {
+            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-muted");
+            return;
+        }
+
+        if (IsRelayRateLimited(senderName))
+        {
+            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-rate-limited");
+            return;
+        }
+
         if (!args.Data.TryGetValue(MalinovMessengerConstants.TextKey, out var textObj) || textObj is not string text)
         {
             ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline");
@@ -137,6 +164,54 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         };
 
         _deviceNetwork.QueuePacket(uid, targetAddress, payload, MalinovMessengerConstants.Frequency);
+    }
+
+    /// <summary>
+    ///     Mutes a sender name for the rest of the round. Muted senders are silently dropped
+    ///     by the relay and notified with the mute error.
+    /// </summary>
+    public void Mute(EntityUid uid, string name)
+    {
+        if (!TryComp<MalinovMessengerServerComponent>(uid, out var component))
+            return;
+
+        component.Muted.Add(name);
+    }
+
+    /// <summary>
+    ///     Unmutes a previously muted sender name, restoring their message delivery.
+    /// </summary>
+    public void Unmute(EntityUid uid, string name)
+    {
+        if (!TryComp<MalinovMessengerServerComponent>(uid, out var component))
+            return;
+
+        component.Muted.Remove(name);
+    }
+
+    /// <summary>
+    ///     Server-side duplication of the sender rate-limit, guarding against clients that
+    ///     bypass their local check. Prunes stale entries per sender.
+    /// </summary>
+    private bool IsRelayRateLimited(string senderName)
+    {
+        var window = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds));
+        var maxMessages = _cfg.GetCVar(CCVars.MalinovMessengerRateMaxMessages);
+        var now = _timing.CurTime;
+
+        if (!_rateWindows.TryGetValue(senderName, out var timestamps))
+        {
+            timestamps = new List<TimeSpan>();
+            _rateWindows[senderName] = timestamps;
+        }
+
+        timestamps.RemoveAll(t => now - t > window);
+
+        if (timestamps.Count >= maxMessages)
+            return true;
+
+        timestamps.Add(now);
+        return false;
     }
 
     private void ReplyError(EntityUid uid, string senderAddress, string errorKey)

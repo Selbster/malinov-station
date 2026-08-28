@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Content.IntegrationTests.Fixtures;
+using Content.Server.Administration;
 using Content.Server._MalinovStation.Messenger;
 using Content.Server.Power.Components;
 using Content.Server.Station.Systems;
@@ -1585,6 +1586,340 @@ public sealed class MalinovMessengerTest : GameTest
         {
             server.CfgMan.SetCVar(CCVars.MalinovMessengerSoundEnabled, CCVars.MalinovMessengerSoundEnabled.DefaultValue);
         });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task RateLimit_BlocksThirdInWindowThenRecovers()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        await server.WaitPost(() =>
+        {
+            server.CfgMan.SetCVar(CCVars.MalinovMessengerRateWindowSeconds, 10);
+            server.CfgMan.SetCVar(CCVars.MalinovMessengerRateMaxMessages, 2);
+        });
+
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+        });
+
+        await server.WaitRunTicks(5);
+
+        // First two messages within the window are delivered.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A1"), Is.True);
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A2"), Is.True);
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            Assert.That(sessions2[senderName], Has.Count.EqualTo(2),
+                "Both messages within the window should be delivered");
+        });
+
+        // Third message within the same window is dropped.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3"), Is.False,
+                "Third message in the window should be rate-limited");
+
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-rate-limited"),
+                "Sender should see the rate-limit error");
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            Assert.That(sessions2[senderName], Has.Count.EqualTo(2),
+                "Recipient history should not be extended by the rate-limited message");
+        });
+
+        // Wait until the window expires, then sending works again.
+        await pair.RunSeconds(11);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A4"), Is.True,
+                "Sending after the window expires should succeed");
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            Assert.That(sessions2[senderName], Has.Count.EqualTo(3),
+                "Message after window expiry should be delivered");
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.CfgMan.SetCVar(CCVars.MalinovMessengerRateWindowSeconds, CCVars.MalinovMessengerRateWindowSeconds.DefaultValue);
+            server.CfgMan.SetCVar(CCVars.MalinovMessengerRateMaxMessages, CCVars.MalinovMessengerRateMaxMessages.DefaultValue);
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task Mute_BlocksDeliveryUntilUnmute()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var serverSystem = entSysMan.GetEntitySystem<MalinovMessengerServerSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid relay = default;
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            relay = SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+        });
+
+        await server.WaitRunTicks(5);
+
+        // Sanity: delivery works before muting.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "Before"), Is.True);
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            serverSystem.Mute(relay, senderName);
+        });
+        await server.WaitRunTicks(2);
+
+        // Muted sender's message is queued but dropped by the relay; the rejection
+        // is reported asynchronously and the recipient never receives it.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "Muted1"), Is.True,
+                "Muted message is queued; the relay reports the rejection asynchronously");
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-muted"),
+                "Muted sender should receive the muted error");
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            Assert.That(sessions2[senderName], Has.Count.EqualTo(1),
+                "Recipient should not receive message while sender is muted");
+        });
+
+        // Unmute restores delivery.
+        await server.WaitAssertion(() =>
+        {
+            serverSystem.Unmute(relay, senderName);
+        });
+        await server.WaitRunTicks(2);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "After"), Is.True,
+                "Delivery should be restored after unmute");
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            Assert.That(sessions2[senderName], Has.Count.EqualTo(2),
+                "Message after unmute should be delivered");
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task MuteCommand_RequiresAdminRights()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        await server.WaitRunTicks(1);
+
+        // The mute/unmute commands must be gated behind the Admin flag. The console system
+        // refuses to invoke an [AdminCommand]-marked command for a player lacking the flag,
+        // so verifying the attribute on both command types proves they are admin-only.
+        Assert.That(typeof(MessengerMuteCommand).GetCustomAttributes(
+            typeof(AdminCommandAttribute), inherit: false), Has.Length.EqualTo(1),
+            "messengermute must be marked [AdminCommand(AdminFlags.Admin)]");
+        Assert.That(typeof(MessengerUnmuteCommand).GetCustomAttributes(
+            typeof(AdminCommandAttribute), inherit: false), Has.Length.EqualTo(1),
+            "messengerunmute must be marked [AdminCommand(AdminFlags.Admin)]");
 
         await server.WaitIdleAsync();
     }
