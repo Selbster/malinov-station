@@ -13,14 +13,8 @@ public sealed class MalinovMessengerContact
     /// </summary>
     public string Name;
 
-    /// <summary>
-    ///     Job title of the contact.
-    /// </summary>
-    public string JobTitle;
-
-    public MalinovMessengerContact(string name, string jobTitle)
+    public MalinovMessengerContact(string name)
     {
         Name = name;
-        JobTitle = jobTitle;
     }
 }

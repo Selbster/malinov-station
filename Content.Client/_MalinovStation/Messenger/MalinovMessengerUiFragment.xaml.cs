@@ -96,7 +96,6 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
 
             ContactsList.AddItem(Loc.GetString("malinov-messenger-contact-format-status",
                 ("name", contact.Name),
-                ("job", contact.JobTitle),
                 ("status", statusText)));
 
             if (contact.Name == _selectedContact)

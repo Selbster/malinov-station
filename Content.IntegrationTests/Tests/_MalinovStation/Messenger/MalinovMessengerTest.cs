@@ -205,7 +205,6 @@ public sealed class MalinovMessengerTest : GameTest
             Assert.That(state.Status, Is.Empty);
             Assert.That(state.Contacts, Has.Count.EqualTo(1));
             Assert.That(state.Contacts[0].Name, Is.EqualTo(testName));
-            Assert.That(state.Contacts[0].JobTitle, Is.EqualTo(testJobTitle));
         });
 
         await server.WaitRunTicks(2);

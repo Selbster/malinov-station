@@ -612,7 +612,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
                 if (entry.Name == session.IdentityName)
                     continue;
 
-                contacts.Add(new MalinovMessengerContact(entry.Name, entry.JobTitle));
+                contacts.Add(new MalinovMessengerContact(entry.Name));
             }
         }
 
