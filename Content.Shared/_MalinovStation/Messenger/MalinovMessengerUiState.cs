@@ -20,12 +20,6 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     public string Status;
 
     /// <summary>
-    ///     Localization key describing the server relay mode
-    ///     (e.g. "via server" or "server unavailable").
-    /// </summary>
-    public string ServerStatus;
-
-    /// <summary>
     ///     Name of the currently selected contact.
     /// </summary>
     public string? SelectedContact;
@@ -36,11 +30,6 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     public List<MalinovMessengerMessage> Messages;
 
     /// <summary>
-    ///     Names of contacts currently considered online.
-    /// </summary>
-    public HashSet<string> OnlineNames;
-
-    /// <summary>
     ///     Whether the account identity of this cartridge is muted by the relay.
     /// </summary>
     public bool IsMuted;
@@ -48,18 +37,14 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     public MalinovMessengerUiState(
         List<MalinovMessengerContact>? contacts = null,
         string? status = null,
-        string? serverStatus = null,
         string? selectedContact = null,
         List<MalinovMessengerMessage>? messages = null,
-        HashSet<string>? onlineNames = null,
         bool isMuted = false)
     {
         Contacts = contacts ?? new List<MalinovMessengerContact>();
         Status = status ?? string.Empty;
-        ServerStatus = serverStatus ?? string.Empty;
         SelectedContact = selectedContact;
         Messages = messages ?? new List<MalinovMessengerMessage>();
-        OnlineNames = onlineNames ?? new HashSet<string>();
         IsMuted = isMuted;
     }
 }

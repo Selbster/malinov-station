@@ -674,9 +674,6 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         }
 
         GetServerAddress(loaderUid, session);
-        var serverStatus = session.ServerAvailable
-            ? "malinov-messenger-server-online"
-            : "malinov-messenger-server-unavailable";
 
         var (_, entries) = _crewManifest.GetCrewManifest(owningStation.Value);
         var contacts = new List<MalinovMessengerContact>();
@@ -696,22 +693,13 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         if (session.SelectedContact == session.IdentityName)
             session.SelectedContact = null;
 
-        var now = _timing.CurTime;
-        var onlineNames = new HashSet<string>();
-
-        foreach (var (name, peer) in session.Peers)
-        {
-            if (peer.Expiry >= now)
-                onlineNames.Add(name);
-        }
-
         var status = session.LastError ?? string.Empty;
         var sessions = GetSessionDictionary(session);
         var messages = session.SelectedContact != null && sessions.TryGetValue(session.SelectedContact, out var lines)
             ? lines
             : new List<MalinovMessengerMessage>();
 
-        var state = new MalinovMessengerUiState(contacts, status, serverStatus, session.SelectedContact, messages, onlineNames, session.IsMuted);
+        var state = new MalinovMessengerUiState(contacts, status, session.SelectedContact, messages, session.IsMuted);
         _cartridgeLoader.UpdateCartridgeUiState(loaderUid, state);
     }
 

@@ -3,9 +3,6 @@ malinov-messenger-no-contacts = Пока нет контактов.
 malinov-messenger-contacts-header = Контакты
 malinov-messenger-manifest-unavailable = Станционный манифест недоступен.
 malinov-messenger-contact-format = { $name }
-malinov-messenger-contact-format-status = { $name } ({ $status })
-malinov-messenger-status-online = в сети
-malinov-messenger-status-offline = не в сети
 malinov-messenger-input-hint = Введите сообщение…
 malinov-messenger-send-button = Отправить
 malinov-messenger-close-chat-button = Закрыть
@@ -25,7 +22,6 @@ malinov-messenger-no-idcard = Вставьте свою ID-карту.
 malinov-messenger-notification-popup = Новое сообщение от { $sender }
 
 
-malinov-messenger-server-online = через сервер
 malinov-messenger-server-unavailable = сервер недоступен
 
 malinov-messenger-mute-command-description = Заглушает отправителя мессенджера до конца раунда.

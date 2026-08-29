@@ -19,7 +19,6 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
     public event Action? OnCloseChat;
 
     private List<MalinovMessengerContact> _contacts = new();
-    private HashSet<string> _onlineNames = new();
     private string? _selectedContact;
     private bool _updating;
     private bool _pendingScrollToBottom;
@@ -68,7 +67,6 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
     {
         _updating = true;
         _contacts = state.Contacts;
-        _onlineNames = state.OnlineNames;
         _selectedContact = state.SelectedContact;
         CloseChatButton.Visible = _selectedContact != null;
 
@@ -112,15 +110,9 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         for (var i = 0; i < state.Contacts.Count; i++)
         {
             var contact = state.Contacts[i];
-            var isOnline = state.OnlineNames.Contains(contact.Name);
-            var statusKey = isOnline
-                ? "malinov-messenger-status-online"
-                : "malinov-messenger-status-offline";
-            var statusText = Loc.GetString(statusKey);
 
-            ContactsList.AddItem(Loc.GetString("malinov-messenger-contact-format-status",
-                ("name", contact.Name),
-                ("status", statusText)));
+            ContactsList.AddItem(Loc.GetString("malinov-messenger-contact-format",
+                ("name", contact.Name)));
 
             if (contact.Name == _selectedContact)
                 ContactsList[i].Selected = true;

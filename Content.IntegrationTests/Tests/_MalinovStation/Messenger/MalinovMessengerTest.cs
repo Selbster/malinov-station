@@ -962,8 +962,6 @@ public sealed class MalinovMessengerTest : GameTest
                 "Sender UI state should be set");
             Assert.That(state.Status, Is.EqualTo("malinov-messenger-server-unavailable"),
                 "Sender UI state should expose the server-unavailable error");
-            Assert.That(state.ServerStatus, Is.EqualTo("malinov-messenger-server-unavailable"),
-                "Sender UI state should show the server-unavailable mode");
         });
 
         await server.WaitIdleAsync();

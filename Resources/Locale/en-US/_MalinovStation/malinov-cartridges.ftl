@@ -3,9 +3,6 @@ malinov-messenger-no-contacts = No contacts yet.
 malinov-messenger-contacts-header = Contacts
 malinov-messenger-manifest-unavailable = Station manifest unavailable.
 malinov-messenger-contact-format = { $name }
-malinov-messenger-contact-format-status = { $name } ({ $status })
-malinov-messenger-status-online = online
-malinov-messenger-status-offline = offline
 malinov-messenger-input-hint = Enter message…
 malinov-messenger-send-button = Send
 malinov-messenger-close-chat-button = Close
@@ -25,7 +22,6 @@ malinov-messenger-no-idcard = Insert your ID card.
 malinov-messenger-notification-popup = New message from { $sender }
 
 
-malinov-messenger-server-online = via server
 malinov-messenger-server-unavailable = server unavailable
 
 malinov-messenger-mute-command-description = Mutes a messenger sender for the rest of the round.
