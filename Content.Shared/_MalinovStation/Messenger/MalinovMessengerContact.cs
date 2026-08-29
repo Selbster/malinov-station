@@ -13,8 +13,14 @@ public sealed class MalinovMessengerContact
     /// </summary>
     public string Name;
 
-    public MalinovMessengerContact(string name)
+    /// <summary>
+    ///     True when the contact has messages the player has not read yet.
+    /// </summary>
+    public bool HasUnread;
+
+    public MalinovMessengerContact(string name, bool hasUnread = false)
     {
         Name = name;
+        HasUnread = hasUnread;
     }
 }

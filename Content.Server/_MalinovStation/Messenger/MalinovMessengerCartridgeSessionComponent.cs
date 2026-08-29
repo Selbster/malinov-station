@@ -65,6 +65,13 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     public bool IsProgramActive;
 
     /// <summary>
+    ///     Contacts with messages the player has not read. Cleared when the conversation
+    ///     is opened (or already visible in the open messenger window).
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public HashSet<string> UnreadContacts = new();
+
+    /// <summary>
     ///     Whether this account identity is currently muted by the relay. The mute list is
     ///     delivered with directory broadcasts and mirrored by the relay error reply.
     /// </summary>

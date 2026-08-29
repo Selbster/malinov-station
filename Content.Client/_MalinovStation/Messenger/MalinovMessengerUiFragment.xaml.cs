@@ -25,6 +25,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
     private bool _justSent;
     private bool _prevHadMessages;
     private string? _prevSelectedContact;
+    private long _lastOutgoingId;
 
     private const float AtBottomThreshold = 32f;
 
@@ -111,7 +112,9 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         {
             var contact = state.Contacts[i];
 
-            ContactsList.AddItem(Loc.GetString("malinov-messenger-contact-format",
+            ContactsList.AddItem(Loc.GetString(contact.HasUnread
+                ? "malinov-messenger-contact-format-unread"
+                : "malinov-messenger-contact-format",
                 ("name", contact.Name)));
 
             if (contact.Name == _selectedContact)
@@ -130,6 +133,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
             _pendingScrollToBottom = false;
             _justSent = false;
             _prevHadMessages = false;
+            _lastOutgoingId = 0;
         }
         else
         {
@@ -139,7 +143,18 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
             }
 
             var conversationChanged = _prevSelectedContact != state.SelectedContact;
-            var stickToBottom = _justSent || conversationChanged || !_prevHadMessages || WasAtBottom();
+            if (conversationChanged)
+                _lastOutgoingId = 0;
+
+            // A new outgoing message always scrolls the chat to it. Tracked by id so the
+            // scroll survives the full ChatContainer rebuild regardless of when _justSent
+            // gets cleared by intermediate state updates.
+            var last = state.Messages[^1];
+            var newOutgoing = last.Outgoing && last.Id != _lastOutgoingId;
+            if (newOutgoing)
+                _lastOutgoingId = last.Id;
+
+            var stickToBottom = newOutgoing || _justSent || conversationChanged || !_prevHadMessages || WasAtBottom();
             _justSent = false;
             _prevHadMessages = true;
             _prevSelectedContact = state.SelectedContact;

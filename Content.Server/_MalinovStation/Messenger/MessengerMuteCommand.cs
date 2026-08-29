@@ -10,7 +10,7 @@ namespace Content.Server._MalinovStation.Messenger;
 ///     The target is the ID card owner name of the messenger account.
 /// </summary>
 [AdminCommand(AdminFlags.Admin)]
-public sealed class MessengerMuteCommand : IConsoleCommand
+public sealed partial class MessengerMuteCommand : IConsoleCommand
 {
     [Dependency] private IEntityManager _entManager = default!;
 

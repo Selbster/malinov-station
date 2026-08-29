@@ -3,6 +3,7 @@ malinov-messenger-no-contacts = No contacts yet.
 malinov-messenger-contacts-header = Contacts
 malinov-messenger-manifest-unavailable = Station manifest unavailable.
 malinov-messenger-contact-format = { $name }
+malinov-messenger-contact-format-unread = { $name } •
 malinov-messenger-input-hint = Enter message…
 malinov-messenger-send-button = Send
 malinov-messenger-close-chat-button = Close

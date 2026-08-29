@@ -20,6 +20,7 @@ using Content.Shared.Radio.Components;
 using Robust.Shared.Audio;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Configuration;
+using Robust.Shared.GameObjects;
 using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.Messenger;
@@ -45,6 +46,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private IAdminLogManager _adminLog = default!;
+    [Dependency] private SharedUserInterfaceSystem _uiSystem = default!;
 
     public override void Initialize()
     {
@@ -316,6 +318,8 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         {
             case MalinovMessengerUiAction.RefreshContacts:
                 session.SelectedContact = msg.TargetName;
+                if (msg.TargetName != null)
+                    session.UnreadContacts.Remove(msg.TargetName);
                 session.LastError = null;
                 UpdateUiState(ent, loaderUid, session: session);
                 break;
@@ -392,6 +396,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         // sender's own chat immediately, even while the local peer cache is still warming
         // up or under a rate-limit burst.
         session.SelectedContact = targetName;
+        session.UnreadContacts.Remove(targetName);
 
         var messageId = ++session.NextMessageId;
 
@@ -522,13 +527,20 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         var message = new MalinovMessengerMessage(sender, text, _timing.CurTime, outgoing: false);
         AddSessionMessage(session, sender, message);
 
-        // If the user has not selected a contact yet, automatically open the conversation with the sender.
-        session.SelectedContact ??= sender;
+        // Suppress the notification only when the player is actually looking at this
+        // conversation: the PDA window is open, the messenger is the active program and
+        // the receiving conversation is selected. Any other state (window closed, other
+        // program active, other conversation open) still notifies.
+        var windowOpen = IsWindowOpen(loaderUid);
+        var viewing = session.IsProgramActive && windowOpen && session.SelectedContact == sender;
 
-        if (!session.IsProgramActive)
-        {
-            NotifyIncomingMessage(loaderUid, sender);
-        }
+        if (!viewing)
+            session.UnreadContacts.Add(sender);
+
+        if (viewing)
+            return;
+
+        NotifyIncomingMessage(loaderUid, sender);
     }
 
     private void NotifyIncomingMessage(EntityUid loaderUid, string sender)
@@ -657,6 +669,15 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
     #endregion
 
+    /// <summary>
+    ///     Server-side check whether the PDA window is currently open: the window is
+    ///     "open" while at least one actor is subscribed to the PDA's own UI.
+    /// </summary>
+    private bool IsWindowOpen(EntityUid loaderUid)
+    {
+        return _uiSystem.IsUiOpen((loaderUid, null), PdaUiKey.Key);
+    }
+
     #region UI state helpers
 
     private void UpdateUiState(
@@ -681,6 +702,15 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
         GetServerAddress(loaderUid, session);
 
+        // The messenger screen is visible: the currently selected conversation is read
+        // until a new message arrives in a different one.
+        if (session.SelectedContact is { } selected
+            && session.IsProgramActive
+            && IsWindowOpen(loaderUid))
+        {
+            session.UnreadContacts.Remove(selected);
+        }
+
         var (_, entries) = _crewManifest.GetCrewManifest(owningStation.Value);
         var contacts = new List<MalinovMessengerContact>();
 
@@ -691,7 +721,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
                 if (entry.Name == session.IdentityName)
                     continue;
 
-                contacts.Add(new MalinovMessengerContact(entry.Name));
+                contacts.Add(new MalinovMessengerContact(entry.Name, session.UnreadContacts.Contains(entry.Name)));
             }
         }
 
