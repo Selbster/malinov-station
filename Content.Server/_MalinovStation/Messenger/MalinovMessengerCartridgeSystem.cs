@@ -321,6 +321,12 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
                 if (!string.IsNullOrWhiteSpace(msg.TargetName) && !string.IsNullOrWhiteSpace(msg.Text))
                     SendMessage(ent, ent.Comp, session, loaderUid, msg.TargetName, msg.Text);
                 break;
+
+            case MalinovMessengerUiAction.CloseChat:
+                session.SelectedContact = null;
+                session.LastError = null;
+                UpdateUiState(ent, loaderUid, session: session);
+                break;
         }
     }
 
@@ -361,22 +367,15 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             return;
         }
 
+        if (session.IsMuted)
+        {
+            SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-muted");
+            return;
+        }
+
         if (targetName == session.IdentityName)
         {
             SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-self");
-            return;
-        }
-
-        var now = _timing.CurTime;
-        if (!session.Peers.TryGetValue(targetName, out var peer) || peer.Expiry < now)
-        {
-            SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-offline");
-            return;
-        }
-
-        if (IsRateLimited(session, now))
-        {
-            SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-rate-limited");
             return;
         }
 
@@ -384,10 +383,14 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         if (text.Length > maxLength)
             text = text[..maxLength];
 
-        // Ensure the sent message is visible in the currently-open conversation.
+        // The message is appended optimistically and the relay is the delivery authority:
+        // a delivery failure comes back asynchronously as an error reply and removes the
+        // message back from the sender's history. This keeps every send visible in the
+        // sender's own chat immediately, even while the local peer cache is still warming
+        // up or under a rate-limit burst.
         session.SelectedContact = targetName;
 
-        session.SentTimestamps.Add(now);
+        var messageId = ++session.NextMessageId;
 
         var payload = new NetworkPayload
         {
@@ -395,11 +398,12 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             [MalinovMessengerConstants.SenderNameKey] = session.IdentityName,
             [MalinovMessengerConstants.TargetKey] = targetName,
             [MalinovMessengerConstants.TextKey] = text,
+            [MalinovMessengerConstants.MessageIdKey] = messageId,
         };
 
         _deviceNetwork.QueuePacket(loaderUid, serverAddress, payload, MalinovMessengerConstants.Frequency);
 
-        var message = new MalinovMessengerMessage(session.IdentityName, text, _timing.CurTime, outgoing: true);
+        var message = new MalinovMessengerMessage(session.IdentityName, text, _timing.CurTime, outgoing: true, messageId);
         AddSessionMessage(session, targetName, message);
 
         session.LastError = null;
@@ -415,27 +419,6 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     {
         session.LastError = errorKey;
         UpdateUiState(uid, loaderUid, component, session);
-    }
-
-    private bool IsPeerReachable(EntityUid loaderUid, string address)
-    {
-        return TryComp<DeviceNetworkComponent>(loaderUid, out var device)
-               && _deviceNetwork.IsAddressPresent(device.DeviceNetId, address);
-    }
-
-    /// <summary>
-    ///     Enforces the sliding rate-limit window on the sender side: no more than
-    ///     <see cref="CCVars.MalinovMessengerRateMaxMessages"/> messages per
-    ///     <see cref="CCVars.MalinovMessengerRateWindowSeconds"/>. Prunes stale timestamps.
-    /// </summary>
-    private bool IsRateLimited(MalinovMessengerCartridgeSessionComponent session, TimeSpan now)
-    {
-        var window = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds));
-        var maxMessages = _cfg.GetCVar(CCVars.MalinovMessengerRateMaxMessages);
-
-        session.SentTimestamps.RemoveAll(t => now - t > window);
-
-        return session.SentTimestamps.Count >= maxMessages;
     }
 
     #endregion
@@ -509,8 +492,19 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             text = text[..maxLength];
 
         // Server-side delivery error: empty sender name marks a relay-level failure.
+        // The outgoing message is correlated back via its id and rolled back (removed
+        // from the sender's history) because the relay is the delivery authority.
         if (string.IsNullOrEmpty(sender))
         {
+            var messageId = packet.Data.TryGetValue(MalinovMessengerConstants.MessageIdKey, out var idObj) && idObj is long idValue
+                ? idValue
+                : 0L;
+
+            RollbackPendingOutgoing(session, messageId);
+
+            if (text == "malinov-messenger-error-muted")
+                session.IsMuted = true;
+
             SetSendError(uid, loaderUid, component, session, text);
             return;
         }
@@ -594,6 +588,65 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
             session.Peers[name] = new PeerCache(address, expiry);
         }
+
+        if (packet.Data.TryGetValue(MalinovMessengerConstants.MutedNamesKey, out var mutedObj)
+            && mutedObj is string[] mutedNames
+            && !string.IsNullOrWhiteSpace(session.IdentityName))
+        {
+            session.IsMuted = Array.IndexOf(mutedNames, session.IdentityName) >= 0;
+        }
+    }
+
+    /// <summary>
+    ///     Rolls back the outgoing message referenced by a relay delivery-error reply.
+    ///     The relay is the delivery authority: an error means the message never reached
+    ///     the recipient, so it is removed from the sender's history. The id is
+    ///     authoritative; when it is missing, the most recent outgoing message is rolled
+    ///     back instead as a best-effort fallback.
+    /// </summary>
+    private void RollbackPendingOutgoing(MalinovMessengerCartridgeSessionComponent session, long messageId)
+    {
+        var sessions = GetSessionDictionary(session);
+
+        if (messageId != 0)
+        {
+            foreach (var (_, history) in sessions)
+            {
+                for (var i = history.Count - 1; i >= 0; i--)
+                {
+                    if (history[i].Outgoing && history[i].Id == messageId)
+                    {
+                        history.RemoveAt(i);
+                        return;
+                    }
+                }
+            }
+
+            // The id was not found (e.g. already trimmed); fall through to the newest outgoing.
+        }
+
+        MalinovMessengerMessage? newest = null;
+        List<MalinovMessengerMessage>? newestHistory = null;
+        var newestIndex = -1;
+
+        foreach (var (_, history) in sessions)
+        {
+            for (var i = history.Count - 1; i >= 0; i--)
+            {
+                if (!history[i].Outgoing)
+                    continue;
+
+                if (newest == null || history[i].Timestamp > newest.Timestamp)
+                {
+                    newest = history[i];
+                    newestHistory = history;
+                    newestIndex = i;
+                }
+            }
+        }
+
+        if (newest != null && newestHistory != null && newestIndex >= 0)
+            newestHistory.RemoveAt(newestIndex);
     }
 
     #endregion
@@ -658,7 +711,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             ? lines
             : new List<MalinovMessengerMessage>();
 
-        var state = new MalinovMessengerUiState(contacts, status, serverStatus, session.SelectedContact, messages, onlineNames);
+        var state = new MalinovMessengerUiState(contacts, status, serverStatus, session.SelectedContact, messages, onlineNames, session.IsMuted);
         _cartridgeLoader.UpdateCartridgeUiState(loaderUid, state);
     }
 

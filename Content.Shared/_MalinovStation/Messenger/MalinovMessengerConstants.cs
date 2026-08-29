@@ -43,6 +43,16 @@ public static class MalinovMessengerConstants
     public const string EntriesKey = "entries";
 
     /// <summary>
+    ///     Payload key for the per-sender message id used to correlate relay delivery errors.
+    /// </summary>
+    public const string MessageIdKey = "msg_id";
+
+    /// <summary>
+    ///     Payload key for the list of sender names currently muted by the server relay.
+    /// </summary>
+    public const string MutedNamesKey = "muted_names";
+
+    /// <summary>
     ///     Sound collection played for incoming messenger notifications.
     /// </summary>
     public const string NotificationSoundCollection = "malinov_messenger_notification";

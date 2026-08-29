@@ -40,13 +40,19 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     /// </summary>
     public HashSet<string> OnlineNames;
 
+    /// <summary>
+    ///     Whether the account identity of this cartridge is muted by the relay.
+    /// </summary>
+    public bool IsMuted;
+
     public MalinovMessengerUiState(
         List<MalinovMessengerContact>? contacts = null,
         string? status = null,
         string? serverStatus = null,
         string? selectedContact = null,
         List<MalinovMessengerMessage>? messages = null,
-        HashSet<string>? onlineNames = null)
+        HashSet<string>? onlineNames = null,
+        bool isMuted = false)
     {
         Contacts = contacts ?? new List<MalinovMessengerContact>();
         Status = status ?? string.Empty;
@@ -54,5 +60,6 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
         SelectedContact = selectedContact;
         Messages = messages ?? new List<MalinovMessengerMessage>();
         OnlineNames = onlineNames ?? new HashSet<string>();
+        IsMuted = isMuted;
     }
 }

@@ -28,11 +28,18 @@ public sealed class MalinovMessengerMessage
     /// </summary>
     public bool Outgoing;
 
-    public MalinovMessengerMessage(string senderName, string text, TimeSpan timestamp, bool outgoing)
+    /// <summary>
+    ///     Unique-per-session id of an outgoing message. Zero for incoming messages
+    ///     and for messages that predate id tracking.
+    /// </summary>
+    public long Id;
+
+    public MalinovMessengerMessage(string senderName, string text, TimeSpan timestamp, bool outgoing, long id = 0)
     {
         SenderName = senderName;
         Text = text;
         Timestamp = timestamp;
         Outgoing = outgoing;
+        Id = id;
     }
 }

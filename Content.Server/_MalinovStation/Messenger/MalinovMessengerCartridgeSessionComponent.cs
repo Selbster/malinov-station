@@ -65,6 +65,19 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     public bool IsProgramActive;
 
     /// <summary>
+    ///     Whether this account identity is currently muted by the relay. The mute list is
+    ///     delivered with directory broadcasts and mirrored by the relay error reply.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public bool IsMuted;
+
+    /// <summary>
+    ///     Monotonic counter used to generate unique ids for outgoing messages,
+    ///     allowing delivery-error replies to correlate and roll back the right message.
+    /// </summary>
+    public long NextMessageId;
+
+    /// <summary>
     ///     Last time an announce was sent to the server.
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
@@ -75,12 +88,6 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
     public TimeSpan LastDirectoryRequestTime;
-
-    /// <summary>
-    ///     Timestamps of recently sent messages used to enforce the outbound rate-limit window.
-    ///     Old entries are pruned on each send.
-    /// </summary>
-    public List<TimeSpan> SentTimestamps = new();
 }
 
 /// <summary>

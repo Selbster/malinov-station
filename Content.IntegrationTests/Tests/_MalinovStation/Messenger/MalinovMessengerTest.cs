@@ -442,6 +442,138 @@ public sealed class MalinovMessengerTest : GameTest
     }
 
     [Test]
+    public async Task MessengerUiCloseChatClearsSelection()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid program = default;
+
+        await server.WaitAssertion(() =>
+        {
+            SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+
+            program = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+        });
+
+        // Wait for the cartridge Update loop to announce presence and build the directory.
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(program, recipientName, "Hello"), Is.True,
+                "Sending a message should succeed against an online contact");
+        });
+
+        await server.WaitRunTicks(2);
+
+        await server.WaitAssertion(() =>
+        {
+            var session = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(program);
+            Assert.That(session.SelectedContact, Is.EqualTo(recipientName),
+                "Sending should select the recipient conversation");
+
+            // Simulate the client refreshing the selected contact through the UI message path.
+            // Raised through the base type so the relay-style subscription matches.
+            CartridgeMessageEvent refresh =
+                new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.RefreshContacts, targetName: recipientName)
+                {
+                    LoaderUid = entityManager.GetNetEntity(pda1)
+                };
+            entityManager.EventBus.RaiseLocalEvent(program, refresh);
+
+            Assert.That(session.SelectedContact, Is.EqualTo(recipientName),
+                "RefreshContacts should keep the recipient selected");
+
+            CartridgeMessageEvent close = new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.CloseChat)
+            {
+                LoaderUid = entityManager.GetNetEntity(pda1)
+            };
+            entityManager.EventBus.RaiseLocalEvent(program, close);
+
+            Assert.That(session.SelectedContact, Is.Null,
+                "CloseChat should clear the selected contact");
+
+            var sessions = GetAccountSessions(entityManager, session);
+            Assert.That(sessions, Does.ContainKey(recipientName),
+                "Closing a chat must not erase the conversation history");
+
+            var evt = new CartridgeUiReadyEvent(pda1);
+            entityManager.EventBus.RaiseLocalEvent(program, ref evt);
+
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda1, PdaUiKey.Key, out var state), Is.True,
+                "Messenger UI state should be set after closing the chat");
+            Assert.That(state.SelectedContact, Is.Null,
+                "UI state should report no selected contact after close");
+            Assert.That(state.Messages, Is.Empty,
+                "UI state should not show messages for a closed conversation");
+        });
+
+        await server.WaitRunTicks(2);
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
     public async Task MessengerServer_CannotSendToSelf()
     {
         var pair = Pair;
@@ -709,14 +841,29 @@ public sealed class MalinovMessengerTest : GameTest
 
         await server.WaitRunTicks(5);
 
+        // An unknown recipient is queued optimistically (immediately visible to the sender)
+        // and then rolled back when the relay reports it back as a delivery failure.
         await server.WaitAssertion(() =>
         {
-            var result = messengerSystem.TrySendMessage(prog1, "Unknown Person", "test");
-            Assert.That(result, Is.False, "Sending to an unknown/offline contact should return false");
+            Assert.That(messengerSystem.TrySendMessage(prog1, "Unknown Person", "test"), Is.True,
+                "Sending to an unknown recipient should be queued optimistically; the relay rejects it asynchronously");
 
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            var sessions1 = GetAccountSessions(entityManager, session1);
+            Assert.That(sessions1.Values.Any(h => h.Any(m => m.Outgoing && m.Text == "test")), Is.True,
+                "The outgoing message should be visible immediately");
+        });
+        await server.WaitRunTicks(6);
+
+        await server.WaitAssertion(() =>
+        {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-offline"),
                 "Session should store the offline error key");
+
+            var sessions1 = GetAccountSessions(entityManager, session1);
+            Assert.That(sessions1.Values.All(h => h.All(m => !(m.Outgoing && m.Text == "test"))), Is.True,
+                "The undeliverable outgoing message should be rolled back");
 
             var evt = new CartridgeUiReadyEvent(pda1);
             entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
@@ -1591,7 +1738,110 @@ public sealed class MalinovMessengerTest : GameTest
     }
 
     [Test]
-    public async Task RateLimit_BlocksThirdInWindowThenRecovers()
+    public async Task MessengerSendWithoutPeerCache()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Test";
+        const string recipientName = "Bob Test";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+
+        await server.WaitAssertion(() =>
+        {
+            SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+        });
+
+        await server.WaitRunTicks(5);
+
+        // Simulate an expired/stale sender-side peer cache: the send must still go through
+        // because delivery authority lies with the relay, not with the local cache.
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            session1.Peers.Clear();
+            Assert.That(session1.Peers, Does.Not.ContainKey(recipientName),
+                "Precondition: no cached peer for the recipient");
+
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "NoCache"), Is.True,
+                "Sending must not require a cached peer entry");
+        });
+        await server.WaitRunTicks(6);
+
+        await server.WaitAssertion(() =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            Assert.That(sessions2[senderName].Any(m => m.Text == "NoCache" && !m.Outgoing), Is.True,
+                "Message should be delivered without a sender-side peer cache entry");
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task RateLimit_ThirdInWindowShownThenRolledBack()
     {
         var pair = Pair;
         var server = pair.Server;
@@ -1695,20 +1945,29 @@ public sealed class MalinovMessengerTest : GameTest
                 "Both messages within the window should be delivered");
         });
 
-        // Third message within the same window is dropped.
+        // The third message is appended optimistically (visible to the sender immediately)
+        // and only falls victim to the relay rate-limit asynchronously, which rolls it back.
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3"), Is.False,
-                "Third message in the window should be rate-limited");
-
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
-            Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-rate-limited"),
-                "Sender should see the rate-limit error");
+            var sessions1 = GetAccountSessions(entityManager, session1);
+
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3"), Is.True,
+                "The message is queued optimistically; the relay rejects it asynchronously");
+            Assert.That(sessions1[recipientName].Any(m => m.Text == "A3" && m.Outgoing), Is.True,
+                "Sender should immediately see the just-sent message in their own history");
         });
-        await server.WaitRunTicks(5);
+        await server.WaitRunTicks(6);
 
         await server.WaitAssertion(() =>
         {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            var sessions1 = GetAccountSessions(entityManager, session1);
+            Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-rate-limited"),
+                "Sender should receive the relay rate-limit error");
+            Assert.That(sessions1[recipientName].Any(m => m.Text == "A3" && m.Outgoing), Is.False,
+                "The rate-limited message should be rolled back from the sender history");
+
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
             Assert.That(sessions2[senderName], Has.Count.EqualTo(2),
@@ -1756,6 +2015,7 @@ public sealed class MalinovMessengerTest : GameTest
         var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
         var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
         var serverSystem = entSysMan.GetEntitySystem<MalinovMessengerServerSystem>();
+        var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
 
         var testMap = await pair.CreateTestMap();
         var grid = testMap.Grid.Owner;
@@ -1833,22 +2093,33 @@ public sealed class MalinovMessengerTest : GameTest
         {
             serverSystem.Mute(relay, senderName);
         });
-        await server.WaitRunTicks(2);
 
-        // Muted sender's message is queued but dropped by the relay; the rejection
-        // is reported asynchronously and the recipient never receives it.
-        await server.WaitAssertion(() =>
-        {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "Muted1"), Is.True,
-                "Muted message is queued; the relay reports the rejection asynchronously");
-        });
+        // Muting propagates through the directory broadcast and blocks the sender
+        // immediately at the cartridge; the recipient never receives the message.
         await server.WaitRunTicks(5);
 
         await server.WaitAssertion(() =>
         {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.IsMuted, Is.True,
+                "Muted identity should be propagated to the cartridge session");
+
+            var evt = new CartridgeUiReadyEvent(pda1);
+            entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda1, PdaUiKey.Key, out var state), Is.True,
+                "Muted sender UI state should be set");
+            Assert.That(state.IsMuted, Is.True,
+                "UI state should expose the mute status");
+        });
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "Muted1"), Is.False,
+                "Muted sender must be blocked locally before any packet leaves the device");
+
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-muted"),
-                "Muted sender should receive the muted error");
+                "Muted sender should see the muted error");
         });
         await server.WaitRunTicks(5);
 
@@ -1857,7 +2128,7 @@ public sealed class MalinovMessengerTest : GameTest
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
             Assert.That(sessions2[senderName], Has.Count.EqualTo(1),
-                "Recipient should not receive message while sender is muted");
+                "Recipient should not receive messages while sender is muted");
         });
 
         // Unmute restores delivery.
@@ -1865,7 +2136,14 @@ public sealed class MalinovMessengerTest : GameTest
         {
             serverSystem.Unmute(relay, senderName);
         });
-        await server.WaitRunTicks(2);
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.IsMuted, Is.False,
+                "Unmute should clear the cartridge mute state");
+        });
 
         await server.WaitAssertion(() =>
         {

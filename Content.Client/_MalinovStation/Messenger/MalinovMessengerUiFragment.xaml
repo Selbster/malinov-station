@@ -12,16 +12,24 @@
                 <ItemList Name="ContactsList" HorizontalExpand="True" VerticalExpand="True" />
             </BoxContainer>
             <!-- Chat -->
-            <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
-                <Label Name="ChatHeaderLabel" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
-                <ScrollContainer Name="ChatScrollContainer" HorizontalExpand="True" VerticalExpand="True" HScrollEnabled="False">
-                    <BoxContainer Name="ChatContainer" Orientation="Vertical" HorizontalExpand="True" />
-                </ScrollContainer>
-                <BoxContainer Orientation="Horizontal" HorizontalExpand="True" SetHeight="32" SeparationOverride="4">
-                    <LineEdit Name="Input" HorizontalExpand="True" PlaceHolder="{Loc 'malinov-messenger-input-hint'}" />
-                    <Button Name="SendButton" Text="{Loc 'malinov-messenger-send-button'}" />
+            <Control HorizontalExpand="True" VerticalExpand="True">
+                <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
+                    <BoxContainer Orientation="Horizontal" HorizontalExpand="True">
+                        <Label Name="ChatHeaderLabel" HorizontalExpand="True" StyleClasses="LabelHeading" />
+                        <Button Name="CloseChatButton" Text="{Loc 'malinov-messenger-close-chat-button'}" Visible="False" />
+                    </BoxContainer>
+                    <ScrollContainer Name="ChatScrollContainer" HorizontalExpand="True" VerticalExpand="True" HScrollEnabled="False">
+                        <BoxContainer Name="ChatContainer" Orientation="Vertical" HorizontalExpand="True" />
+                    </ScrollContainer>
+                    <BoxContainer Orientation="Horizontal" HorizontalExpand="True" SetHeight="32" SeparationOverride="4">
+                        <LineEdit Name="Input" HorizontalExpand="True" PlaceHolder="{Loc 'malinov-messenger-input-hint'}" />
+                        <Button Name="SendButton" Text="{Loc 'malinov-messenger-send-button'}" />
+                    </BoxContainer>
                 </BoxContainer>
-            </BoxContainer>
+                <PanelContainer Name="MutedOverlay" StyleClasses="BackgroundPanel" Visible="False" HorizontalExpand="True" VerticalExpand="True" MouseFilter="Stop">
+                    <Label Name="MutedLabel" Text="{Loc 'malinov-messenger-muted-banner'}" StyleClasses="LabelHeadingBigger" HorizontalAlignment="Center" VerticalAlignment="Center" ModulateSelfOverride="#f2e6e6" />
+                </PanelContainer>
+            </Control>
         </BoxContainer>
     </BoxContainer>
 </messenger:MalinovMessengerUiFragment>

@@ -16,14 +16,23 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
 {
     public event Action<string?>? OnContactSelected;
     public event Action<string, string>? OnSendMessage;
+    public event Action? OnCloseChat;
 
     private List<MalinovMessengerContact> _contacts = new();
     private HashSet<string> _onlineNames = new();
     private string? _selectedContact;
     private bool _updating;
+    private bool _pendingScrollToBottom;
+    private bool _justSent;
+    private bool _prevHadMessages;
+    private string? _prevSelectedContact;
+
+    private const float AtBottomThreshold = 32f;
 
     private static readonly Color IncomingBubbleColor = Color.FromHex("#2b3a42");
     private static readonly Color OutgoingBubbleColor = Color.FromHex("#2b422b");
+
+    private static readonly Color MutedOverlayColor = new(0.52f, 0.04f, 0.04f, 0.96f);
 
     private const float MessageMaxWidth = 256f;
 
@@ -41,6 +50,16 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         SendButton.OnPressed += _ => TrySend();
         Input.OnTextEntered += _ => TrySend();
         Input.IsValid = s => s.Length <= _cfg.GetCVar(CCVars.MalinovMessengerMaxMessageLength);
+        CloseChatButton.OnPressed += _ =>
+        {
+            if (_selectedContact == null)
+                return;
+
+            Input.Clear();
+            OnCloseChat?.Invoke();
+        };
+        ChatScrollContainer.OnScrolled += OnChatScrolled;
+        MutedOverlay.ModulateSelfOverride = MutedOverlayColor;
 
         UpdateState(new MalinovMessengerUiState());
     }
@@ -51,6 +70,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         _contacts = state.Contacts;
         _onlineNames = state.OnlineNames;
         _selectedContact = state.SelectedContact;
+        CloseChatButton.Visible = _selectedContact != null;
 
         if (!string.IsNullOrEmpty(state.Status) && state.Contacts.Count == 0)
         {
@@ -64,7 +84,11 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         StatusLabel.Visible = false;
         MainContainer.Visible = true;
 
-        if (!string.IsNullOrEmpty(state.Status))
+        MutedOverlay.Visible = state.IsMuted;
+        Input.Editable = !state.IsMuted;
+        SendButton.Disabled = state.IsMuted;
+
+        if (!string.IsNullOrEmpty(state.Status) && !state.IsMuted)
         {
             ErrorLabel.Text = Loc.GetString(state.Status);
             ErrorLabel.Visible = true;
@@ -111,6 +135,9 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         if (state.Messages.Count == 0)
         {
             ChatContainer.AddChild(new Label { Text = Loc.GetString("malinov-messenger-session-empty") });
+            _pendingScrollToBottom = false;
+            _justSent = false;
+            _prevHadMessages = false;
         }
         else
         {
@@ -119,7 +146,17 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
                 ChatContainer.AddChild(BuildMessageRow(message));
             }
 
-            ChatScrollContainer.SetScrollValue(new Vector2(0, float.MaxValue));
+            var conversationChanged = _prevSelectedContact != state.SelectedContact;
+            var stickToBottom = _justSent || conversationChanged || !_prevHadMessages || WasAtBottom();
+            _justSent = false;
+            _prevHadMessages = true;
+            _prevSelectedContact = state.SelectedContact;
+
+            if (stickToBottom)
+            {
+                _pendingScrollToBottom = true;
+                ChatScrollContainer.SetScrollValue(new Vector2(0, float.MaxValue));
+            }
         }
 
         _updating = false;
@@ -201,12 +238,54 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
 
     private void TrySend()
     {
+        if (MutedOverlay.Visible)
+            return;
+
         var text = Input.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(text) || _selectedContact == null)
             return;
 
+        _justSent = true;
         OnSendMessage?.Invoke(_selectedContact, text);
         Input.Clear();
+    }
+
+    private bool TryGetScrollBottom(out float bottom)
+    {
+        bottom = Math.Max(0f, ChatContainer.PixelHeight - ChatScrollContainer.PixelHeight);
+        if (bottom <= 0f)
+        {
+            _pendingScrollToBottom = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool WasAtBottom()
+    {
+        return TryGetScrollBottom(out var bottom)
+               && MathHelper.CloseTo(ChatScrollContainer.GetScrollValue().Y, bottom, AtBottomThreshold);
+    }
+
+    private void OnChatScrolled()
+    {
+        if (!_pendingScrollToBottom)
+            return;
+
+        if (!TryGetScrollBottom(out var bottom))
+            return;
+
+        var current = ChatScrollContainer.GetScrollValue().Y;
+        if (MathHelper.CloseTo(current, bottom, AtBottomThreshold))
+        {
+            // Bottom reached; stop re-asserting to avoid an endless layout loop.
+            _pendingScrollToBottom = false;
+            return;
+        }
+
+        // Late layout pass means MaxValue is now fresh, so land exactly at the bottom.
+        ChatScrollContainer.SetScrollValue(new Vector2(0, float.MaxValue));
     }
 }

@@ -7,7 +7,8 @@ namespace Content.Shared._MalinovStation.Messenger;
 public enum MalinovMessengerUiAction
 {
     RefreshContacts,
-    Send
+    Send,
+    CloseChat
 }
 
 /// <summary>

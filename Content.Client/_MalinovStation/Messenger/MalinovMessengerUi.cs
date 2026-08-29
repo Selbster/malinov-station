@@ -32,6 +32,12 @@ public sealed partial class MalinovMessengerUi : UIFragment
             var message = new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.Send, targetName: target, text: text);
             userInterface.SendPredictedMessage(new CartridgeUiMessage(message));
         };
+
+        _fragment.OnCloseChat += () =>
+        {
+            var message = new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.CloseChat);
+            userInterface.SendPredictedMessage(new CartridgeUiMessage(message));
+        };
     }
 
     public override void UpdateState(BoundUserInterfaceState state)

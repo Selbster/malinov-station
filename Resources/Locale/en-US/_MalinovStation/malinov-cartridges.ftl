@@ -8,6 +8,7 @@ malinov-messenger-status-online = online
 malinov-messenger-status-offline = offline
 malinov-messenger-input-hint = Enter message…
 malinov-messenger-send-button = Send
+malinov-messenger-close-chat-button = Close
 malinov-messenger-chat-header = Chat with { $name }
 malinov-messenger-chat-header-empty = Select a contact
 malinov-messenger-session-empty = No messages.
@@ -19,6 +20,7 @@ malinov-messenger-error-server-unavailable = Server unavailable.
 malinov-messenger-error-self = You cannot send messages to yourself.
 malinov-messenger-error-rate-limited = Too many messages, please wait.
 malinov-messenger-error-muted = You are muted by Central Command.
+malinov-messenger-muted-banner = YOU ARE MUTED BY CENTRAL COMMAND
 malinov-messenger-no-idcard = Insert your ID card.
 malinov-messenger-notification-popup = New message from { $sender }
 

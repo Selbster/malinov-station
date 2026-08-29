@@ -8,6 +8,7 @@ malinov-messenger-status-online = в сети
 malinov-messenger-status-offline = не в сети
 malinov-messenger-input-hint = Введите сообщение…
 malinov-messenger-send-button = Отправить
+malinov-messenger-close-chat-button = Закрыть
 malinov-messenger-chat-header = Чат с { $name }
 malinov-messenger-chat-header-empty = Выберите контакт
 malinov-messenger-session-empty = Нет сообщений.
@@ -19,6 +20,7 @@ malinov-messenger-error-server-unavailable = Сервер недоступен.
 malinov-messenger-error-self = Нельзя отправлять сообщения самому себе.
 malinov-messenger-error-rate-limited = Слишком много сообщений, подождите.
 malinov-messenger-error-muted = Вы заглушены ЦК.
+malinov-messenger-muted-banner = ВЫ ЗАГЛУШЕНЫ ЦК
 malinov-messenger-no-idcard = Вставьте свою ID-карту.
 malinov-messenger-notification-popup = Новое сообщение от { $sender }
 

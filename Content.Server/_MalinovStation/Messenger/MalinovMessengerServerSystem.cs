@@ -1,3 +1,4 @@
+using System.Linq;
 using Content.Server.DeviceNetwork.Components;
 using Content.Server.DeviceNetwork.Systems;
 using Content.Server.Power.Components;
@@ -97,6 +98,7 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandDirectory,
             [MalinovMessengerConstants.EntriesKey] = entries,
+            [MalinovMessengerConstants.MutedNamesKey] = component.Muted.ToArray(),
         };
 
         foreach (var address in component.Directory.Values)
@@ -113,6 +115,7 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandDirectory,
             [MalinovMessengerConstants.EntriesKey] = entries,
+            [MalinovMessengerConstants.MutedNamesKey] = component.Muted.ToArray(),
         };
 
         _deviceNetwork.QueuePacket(uid, args.SenderAddress, payload, MalinovMessengerConstants.Frequency);
@@ -120,39 +123,43 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
 
     private void HandleMessage(EntityUid uid, MalinovMessengerServerComponent component, DeviceNetworkPacketEvent args)
     {
+        var messageId = args.Data.TryGetValue(MalinovMessengerConstants.MessageIdKey, out var idObj) && idObj is long idValue
+            ? idValue
+            : 0L;
+
         if (!args.Data.TryGetValue(MalinovMessengerConstants.TargetKey, out var targetObj) || targetObj is not string targetName)
         {
-            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline");
+            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline", messageId);
             return;
         }
 
         if (!component.Directory.TryGetValue(targetName, out var targetAddress))
         {
-            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline");
+            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline", messageId);
             return;
         }
 
         if (!args.Data.TryGetValue(MalinovMessengerConstants.SenderNameKey, out var senderObj) || senderObj is not string senderName)
         {
-            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline");
+            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline", messageId);
             return;
         }
 
         if (component.Muted.Contains(senderName))
         {
-            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-muted");
+            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-muted", messageId);
             return;
         }
 
         if (IsRelayRateLimited(senderName))
         {
-            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-rate-limited");
+            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-rate-limited", messageId);
             return;
         }
 
         if (!args.Data.TryGetValue(MalinovMessengerConstants.TextKey, out var textObj) || textObj is not string text)
         {
-            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline");
+            ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline", messageId);
             return;
         }
 
@@ -176,6 +183,7 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
             return;
 
         component.Muted.Add(name);
+        BroadcastDirectory(uid, component);
     }
 
     /// <summary>
@@ -187,6 +195,7 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
             return;
 
         component.Muted.Remove(name);
+        BroadcastDirectory(uid, component);
     }
 
     /// <summary>
@@ -214,13 +223,14 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         return false;
     }
 
-    private void ReplyError(EntityUid uid, string senderAddress, string errorKey)
+    private void ReplyError(EntityUid uid, string senderAddress, string errorKey, long messageId = 0)
     {
         var payload = new NetworkPayload
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandMessage,
             [MalinovMessengerConstants.SenderNameKey] = string.Empty,
             [MalinovMessengerConstants.TextKey] = errorKey,
+            [MalinovMessengerConstants.MessageIdKey] = messageId,
         };
 
         _deviceNetwork.QueuePacket(uid, senderAddress, payload, MalinovMessengerConstants.Frequency);
