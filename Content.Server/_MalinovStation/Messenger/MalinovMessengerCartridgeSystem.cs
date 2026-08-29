@@ -1,9 +1,11 @@
 using Content.Server.CrewManifest;
+using Content.Server.Administration.Logs;
 using Content.Server.DeviceNetwork.Systems;
 using Content.Server.Popups;
 using Content.Server.Power.Components;
 using Content.Server.Station.Systems;
 using Content.Shared._MalinovStation.Messenger;
+using Content.Shared.Database;
 using Robust.Server.Containers;
 using Content.Shared.Access.Components;
 using Content.Shared.Audio;
@@ -42,6 +44,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     [Dependency] private ContainerSystem _containerSystem = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
+    [Dependency] private IAdminLogManager _adminLog = default!;
 
     public override void Initialize()
     {
@@ -402,6 +405,9 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         };
 
         _deviceNetwork.QueuePacket(loaderUid, serverAddress, payload, MalinovMessengerConstants.Frequency);
+
+        _adminLog.Add(LogType.MalinovMessengerSend, LogImpact.Low,
+            $"Messenger message sent from '{session.IdentityName}' to '{targetName}'");
 
         var message = new MalinovMessengerMessage(session.IdentityName, text, _timing.CurTime, outgoing: true, messageId);
         AddSessionMessage(session, targetName, message);

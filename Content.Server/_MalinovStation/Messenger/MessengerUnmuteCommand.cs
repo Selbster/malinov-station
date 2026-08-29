@@ -30,12 +30,13 @@ public sealed class MessengerUnmuteCommand : IConsoleCommand
 
         var targetName = args[0];
         var system = _entManager.System<MalinovMessengerServerSystem>();
+        var adminName = shell.Player?.Name;
         var found = false;
 
         var query = _entManager.EntityQueryEnumerator<MalinovMessengerServerComponent>();
         while (query.MoveNext(out var serverUid, out _))
         {
-            system.Unmute(serverUid, targetName);
+            system.Unmute(serverUid, targetName, adminName);
             found = true;
         }
 

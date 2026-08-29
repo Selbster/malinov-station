@@ -1,7 +1,9 @@
 using System.Linq;
+using Content.Server.Administration.Logs;
 using Content.Server.DeviceNetwork.Components;
 using Content.Server.DeviceNetwork.Systems;
 using Content.Server.Power.Components;
+using Content.Shared.Database;
 using Content.Shared._MalinovStation.Messenger;
 using Content.Shared.CCVar;
 using Content.Shared.DeviceNetwork;
@@ -21,6 +23,7 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
     [Dependency] private DeviceNetworkSystem _deviceNetwork = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private IAdminLogManager _adminLog = default!;
 
     /// <summary>
     ///     Per-sender-name timestamps of messages routed through the relay, used to duplicate
@@ -129,18 +132,21 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
 
         if (!args.Data.TryGetValue(MalinovMessengerConstants.TargetKey, out var targetObj) || targetObj is not string targetName)
         {
+            _adminLog.Add(LogType.MalinovMessengerDeliveryFail, LogImpact.Low, $"Messenger delivery failed: no recipient specified");
             ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline", messageId);
             return;
         }
 
         if (!component.Directory.TryGetValue(targetName, out var targetAddress))
         {
+            _adminLog.Add(LogType.MalinovMessengerDeliveryFail, LogImpact.Low, $"Messenger delivery failed: recipient '{targetName}' not found in directory");
             ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline", messageId);
             return;
         }
 
         if (!args.Data.TryGetValue(MalinovMessengerConstants.SenderNameKey, out var senderObj) || senderObj is not string senderName)
         {
+            _adminLog.Add(LogType.MalinovMessengerDeliveryFail, LogImpact.Low, $"Messenger delivery failed: no sender name specified");
             ReplyError(uid, args.SenderAddress, "malinov-messenger-error-offline", messageId);
             return;
         }
@@ -177,24 +183,28 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
     ///     Mutes a sender name for the rest of the round. Muted senders are silently dropped
     ///     by the relay and notified with the mute error.
     /// </summary>
-    public void Mute(EntityUid uid, string name)
+    public void Mute(EntityUid uid, string name, string? admin = null)
     {
         if (!TryComp<MalinovMessengerServerComponent>(uid, out var component))
             return;
 
         component.Muted.Add(name);
+        _adminLog.Add(LogType.MalinovMessengerMute, LogImpact.Medium,
+            $"Messenger sender '{name}' muted by '{admin ?? "an administrator"}'");
         BroadcastDirectory(uid, component);
     }
 
     /// <summary>
     ///     Unmutes a previously muted sender name, restoring their message delivery.
     /// </summary>
-    public void Unmute(EntityUid uid, string name)
+    public void Unmute(EntityUid uid, string name, string? admin = null)
     {
         if (!TryComp<MalinovMessengerServerComponent>(uid, out var component))
             return;
 
         component.Muted.Remove(name);
+        _adminLog.Add(LogType.MalinovMessengerMute, LogImpact.Medium,
+            $"Messenger sender '{name}' unmuted by '{admin ?? "an administrator"}'");
         BroadcastDirectory(uid, component);
     }
 
@@ -217,7 +227,11 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         timestamps.RemoveAll(t => now - t > window);
 
         if (timestamps.Count >= maxMessages)
+        {
+            _adminLog.Add(LogType.MalinovMessengerRateLimited, LogImpact.Medium,
+                $"Messenger sender '{senderName}' was rate-limited (window: {_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds)}s, limit: {maxMessages})");
             return true;
+        }
 
         timestamps.Add(now);
         return false;

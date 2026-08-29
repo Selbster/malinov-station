@@ -30,12 +30,13 @@ public sealed class MessengerMuteCommand : IConsoleCommand
 
         var targetName = args[0];
         var system = _entManager.System<MalinovMessengerServerSystem>();
+        var adminName = shell.Player?.Name;
         var found = false;
 
         var query = _entManager.EntityQueryEnumerator<MalinovMessengerServerComponent>();
         while (query.MoveNext(out var serverUid, out _))
         {
-            system.Mute(serverUid, targetName);
+            system.Mute(serverUid, targetName, adminName);
             found = true;
         }
 
