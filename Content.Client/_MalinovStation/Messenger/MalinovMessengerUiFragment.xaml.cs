@@ -34,7 +34,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
 
     private static readonly Color MutedOverlayColor = new(0.52f, 0.04f, 0.04f, 0.96f);
 
-    private const float MessageMaxWidth = 256f;
+    private const float MessageMaxWidth = 400f;
 
     [Dependency] private IConfigurationManager _cfg = default!;
 

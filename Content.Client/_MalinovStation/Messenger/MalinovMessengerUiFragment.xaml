@@ -7,7 +7,7 @@
         <Label Name="ErrorLabel" HorizontalAlignment="Center" StyleClasses="LabelSubText" Visible="False" />
         <BoxContainer Orientation="Horizontal" HorizontalExpand="True" VerticalExpand="True" SeparationOverride="4">
             <!-- Contacts -->
-            <BoxContainer Orientation="Vertical" VerticalExpand="True" SetWidth="140">
+            <BoxContainer Orientation="Vertical" VerticalExpand="True" SetWidth="180">
                 <Label Text="{Loc 'malinov-messenger-contacts-header'}" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
                 <ItemList Name="ContactsList" HorizontalExpand="True" VerticalExpand="True" />
             </BoxContainer>
