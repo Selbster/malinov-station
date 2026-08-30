@@ -112,10 +112,10 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         {
             var contact = state.Contacts[i];
 
-            ContactsList.AddItem(Loc.GetString(contact.HasUnread
+            ContactsList.AddContactItem(Loc.GetString(contact.HasUnread
                 ? "malinov-messenger-contact-format-unread"
                 : "malinov-messenger-contact-format",
-                ("name", contact.Name)));
+                ("name", contact.Name)), contact.HasUnread);
 
             if (contact.Name == _selectedContact)
                 ContactsList[i].Selected = true;

@@ -9,7 +9,7 @@
             <!-- Contacts -->
             <BoxContainer Orientation="Vertical" VerticalExpand="True" SetWidth="180">
                 <Label Text="{Loc 'malinov-messenger-contacts-header'}" HorizontalAlignment="Center" StyleClasses="LabelHeading" />
-                <ItemList Name="ContactsList" HorizontalExpand="True" VerticalExpand="True" />
+                <messenger:MalinovMessengerContactList Name="ContactsList" HorizontalExpand="True" VerticalExpand="True" />
             </BoxContainer>
             <!-- Chat -->
             <Control HorizontalExpand="True" VerticalExpand="True">
