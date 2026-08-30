@@ -84,6 +84,7 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         MainContainer.Visible = true;
 
         MutedOverlay.Visible = state.IsMuted;
+        InputRow.Visible = _selectedContact != null;
         Input.Editable = !state.IsMuted;
         SendButton.Disabled = state.IsMuted;
 
@@ -103,7 +104,8 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         {
             ChatHeaderLabel.Text = Loc.GetString("malinov-messenger-chat-header-empty");
             ChatContainer.RemoveAllChildren();
-            ChatContainer.AddChild(new Label { Text = Loc.GetString("malinov-messenger-session-empty") });
+            if (_selectedContact != null)
+                ChatContainer.AddChild(new Label { Text = Loc.GetString("malinov-messenger-session-empty") });
             _updating = false;
             return;
         }
@@ -129,7 +131,8 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
 
         if (state.Messages.Count == 0)
         {
-            ChatContainer.AddChild(new Label { Text = Loc.GetString("malinov-messenger-session-empty") });
+            if (_selectedContact != null)
+                ChatContainer.AddChild(new Label { Text = Loc.GetString("malinov-messenger-session-empty") });
             _pendingScrollToBottom = false;
             _justSent = false;
             _prevHadMessages = false;

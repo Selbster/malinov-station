@@ -21,7 +21,7 @@
                     <ScrollContainer Name="ChatScrollContainer" HorizontalExpand="True" VerticalExpand="True" HScrollEnabled="False">
                         <BoxContainer Name="ChatContainer" Orientation="Vertical" HorizontalExpand="True" />
                     </ScrollContainer>
-                    <BoxContainer Orientation="Horizontal" HorizontalExpand="True" SetHeight="32" SeparationOverride="4">
+                    <BoxContainer Name="InputRow" Orientation="Horizontal" HorizontalExpand="True" SetHeight="32" SeparationOverride="4">
                         <LineEdit Name="Input" HorizontalExpand="True" PlaceHolder="{Loc 'malinov-messenger-input-hint'}" />
                         <Button Name="SendButton" Text="{Loc 'malinov-messenger-send-button'}" />
                     </BoxContainer>
