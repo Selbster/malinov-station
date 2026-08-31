@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Content.Client._MalinovStation.Messenger;
 using Content.IntegrationTests.Fixtures;
 using Content.Server.Administration;
 using Content.Server._MalinovStation.Messenger;
@@ -11,9 +12,12 @@ using Content.Shared.CartridgeLoader;
 using Content.Shared.CCVar;
 using Content.Shared.Containers.ItemSlots;
 using Content.Shared.DeviceNetwork.Components;
+using Content.Shared.GameTicking;
+using Content.Shared.Humanoid;
 using Content.Shared.Maps;
 using Content.Shared.Power;
 using Content.Shared.PDA;
+using Content.Shared.Preferences;
 using Content.Shared.Radio.Components;
 using Content.Shared.StationRecords;
 using Content.Shared.StationRecords.Systems;
@@ -210,6 +214,130 @@ public sealed class MalinovMessengerTest : GameTest
 
         await server.WaitRunTicks(2);
         await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task NewPlayerSpawningOnStationShowsContactsInUi()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSpawningSystem = entSysMan.GetEntitySystem<StationSpawningSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
+        var playerManager = server.ResolveDependency<IPlayerManager>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string existingCrewName = "Existing Crew";
+        const string characterName = "New Player Test";
+
+        await server.WaitAssertion(() =>
+        {
+            // A running round has other crewmembers in the manifest cache.
+            var key = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = existingCrewName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            Assert.That(key.IsValid, Is.True);
+            recordsSystem.Synchronize(key);
+        });
+        await server.WaitRunTicks(1);
+
+        EntityUid mob = default;
+        EntityUid pda = default;
+        EntityUid program = default;
+
+        await server.WaitAssertion(() =>
+        {
+            // Spawn the new player the way the real game does: full job mob on the station.
+            var newProfile = new HumanoidCharacterProfile { Name = characterName };
+            mob = stationSpawningSystem.SpawnPlayerMob(coords, "Passenger", newProfile, station);
+
+            // Locate the freshly equipped PDA.
+            var query = entityManager.EntityQueryEnumerator<PdaComponent>();
+            while (query.MoveNext(out var pdaUid, out _))
+                pda = pdaUid;
+
+            // Fire the same event the GameTicker raises after a real spawn.
+            var session = playerManager.Sessions.SingleOrDefault()!;
+            var aev = new PlayerSpawnCompleteEvent(mob, session, "Passenger", true, true, 1, station, newProfile);
+            entityManager.EventBus.RaiseLocalEvent(mob, aev, true);
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var programEnt = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda);
+            Assert.That(programEnt, Is.Not.Null, "New player's PDA should have the messenger program installed");
+            program = programEnt!.Value.Owner;
+
+            // Simulate the player opening the messenger program.
+            cartridgeLoaderSystem.ActivateProgram((pda, entityManager.GetComponent<CartridgeLoaderComponent>(pda)), program);
+
+            var evt = new CartridgeUiReadyEvent(pda);
+            entityManager.EventBus.RaiseLocalEvent(program, ref evt);
+
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda, PdaUiKey.Key, out var state), Is.True,
+                "Messenger UI state should be set for a new player");
+            Assert.That(state.Status, Is.Empty, "A new player on a station should not see a manifest-unavailable status");
+            Assert.That(state.Contacts.Any(c => c.Name == existingCrewName), Is.True,
+                "A new player's messenger should list existing crew from the manifest");
+        });
+
+        await server.WaitRunTicks(2);
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task ClientRendersStatusAsVisibleNotHiddenParent()
+    {
+        var pair = Pair;
+        var client = pair.Client;
+
+        await client.WaitPost(() =>
+        {
+            var fragment = new MalinovMessengerUiFragment();
+
+            // Simulate the server's manifest-unavailable payload: a status text with no
+            // contacts. The status must actually render so the program is not an empty window.
+            fragment.UpdateState(new MalinovMessengerUiState(
+                contacts: new List<MalinovMessengerContact>(),
+                status: "malinov-messenger-manifest-unavailable"));
+
+            // The fragment root BoxContainer children are:
+            //  [0] background panel, [1] StatusLabel, [2] MainContainer.
+            // MainContainer children: [0] ErrorLabel, [1] the header/contacts/chat row.
+            var mainContainer = fragment.Children[2];
+            Assert.That(mainContainer.Visible, Is.False,
+                "When showing a status, the main container is hidden");
+
+            var statusLabel = fragment.Children[1];
+            Assert.That(statusLabel.Visible, Is.True,
+                "The status label must be visible so the interface is not an empty window");
+        });
     }
 
     [Test]

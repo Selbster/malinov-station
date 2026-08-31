@@ -2,8 +2,8 @@
                                       xmlns="https://spacestation14.io"
                                       Margin="1 0 2 0">
     <PanelContainer StyleClasses="BackgroundDark"></PanelContainer>
+    <Label Name="StatusLabel" HorizontalAlignment="Center" VerticalExpand="True" Visible="False" />
     <BoxContainer Name="MainContainer" Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
-        <Label Name="StatusLabel" HorizontalAlignment="Center" VerticalExpand="True" Visible="False" />
         <Label Name="ErrorLabel" HorizontalAlignment="Center" StyleClasses="LabelSubText" Visible="False" />
         <BoxContainer Orientation="Horizontal" HorizontalExpand="True" VerticalExpand="True" SeparationOverride="4">
             <!-- Contacts -->
