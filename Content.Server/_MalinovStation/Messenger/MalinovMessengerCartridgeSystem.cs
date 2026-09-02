@@ -491,6 +491,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         }
 
         session.RateLimitUntil = null;
+        session.LastError = null;
         return false;
     }
 

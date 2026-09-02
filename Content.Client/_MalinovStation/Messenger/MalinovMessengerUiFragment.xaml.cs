@@ -185,7 +185,6 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
             if (stickToBottom)
             {
                 _pendingScrollToBottom = true;
-                ChatScrollContainer.SetScrollValue(new Vector2(0, float.MaxValue));
             }
         }
 
@@ -297,6 +296,9 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
     protected override void FrameUpdate(FrameEventArgs args)
     {
         base.FrameUpdate(args);
+
+        if (_pendingScrollToBottom)
+            ChatScrollContainer.SetScrollValue(new Vector2(0, float.MaxValue));
 
         var onCooldown = IsRateLimitCooldownActive();
 
