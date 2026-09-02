@@ -108,7 +108,8 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         Input.Editable = !state.IsMuted && !IsRateLimitCooldownActive();
         SendButton.Disabled = state.IsMuted || IsRateLimitCooldownActive();
 
-        if (!string.IsNullOrEmpty(state.Status) && !state.IsMuted && !IsRateLimitCooldownActive())
+        if (!string.IsNullOrEmpty(state.Status) && !state.IsMuted && !IsRateLimitCooldownActive()
+            && state.Status != "malinov-messenger-error-rate-limited")
         {
             ErrorLabel.Text = Loc.GetString(state.Status);
             ErrorLabel.Visible = true;
