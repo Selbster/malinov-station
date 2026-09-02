@@ -32,7 +32,7 @@ public sealed partial class CCVars
     ///     Length of the sliding rate-limit window (in seconds) measured per sender.
     /// </summary>
     public static readonly CVarDef<float> MalinovMessengerRateWindowSeconds =
-        CVarDef.Create("malinov.messenger.rate_window_sec", 10f, CVar.SERVER);
+        CVarDef.Create("malinov.messenger.rate_window_sec", 10f, CVar.SERVER | CVar.REPLICATED);
 
     /// <summary>
     ///     Maximum number of messages a single sender may send within the rate-limit window.

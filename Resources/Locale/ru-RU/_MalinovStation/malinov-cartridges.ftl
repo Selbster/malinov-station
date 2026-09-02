@@ -17,6 +17,7 @@ malinov-messenger-error-message-too-long = Сообщение слишком д�
 malinov-messenger-error-server-unavailable = Сервер недоступен.
 malinov-messenger-error-self = Нельзя отправлять сообщения самому себе.
 malinov-messenger-error-rate-limited = Слишком много сообщений, подождите.
+malinov-messenger-rate-limit-wait = Подождите { $seconds } сек перед новым сообщением.
 malinov-messenger-error-muted = Вы заглушены ЦК.
 malinov-messenger-muted-banner = ВЫ ЗАГЛУШЕНЫ ЦК
 malinov-messenger-no-idcard = Вставьте свою ID-карту.

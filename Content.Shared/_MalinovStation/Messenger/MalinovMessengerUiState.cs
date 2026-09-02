@@ -34,17 +34,26 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     /// </summary>
     public bool IsMuted;
 
+    /// <summary>
+    ///     Authoritative server deadline (in <see cref="Robust.Shared.Timing.IGameTiming.CurTime"/>
+    ///     scale) until which the sender is blocked. <c>null</c> means the cooldown is inactive.
+    ///     The client counts down against its own <c>CurTime</c> using this shared scale.
+    /// </summary>
+    public TimeSpan? RateLimitUntil;
+
     public MalinovMessengerUiState(
         List<MalinovMessengerContact>? contacts = null,
         string? status = null,
         string? selectedContact = null,
         List<MalinovMessengerMessage>? messages = null,
-        bool isMuted = false)
+        bool isMuted = false,
+        TimeSpan? rateLimitUntil = null)
     {
         Contacts = contacts ?? new List<MalinovMessengerContact>();
         Status = status ?? string.Empty;
         SelectedContact = selectedContact;
         Messages = messages ?? new List<MalinovMessengerMessage>();
         IsMuted = isMuted;
+        RateLimitUntil = rateLimitUntil;
     }
 }

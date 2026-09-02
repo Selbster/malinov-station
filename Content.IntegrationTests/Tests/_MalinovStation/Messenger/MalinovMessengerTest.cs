@@ -2392,7 +2392,7 @@ public sealed class MalinovMessengerTest : GameTest
     }
 
     [Test]
-    public async Task RateLimit_ThirdInWindowShownThenRolledBack()
+    public async Task RateLimit_ThirdInWindowRejectedAndInputLocked()
     {
         var pair = Pair;
         var server = pair.Server;
@@ -2496,42 +2496,64 @@ public sealed class MalinovMessengerTest : GameTest
                 "Both messages within the window should be delivered");
         });
 
-        // The third message is appended optimistically (visible to the sender immediately)
-        // and only falls victim to the relay rate-limit asynchronously, which rolls it back.
+        // The third message is rejected synchronously on the sender side: it is never
+        // optimistically appended, the sender gets the rate-limit error immediately, and the
+        // input is locked with a fixed cooldown equal to the rate window.
         await server.WaitAssertion(() =>
         {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             var sessions1 = GetAccountSessions(entityManager, session1);
 
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3"), Is.True,
-                "The message is queued optimistically; the relay rejects it asynchronously");
-            Assert.That(sessions1[recipientName].Any(m => m.Text == "A3" && m.Outgoing), Is.True,
-                "Sender should immediately see the just-sent message in their own history");
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3"), Is.False,
+                "The third message within the window should be rejected synchronously by the sender gate");
+            Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-rate-limited"),
+                "Sender should receive the rate-limit error on the first rejected attempt");
+            Assert.That(session1.SentTimestamps.Count, Is.EqualTo(2),
+                "Only the two within-window sends should count against the limit");
+            Assert.That(session1.RateLimitUntil, Is.Not.Null,
+                "A fixed cooldown should be scheduled from the moment the limit was hit");
+            Assert.That(sessions1[recipientName].Any(m => m.Text == "A3" && m.Outgoing), Is.False,
+                "The rejected message must not appear in the sender history at all");
+        });
+
+        // While the cooldown is active, further sends stay rejected and history is untouched.
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3-again"), Is.False,
+                "Sends must stay rejected while the cooldown is active");
+            Assert.That(session1.RateLimitUntil, Is.Not.Null,
+                "Cooldown must remain scheduled while active");
+
+            // The client-visible remaining-wait must be reported while the cooldown is active.
+            var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
+            var evt = new CartridgeUiReadyEvent(pda1);
+            entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda1, PdaUiKey.Key, out var blockedState), Is.True,
+                "Blocked sender UI state should be set");
+            Assert.That(blockedState.RateLimitUntil, Is.Not.Null,
+                "UI state should expose the rate-limit deadline while blocked");
         });
         await server.WaitRunTicks(6);
 
         await server.WaitAssertion(() =>
         {
-            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
-            var sessions1 = GetAccountSessions(entityManager, session1);
-            Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-rate-limited"),
-                "Sender should receive the relay rate-limit error");
-            Assert.That(sessions1[recipientName].Any(m => m.Text == "A3" && m.Outgoing), Is.False,
-                "The rate-limited message should be rolled back from the sender history");
-
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
             Assert.That(sessions2[senderName], Has.Count.EqualTo(2),
-                "Recipient history should not be extended by the rate-limited message");
+                "Recipient history should not be extended by any rejected message");
         });
 
-        // Wait until the window expires, then sending works again.
-        await pair.RunSeconds(11);
+        // Wait past the fixed cooldown window, then sending works again.
+        await pair.RunSeconds(12);
 
         await server.WaitAssertion(() =>
         {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A4"), Is.True,
-                "Sending after the window expires should succeed");
+                "Sending after the cooldown expires should succeed");
+            Assert.That(session1.RateLimitUntil, Is.Null,
+                "A successful send should clear the scheduled cooldown");
         });
         await server.WaitRunTicks(5);
 
@@ -2540,7 +2562,16 @@ public sealed class MalinovMessengerTest : GameTest
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
             Assert.That(sessions2[senderName], Has.Count.EqualTo(3),
-                "Message after window expiry should be delivered");
+                "Message after cooldown expiry should be delivered");
+
+            // Once the cooldown has passed and sending resumed, the client-visible remaining is zero.
+            var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
+            var evt = new CartridgeUiReadyEvent(pda1);
+            entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda1, PdaUiKey.Key, out var resolvedState), Is.True,
+                "Resolved sender UI state should be set");
+            Assert.That(resolvedState.RateLimitUntil, Is.Null,
+                "UI state should report no rate-limit deadline after the cooldown cleared");
         });
 
         await server.WaitPost(() =>

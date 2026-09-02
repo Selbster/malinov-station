@@ -17,6 +17,7 @@ malinov-messenger-error-message-too-long = Message is too long.
 malinov-messenger-error-server-unavailable = Server unavailable.
 malinov-messenger-error-self = You cannot send messages to yourself.
 malinov-messenger-error-rate-limited = Too many messages, please wait.
+malinov-messenger-rate-limit-wait = Please wait { $seconds } s before sending another message.
 malinov-messenger-error-muted = You are muted by Central Command.
 malinov-messenger-muted-banner = YOU ARE MUTED BY CENTRAL COMMAND
 malinov-messenger-no-idcard = Insert your ID card.

@@ -25,6 +25,7 @@
                         <LineEdit Name="Input" HorizontalExpand="True" PlaceHolder="{Loc 'malinov-messenger-input-hint'}" />
                         <Button Name="SendButton" Text="{Loc 'malinov-messenger-send-button'}" />
                     </BoxContainer>
+                    <Label Name="RateLimitLabel" HorizontalAlignment="Center" StyleClasses="LabelSubText" Visible="False" />
                 </BoxContainer>
                 <PanelContainer Name="MutedOverlay" StyleClasses="BackgroundPanel" Visible="False" HorizontalExpand="True" VerticalExpand="True" MouseFilter="Stop">
                     <Label Name="MutedLabel" Text="{Loc 'malinov-messenger-muted-banner'}" StyleClasses="LabelHeadingBigger" HorizontalAlignment="Center" VerticalAlignment="Center" ModulateSelfOverride="#f2e6e6" />

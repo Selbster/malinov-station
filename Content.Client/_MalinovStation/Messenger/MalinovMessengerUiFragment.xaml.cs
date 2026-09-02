@@ -7,6 +7,7 @@ using Robust.Client.UserInterface.XAML;
 using Robust.Shared.Configuration;
 using Robust.Shared.IoC;
 using Robust.Shared.Maths;
+using Robust.Shared.Timing;
 using System.Numerics;
 
 namespace Content.Client._MalinovStation.Messenger;
@@ -27,7 +28,24 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
     private string? _prevSelectedContact;
     private long _lastOutgoingId;
 
+    /// <summary>
+    ///     Client-side mirror of the sender rate-limit cooldown, measured as a server-authoritative
+    ///     CurTime deadline. The input stays locked until this moment; the client counts down against
+    ///     its own (server-synced) CurTime so it unlocks at the same time as the server. Null when
+    ///     the cooldown is inactive.
+    /// </summary>
+    private TimeSpan? _rateLimitUntil;
+
+    /// <summary>
+    ///     Whether the account is muted; cached from the last state so the per-frame input lock
+    ///     can honor it without holding a reference to the state object.
+    /// </summary>
+    private bool _muted;
+
     private const float AtBottomThreshold = 32f;
+
+    [Dependency] private IConfigurationManager _cfg = default!;
+    [Dependency] private IGameTiming _timing = default!;
 
     private static readonly Color IncomingBubbleColor = Color.FromHex("#2b3a42");
     private static readonly Color OutgoingBubbleColor = Color.FromHex("#2b422b");
@@ -35,8 +53,6 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
     private static readonly Color MutedOverlayColor = new(0.52f, 0.04f, 0.04f, 0.96f);
 
     private const float MessageMaxWidth = 400f;
-
-    [Dependency] private IConfigurationManager _cfg = default!;
 
     public MalinovMessengerUiFragment()
     {
@@ -84,11 +100,15 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         MainContainer.Visible = true;
 
         MutedOverlay.Visible = state.IsMuted;
+        _muted = state.IsMuted;
+        // The server is the authority on the cooldown: it reports the CurTime deadline and the
+        // client counts down against its own (server-synced) CurTime, so both unlock together.
+        _rateLimitUntil = state.RateLimitUntil;
         InputRow.Visible = _selectedContact != null;
-        Input.Editable = !state.IsMuted;
-        SendButton.Disabled = state.IsMuted;
+        Input.Editable = !state.IsMuted && !IsRateLimitCooldownActive();
+        SendButton.Disabled = state.IsMuted || IsRateLimitCooldownActive();
 
-        if (!string.IsNullOrEmpty(state.Status) && !state.IsMuted)
+        if (!string.IsNullOrEmpty(state.Status) && !state.IsMuted && !IsRateLimitCooldownActive())
         {
             ErrorLabel.Text = Loc.GetString(state.Status);
             ErrorLabel.Visible = true;
@@ -251,6 +271,9 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         if (MutedOverlay.Visible)
             return;
 
+        if (IsRateLimitCooldownActive())
+            return;
+
         var text = Input.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(text) || _selectedContact == null)
@@ -259,6 +282,50 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         _justSent = true;
         OnSendMessage?.Invoke(_selectedContact, text);
         Input.Clear();
+    }
+
+    private bool IsRateLimitCooldownActive()
+    {
+        return _rateLimitUntil is { } until && _timing.CurTime < until;
+    }
+
+    /// <summary>
+    ///     Applies the sender rate-limit lock: the input and send button are disabled while
+    ///     the cooldown is active, and a countdown hint is shown. Runs every frame so the lock
+    ///     releases itself as soon as the cooldown expires.
+    /// </summary>
+    protected override void FrameUpdate(FrameEventArgs args)
+    {
+        base.FrameUpdate(args);
+
+        var onCooldown = IsRateLimitCooldownActive();
+
+        // Muted state is stored only in the fragment on state update (see UpdateState), so we
+        // recompute the editable flag here from the cooldown plus the persisted mute flag.
+        Input.Editable = !_muted && !onCooldown;
+        SendButton.Disabled = _muted || onCooldown;
+
+        // While locked, the field must not just refuse typing but also stop accepting a mouse
+        // click/focus, so it cannot be selected or shown with a caret. Release any held focus
+        // and ignore mouse events; restore normal handling once the cooldown clears.
+        var locked = onCooldown || _muted;
+        var shouldIgnore = locked ? MouseFilterMode.Ignore : MouseFilterMode.Stop;
+        if (Input.MouseFilter != shouldIgnore)
+        {
+            Input.MouseFilter = shouldIgnore;
+            if (locked)
+                Input.ReleaseKeyboardFocus();
+        }
+
+        if (!onCooldown)
+        {
+            RateLimitLabel.Visible = false;
+            return;
+        }
+
+        var seconds = (int)Math.Ceiling((_rateLimitUntil!.Value - _timing.CurTime).TotalSeconds);
+        RateLimitLabel.Text = Loc.GetString("malinov-messenger-rate-limit-wait", ("seconds", seconds));
+        RateLimitLabel.Visible = true;
     }
 
     private bool TryGetScrollBottom(out float bottom)

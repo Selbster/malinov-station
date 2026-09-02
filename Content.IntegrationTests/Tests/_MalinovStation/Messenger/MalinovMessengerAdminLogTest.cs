@@ -9,7 +9,9 @@ using Content.Shared._MalinovStation.Messenger;
 using Content.Shared.Access.Components;
 using Content.Shared.CartridgeLoader;
 using Content.Shared.Database;
+using Content.Shared.DeviceNetwork;
 using Content.Shared.DeviceNetwork.Components;
+using Content.Shared.DeviceNetwork.Events;
 using Content.Shared.Maps;
 using Content.Shared.PDA;
 using Content.Shared.Power;
@@ -125,11 +127,26 @@ public sealed class MalinovMessengerAdminLogTest : GameTest
         });
         await server.WaitRunTicks(5);
 
-        // Rate limit: burst past the default per-window maximum (5).
+        // Relay anti-bypass rate limit: a burst of direct relay-bound packets (simulating a
+        // client that defeats its own sender-side gate) must be rate-limited at the relay and logged.
+        var relayAddress = entityManager.GetComponent<DeviceNetworkComponent>(relay).Address;
         await server.WaitAssertion(() =>
         {
-            for (var i = 0; i < 6; i++)
-                messengerSystem.TrySendMessage(prog1, recipientName, $"Burst {i}");
+            for (var i = 0; i < 10; i++)
+            {
+                var packet = new DeviceNetworkPacketEvent(
+                    (int)DeviceNetworkComponent.DeviceNetIdDefaults.Wireless, null,
+                    MalinovMessengerConstants.Frequency, relayAddress, relay,
+                    new NetworkPayload
+                    {
+                        [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandMessage,
+                        [MalinovMessengerConstants.SenderNameKey] = senderName,
+                        [MalinovMessengerConstants.TargetKey] = recipientName,
+                        [MalinovMessengerConstants.TextKey] = $"Bypass {i}",
+                        [MalinovMessengerConstants.MessageIdKey] = (long)(i + 1000),
+                    });
+                entityManager.EventBus.RaiseLocalEvent(relay, packet, broadcast: false);
+            }
         });
         await server.WaitRunTicks(5);
 

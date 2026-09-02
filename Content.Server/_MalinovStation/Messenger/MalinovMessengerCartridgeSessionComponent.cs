@@ -1,4 +1,5 @@
 using Content.Shared._MalinovStation.Messenger;
+using Content.Shared.CCVar;
 
 namespace Content.Server._MalinovStation.Messenger;
 
@@ -83,6 +84,27 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     ///     allowing delivery-error replies to correlate and roll back the right message.
     /// </summary>
     public long NextMessageId;
+
+    /// <summary>
+    ///     Timestamps of recently sent messages, used to enforce the outbound portion of
+    ///     the rate-limit window on the sender side before a message ever leaves the device.
+    /// </summary>
+    public List<TimeSpan> SentTimestamps = new();
+
+    /// <summary>
+    ///     Moment in round time until which the sender is blocked from sending (a fixed
+    ///     <see cref="CCVars.MalinovMessengerRateWindowSeconds"/> cooldown measured from when
+    ///     the limit was hit). While <c>now &lt; RateLimitUntil</c> outbound sends are rejected
+    ///     on the sender side. Enforced only in round memory; not persisted between rounds.
+    /// </summary>
+    public TimeSpan? RateLimitUntil;
+
+    /// <summary>
+    ///     Integer seconds last pushed to the client during a rate-limit cooldown. Used to
+    ///     throttle per-second UI state updates so the client receives a fresh deadline each
+    ///     second without spamming one every tick.
+    /// </summary>
+    public int LastDisplayedRateLimitSecond;
 
     /// <summary>
     ///     Last time an announce was sent to the server.

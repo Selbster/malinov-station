@@ -87,6 +87,23 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             if (loaderUid == EntityUid.Invalid)
                 continue;
 
+            // While the rate-limit cooldown is active, push a fresh UI state once per second so the
+            // client's countdown deadline stays authoritative (shared CurTime scale) without spamming
+            // every tick. The client self-releases once its local CurTime passes the deadline.
+            if (session.RateLimitUntil is { } deadline && now < deadline)
+            {
+                var secondsRemaining = (int)Math.Ceiling((deadline - now).TotalSeconds);
+                if (secondsRemaining != session.LastDisplayedRateLimitSecond)
+                {
+                    session.LastDisplayedRateLimitSecond = secondsRemaining;
+                    UpdateUiState(uid, loaderUid, session: session);
+                }
+            }
+            else
+            {
+                session.LastDisplayedRateLimitSecond = 0;
+            }
+
             // Keep the account link in sync with whichever ID card is currently inside the PDA.
             if (TryComp<PdaComponent>(loaderUid, out var pda))
             {
@@ -386,6 +403,14 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             return;
         }
 
+        var now = _timing.CurTime;
+
+        // The sender-side rate gate is the primary layer: over-limit sends are rejected here
+        // synchronously, so they never appear in history and the input lock is applied from the
+        // first failed attempt. The relay re-checks the same window as an anti-bypass backstop.
+        if (IsRateLimited(uid, loaderUid, component, session, now))
+            return;
+
         var maxLength = _cfg.GetCVar(CCVars.MalinovMessengerMaxMessageLength);
         if (text.Length > maxLength)
             text = text[..maxLength];
@@ -417,6 +442,8 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         var message = new MalinovMessengerMessage(session.IdentityName, text, _timing.CurTime, outgoing: true, messageId);
         AddSessionMessage(session, targetName, message);
 
+        session.SentTimestamps.Add(now);
+        session.RateLimitUntil = null;
         session.LastError = null;
         UpdateUiState(uid, loaderUid, component, session);
     }
@@ -430,6 +457,41 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     {
         session.LastError = errorKey;
         UpdateUiState(uid, loaderUid, component, session);
+    }
+
+    /// <summary>
+    ///     Sender-side rate gate. Applies a fixed <see cref="CCVars.MalinovMessengerRateWindowSeconds"/>
+    ///     cooldown from the moment the limit is exceeded: while the cooldown is active, every subsequent
+    ///     send is rejected with the rate-limit error and the input stays locked. Old send timestamps older
+    ///     than the window are pruned.
+    /// </summary>
+    private bool IsRateLimited(
+        EntityUid uid,
+        EntityUid loaderUid,
+        MalinovMessengerCartridgeComponent component,
+        MalinovMessengerCartridgeSessionComponent session,
+        TimeSpan now)
+    {
+        var window = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds));
+        var maxMessages = _cfg.GetCVar(CCVars.MalinovMessengerRateMaxMessages);
+
+        if (session.RateLimitUntil is { } blockUntil && now < blockUntil)
+        {
+            SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-rate-limited");
+            return true;
+        }
+
+        session.SentTimestamps.RemoveAll(t => now - t > window);
+
+        if (session.SentTimestamps.Count >= maxMessages)
+        {
+            session.RateLimitUntil = now + window;
+            SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-rate-limited");
+            return true;
+        }
+
+        session.RateLimitUntil = null;
+        return false;
     }
 
     #endregion
@@ -515,6 +577,13 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
             if (text == "malinov-messenger-error-muted")
                 session.IsMuted = true;
+
+            if (text == "malinov-messenger-error-rate-limited")
+            {
+                var now = _timing.CurTime;
+                var window = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds));
+                session.RateLimitUntil = now + window;
+            }
 
             SetSendError(uid, loaderUid, component, session, text);
             return;
@@ -735,7 +804,10 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             ? lines
             : new List<MalinovMessengerMessage>();
 
-        var state = new MalinovMessengerUiState(contacts, status, session.SelectedContact, messages, session.IsMuted);
+        // Pass the server CurTime deadline directly: the client counts down against its own
+        // (server-synced) CurTime, so the input unlocks at exactly the same moment on both
+        // sides regardless of clock drift. Null means the cooldown is inactive.
+        var state = new MalinovMessengerUiState(contacts, status, session.SelectedContact, messages, session.IsMuted, session.RateLimitUntil);
         _cartridgeLoader.UpdateCartridgeUiState(loaderUid, state);
     }
 
