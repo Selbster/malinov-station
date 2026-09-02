@@ -19,6 +19,13 @@ public sealed partial class MalinovMessengerUi : UIFragment
 
     public override void Setup(BoundUserInterface userInterface, EntityUid? fragmentOwner)
     {
+        // The cartridge loader calls Setup() on every loader-level state update, and the
+        // on-screen fragment is only re-attached when its type changes. Recreating the
+        // fragment here would orphan the displayed instance, so messenger state would be
+        // forwarded to a hidden fragment and the chat would not open. Reuse the live one.
+        if (_fragment is { Disposed: false })
+            return;
+
         _fragment = new MalinovMessengerUiFragment();
 
         _fragment.OnContactSelected += name =>
