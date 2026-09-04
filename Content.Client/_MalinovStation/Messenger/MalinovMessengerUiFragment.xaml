@@ -15,8 +15,8 @@
             <Control HorizontalExpand="True" VerticalExpand="True">
                 <BoxContainer Orientation="Vertical" HorizontalExpand="True" VerticalExpand="True">
                     <BoxContainer Orientation="Horizontal" HorizontalExpand="True">
-                        <Label Name="ChatHeaderLabel" HorizontalExpand="True" StyleClasses="LabelHeading" />
-                        <Button Name="CloseChatButton" Text="{Loc 'malinov-messenger-close-chat-button'}" Visible="False" />
+                        <Label Name="ChatHeaderLabel" HorizontalExpand="True" StyleClasses="LabelHeading" ClipText="True" />
+                        <Button Name="CloseChatButton" Text="{Loc 'malinov-messenger-close-chat-button'}" Visible="False" MinWidth="80" HorizontalExpand="False" />
                     </BoxContainer>
                     <ScrollContainer Name="ChatScrollContainer" HorizontalExpand="True" VerticalExpand="True" HScrollEnabled="False">
                         <BoxContainer Name="ChatContainer" Orientation="Vertical" HorizontalExpand="True" />
