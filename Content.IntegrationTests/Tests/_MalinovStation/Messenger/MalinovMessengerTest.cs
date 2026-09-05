@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Content.Client._MalinovStation.Messenger;
 using Content.IntegrationTests.Fixtures;
 using Content.Server.Administration;
@@ -100,6 +101,50 @@ public sealed class MalinovMessengerTest : GameTest
             Assert.That(entityManager.TryGetComponent(pda, out CartridgeLoaderComponent loader), Is.True);
             Assert.That(cartridgeLoaderSystem.HasProgram<MalinovMessengerCartridgeComponent>((pda, loader)), Is.False,
                 "Messenger program should not be auto-installed in CentcomPDA");
+        });
+
+        await server.WaitRunTicks(2);
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task MessengerProgramNotInstalledOnAnyExcludedPda()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var cartridgeLoaderSystem = entityManager.EntitySysManager.GetEntitySystem<CartridgeLoaderSystem>();
+
+        await pair.CreateTestMap();
+        var coords = pair.TestMap!.GridCoords;
+
+        await server.WaitAssertion(() =>
+        {
+            var field = typeof(MalinovMessengerInstallerSystem)
+                .GetField("ExcludedPdaPrototypes", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(field, Is.Not.Null, "ExcludedPdaPrototypes field should exist");
+            var excluded = (HashSet<EntProtoId>)field!.GetValue(null)!;
+
+            Assert.That(excluded, Is.Not.Empty, "Exclusion list should not be empty");
+            var excludedNames = excluded.Select(x => x.ToString()).ToList();
+            Assert.That(excludedNames, Does.Contain("WizardPDA"),
+                "Off-station wizard PDA should be excluded from the messenger");
+            Assert.That(excludedNames, Does.Contain("ChameleonPDA"),
+                "Chameleon PDA should be excluded from the messenger");
+            Assert.That(excludedNames, Does.Contain("ChameleonAgentPDA"),
+                "Chameleon agent PDA should be excluded from the messenger");
+
+            foreach (var protoId in excludedNames)
+            {
+                var pda = entityManager.SpawnEntity(protoId, coords);
+
+                if (!entityManager.TryGetComponent(pda, out CartridgeLoaderComponent loader))
+                    continue; // the device cannot run cartridges at all, nothing to assert
+
+                Assert.That(cartridgeLoaderSystem.HasProgram<MalinovMessengerCartridgeComponent>((pda, loader)), Is.False,
+                    $"Messenger program should not be auto-installed in {protoId}");
+            }
         });
 
         await server.WaitRunTicks(2);
@@ -902,7 +947,16 @@ public sealed class MalinovMessengerTest : GameTest
             Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda2, PdaUiKey.Key, out var state), Is.True,
                 "Recipient UI state should be set");
             Assert.That(state.Messages.Any(m => m.SenderName == senderName && m.Text == messageText && !m.Outgoing),
-                Is.True, "Recipient UI state should show the incoming message");
+                Is.False, "An incoming message must not auto-open the sender's conversation");
+
+            session2.SelectedContact = senderName;
+            evt = new CartridgeUiReadyEvent(pda2);
+            entityManager.EventBus.RaiseLocalEvent(prog2, ref evt);
+
+            Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda2, PdaUiKey.Key, out state), Is.True,
+                "Recipient UI state should be set after the conversation is selected");
+            Assert.That(state.Messages.Any(m => m.SenderName == senderName && m.Text == messageText && !m.Outgoing),
+                Is.True, "Recipient UI state should show the incoming message after the conversation is selected");
         });
 
         await server.WaitIdleAsync();

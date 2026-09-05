@@ -674,6 +674,9 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             if (name == session.IdentityName)
                 continue;
 
+            // known simplification: contacts are matched by their station-record display
+            // name string; two crew members with identical names resolve to whichever peer
+            // is online when the message is sent.
             session.Peers[name] = new PeerCache(address, expiry);
         }
 

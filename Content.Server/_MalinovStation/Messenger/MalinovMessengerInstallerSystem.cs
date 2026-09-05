@@ -50,6 +50,11 @@ public sealed partial class MalinovMessengerInstallerSystem : EntitySystem
         "VisitorMedicalPDA",
         "VisitorMusicianPDA",
 
+        // Off-station magic / disguise
+        "WizardPDA",
+        "ChameleonPDA",
+        "ChameleonAgentPDA",
+
         // Fun / non-functional
         "CluwnePDA",
         "ScurretPDA",

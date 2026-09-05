@@ -22,8 +22,6 @@ malinov-messenger-error-muted = You are muted by Central Command.
 malinov-messenger-muted-banner = YOU ARE MUTED BY CENTRAL COMMAND
 malinov-messenger-no-idcard = Insert your ID card.
 malinov-messenger-notification-popup = New message from { $sender }
-
-
 malinov-messenger-server-unavailable = server unavailable
 
 malinov-messenger-mute-command-description = Mutes a messenger sender for the rest of the round.

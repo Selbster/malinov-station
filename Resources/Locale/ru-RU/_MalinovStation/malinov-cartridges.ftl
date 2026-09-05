@@ -22,8 +22,6 @@ malinov-messenger-error-muted = Вы заглушены ЦК.
 malinov-messenger-muted-banner = ВЫ ЗАГЛУШЕНЫ ЦК
 malinov-messenger-no-idcard = Вставьте свою ID-карту.
 malinov-messenger-notification-popup = Новое сообщение от { $sender }
-
-
 malinov-messenger-server-unavailable = сервер недоступен
 
 malinov-messenger-mute-command-description = Заглушает отправителя мессенджера до конца раунда.
