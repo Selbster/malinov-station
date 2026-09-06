@@ -1,3 +1,4 @@
+using Robust.Shared.Map;
 namespace Content.Server._MalinovStation.AIPlayers.Components;
 
 /// <summary>
@@ -32,4 +33,26 @@ public sealed partial class ExplorationComponent : Component
     /// surfaced for tracing and tests. Null for a nameless frontier trip.</summary>
     [ViewVariables]
     public string? CurrentTargetName;
+
+    /// <summary>Where that target actually is, so arrival can be told apart from giving up. Without this a
+    /// journey that failed looks exactly like one that succeeded: in both cases the destination key is simply
+    /// gone from the blackboard.</summary>
+    [ViewVariables]
+    public EntityCoordinates? CurrentTargetCoordinates;
+
+    /// <summary>
+    /// Places this AI set out for and never reached, and when that judgement lapses.
+    ///
+    /// Live play showed the gap this closes: an AI would pick somewhere behind a door it cannot pass, fail to
+    /// get there, and - having learned nothing about the *destination*, only about the door - pick the very
+    /// same place again on its next reflection, indefinitely. Remembering the door was never enough, because
+    /// choosing where to go happens before any route exists.
+    /// </summary>
+    [ViewVariables]
+    public Dictionary<string, TimeSpan> UnreachablePlaces = new();
+
+    /// <summary>How long a place stays written off after a failed journey. Long enough to stop the loop,
+    /// short enough that a door being unbolted or a route reopening is eventually noticed.</summary>
+    [DataField]
+    public float UnreachableMemorySeconds = 300f;
 }

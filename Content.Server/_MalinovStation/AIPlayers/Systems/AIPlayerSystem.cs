@@ -121,6 +121,7 @@ public sealed partial class AIPlayerSystem : EntitySystem
             AddComp<ItemOpportunityComponent>(mobUid);
             AddComp<LocationKnowledgeComponent>(mobUid);
             AddComp<ExplorationComponent>(mobUid);
+            AddComp<AiDecisionTraceComponent>(mobUid);
 
             // AI Players 0.6: both default to TimeSpan.Zero, which - unlike a real "just chose this" moment -
             // reads as infinitely stale against a nonzero _timing.CurTime, which would make NeedsSystem.BoredomDelta
@@ -142,11 +143,25 @@ public sealed partial class AIPlayerSystem : EntitySystem
 
         var htn = AddComp<HTNComponent>(mobUid);
         htn.RootTask = new HTNCompoundTask { Task = RootCompound };
-        // Without this the pathfinder treats every closed door as impassable (see
-        // PathfindingSystem.Common.cs / NPCSteeringSystem.Obstacles.cs), so AI players would never
-        // leave a sealed room like arrivals. Vanilla door-using NPCs (dragon, xenos, monkeys) all set
-        // this the same way via their prototype's blackboard.
-        htn.Blackboard.SetValue(NPCBlackboard.NavInteract, true);
+        // AI Players 0.6.3: deliberately NOT set, and the reasoning matters because the obvious reading is
+        // the opposite one.
+        //
+        // NavInteract grants PathFlags.Interact, which vanilla consults in exactly two places, both of them
+        // about doors that carry no AccessReaderComponent: the pathfinder gives such a door a cheap cost, and
+        // steering then walks up and clicks it. On this station that set is essentially just shutters and
+        // blast-door panels - they run off a lever or a signal and open for nobody, ever. So the flag was
+        // buying nothing except a route into a wall, followed by an NPC clicking that wall once per tick,
+        // which is precisely the dithering reported from live play.
+        //
+        // Everything an AI player genuinely needs to walk through - every airlock, and every firelock -
+        // carries an AccessReader (the base Airlock and BaseFirelock prototypes both do, resolving their
+        // actual permissions through the inserted electronics board), so all of it travels the
+        // NavAccessInteract path below instead. That path also honours NPCDeniedAccessComponent, so a door
+        // this character has been refused by stops being routed through.
+        //
+        // The failure mode if some door type does lack a reader is that an AI treats it as a wall and goes
+        // around - conservative and quiet, unlike grinding against it forever.
+        htn.Blackboard.SetValue(NPCBlackboard.NavInteract, false);
         // NavInteract alone only covers doors with no access requirement. Without this, every
         // access-locked door (e.g. a department's own airlock) is a wall to the pathfinder even for a
         // legitimately-badged AI player - see PathFlags.AccessInteract's doc comment for the real

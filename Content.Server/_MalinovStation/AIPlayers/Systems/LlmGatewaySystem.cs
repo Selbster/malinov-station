@@ -204,6 +204,14 @@ public sealed partial class LlmGatewaySystem : EntitySystem
 
         var eligibleCategories = _actionRegistry.GetEligibleCategories(uid);
 
+        // AI Players 0.6.3, spec section 3: stage one of the end-to-end decision trace. Captured here rather
+        // than anywhere later because this is the only point that still knows *why* the AI is deciding at all -
+        // by the time an intent comes back, the needs that prompted it are gone from view.
+        _trace.DecisionStarted(uid,
+            TryComp<NeedsComponent>(uid, out var traceNeeds) ? traceNeeds.Boredom : 0f,
+            TryComp<PersonalityComponent>(uid, out var tracePersonality) ? tracePersonality.Curiosity : 0f,
+            context.CurrentDesires.Count > 0 ? context.CurrentDesires[0].Name : null);
+
         _lastRequestAt[uid] = _timing.CurTime;
         _inFlight++;
         LlmRequestsMetric.Inc();
@@ -374,25 +382,17 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         intentComp.Confidence = Math.Clamp(intent.Confidence, 0f, 1f);
         intentComp.DesireServed = intent.Desire;
 
-        // AI Players 0.6.2: category matching used to be an ordinal, case-sensitive `==` against a token the
-        // model returns inside an otherwise wholly-Russian prompt that explicitly forbids English elsewhere -
-        // so "movement", " Movement" or a translated "Движение" all silently killed the decision *after*
-        // IntentComponent had already been written. That is precisely the observed "the AI states an intention
-        // and then never moves" symptom. Now: forgiving comparison first, and if the category still matches
-        // nothing, fall back to every selectable action rather than abandoning the cycle - a mislabelled
-        // category is a formatting slip, not a reason to do nothing at all.
         var selectable = _actionRegistry.GetLlmSelectableActions(uid);
+        var eligibleInCategory = ChooseActionsToOffer(selectable, intent.Category, out var categoryWasUnusable);
 
-        var eligibleInCategory = selectable
-            .Where(a => string.Equals(a.Category, intent.Category?.Trim(), StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (eligibleInCategory.Count == 0)
+        if (categoryWasUnusable)
         {
-            _sawmill.Debug($"LLM proposed category \"{intent.Category}\" for {ToPrettyString(uid)}, which matched no eligible action; offering all selectable actions instead.");
+            _sawmill.Debug($"LLM proposed category \"{intent.Category}\" for {ToPrettyString(uid)}, which left no real choice; offering all selectable actions instead.");
             _trace.LlmFailure(uid, "UnmatchedCategory");
-            eligibleInCategory = selectable.ToList();
         }
+
+        _trace.DecisionIntent(uid, intent.Intention, intent.Category ?? string.Empty,
+            eligibleInCategory.Select(a => a.Name));
 
         if (eligibleInCategory.Count == 0)
         {
@@ -591,6 +591,45 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     }
 
     /// <summary>
+    /// Which actions stage two is allowed to choose between, given the category stage one named.
+    /// <paramref name="categoryWasUnusable"/> reports that the category was disregarded, so the caller can
+    /// trace it.
+    ///
+    /// A category normally narrows the choice, which is the whole point of having two stages. Two cases make
+    /// it worse than useless, and both end with the AI doing nothing while perfectly good actions sit eligible:
+    ///
+    /// AI Players 0.6.2 - the category matches nothing. The token comes back from a wholly-Russian prompt that
+    /// forbids English elsewhere, so "movement", " Movement" or a translated "Движение" used to kill the
+    /// decision by ordinal comparison, after IntentComponent had already been written.
+    ///
+    /// AI Players 0.6.3 - the category matches, but leaves only ContinueActivity. "Carry on exactly as before"
+    /// is the absence of a choice, not a choice, so this is the same failure wearing a disguise: live play had
+    /// a passenger state the intent "исследовать окружение, чтобы разобраться в неизвестном", label it General,
+    /// and stand still - because General holds only ContinueActivity, while ExploreStation was eligible the
+    /// whole time under Movement. One mislabelled word overruled an intent that was exactly right.
+    ///
+    /// Widening is not forcing. The model still has to pick the interesting action out of the full list, and a
+    /// list that genuinely holds nothing else is returned untouched.
+    /// </summary>
+    public static List<IAiAction> ChooseActionsToOffer(
+        IReadOnlyList<IAiAction> selectable,
+        string? category,
+        out bool categoryWasUnusable)
+    {
+        var inCategory = selectable
+            .Where(a => string.Equals(a.Category, category?.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var offersOnlyInaction = inCategory.Count == 1 &&
+            inCategory[0].Name == ContinueActivityAction.ActionName &&
+            selectable.Count > 1;
+
+        categoryWasUnusable = inCategory.Count == 0 || offersOnlyInaction;
+
+        return categoryWasUnusable ? selectable.ToList() : inCategory;
+    }
+
+    /// <summary>
     /// AI Players 0.6.1: writes a new intent name, stamping <see cref="IntentComponent.ChosenAt"/> only when
     /// the name actually changed. Both cognitive decision call sites used to unconditionally re-stamp this on
     /// every successful reflection, even one that just reconfirmed the same ongoing activity - since
@@ -657,6 +696,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         }
 
         _trace.ActionProposed(uid, proposal.ActionName, decision.Reason);
+        _trace.DecisionAction(uid, proposal.ActionName);
 
         // AI Players 0.6, spec section 34: a richer trace specifically for travel decisions, on top of the
         // generic ActionProposed line above.

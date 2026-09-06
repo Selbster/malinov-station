@@ -13,6 +13,8 @@ using Content.Shared.Roles;
 using Content.Shared.Station.Components;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
+using Robust.Shared.Map.Components;
+using Robust.Shared.Maths;
 using Robust.Shared.Prototypes;
 
 namespace Content.IntegrationTests.Tests._MalinovStation.AIPlayers;
@@ -20,7 +22,12 @@ namespace Content.IntegrationTests.Tests._MalinovStation.AIPlayers;
 /// <summary>
 /// AI movement-quality acceptance checks (live playtest follow-up): AIPlayerIdleCompound biases idle
 /// wandering toward remembered places (PickRememberedOrAccessibleOperator) instead of a uniformly random
-/// accessible point, so idle behaviour looks purposeful. Deliberately doesn't require cognitive mode -
+/// accessible point, so idle behaviour looks purposeful.
+///
+/// AI Players 0.6.3 narrowed that contract: a remembered place is used when the AI can actually get to it,
+/// and skipped when it cannot. Wandering toward somewhere unreachable was how passengers ended up walking
+/// into departmental airlocks over and over. So these fixtures now lay real floor - on the bare map every
+/// destination is unreachable, which used to leave idle wander producing nothing at all. Deliberately doesn't require cognitive mode -
 /// MemoryComponent is universal, only LandmarkPerceptionSystem (which populates it passively) is
 /// cognitive-only, so these tests seed memory directly, matching LandmarkNavigationTests' own convention.
 /// </summary>
@@ -83,6 +90,28 @@ public sealed class AiIdleWanderTests : GameTest
 
     /// <summary>Spawns an AI player with no urgent needs (Rest/Socialize suppressed) so the root compound
     /// naturally falls through to AIPlayerIdleCompound.</summary>
+    /// <summary>The bare test map carries no floor at all, so there is physically nowhere to walk and no
+    /// destination can ever be produced. Lays a square of plating around the passenger.</summary>
+    private static void PaintFloorAround(TestPair pair, EntityUid uid, int radius)
+    {
+        var server = pair.Server;
+        var xform = server.EntMan.GetComponent<TransformComponent>(uid);
+
+        Assert.That(xform.GridUid, Is.Not.Null, "Test setup: the passenger should have spawned on a grid.");
+        var gridUid = xform.GridUid!.Value;
+        var grid = server.EntMan.GetComponent<MapGridComponent>(gridUid);
+
+        var mapSys = server.System<SharedMapSystem>();
+        var tile = new Tile(server.ResolveDependency<ITileDefinitionManager>()["Plating"].TileId);
+        var origin = mapSys.CoordinatesToTile(gridUid, grid, xform.Coordinates);
+
+        for (var x = -radius; x <= radius; x++)
+        {
+            for (var y = -radius; y <= radius; y++)
+                mapSys.SetTile(gridUid, grid, new Vector2i(origin.X + x, origin.Y + y), tile);
+        }
+    }
+
     private async Task<EntityUid> SpawnIdleAiPlayer(TestPair pair, EntityUid station)
     {
         var server = pair.Server;
@@ -95,8 +124,13 @@ public sealed class AiIdleWanderTests : GameTest
             needs.Fatigue = 0f;
             needs.SocialNeed = 0f;
             server.EntMan.GetComponent<GoalComponent>(aiPlayer).ReconsiderAccumulator = 0f;
+
+            PaintFloorAround(pair, aiPlayer, radius: 12);
         });
 
+        // Deliberately no ticks here. Idle wander commits to a destination once it picks one (AI Players
+        // 0.6.3), so letting the passenger start pottering before a test has seeded its memory would mean
+        // testing against a decision made in ignorance of the very thing being seeded.
         return aiPlayer;
     }
 

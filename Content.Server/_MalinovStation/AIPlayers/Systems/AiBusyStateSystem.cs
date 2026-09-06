@@ -1,5 +1,6 @@
 using Content.Server._MalinovStation.AIPlayers.Actions;
 using Content.Server._MalinovStation.AIPlayers.Components;
+using Content.Server.NPC.Components;
 using Content.Server.NPC.HTN;
 using Robust.Shared.Map;
 using Robust.Shared.Timing;
@@ -31,6 +32,7 @@ public sealed partial class AiBusyStateSystem : EntitySystem
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private AiLodSystem _lod = default!;
     [Dependency] private HTNSystem _htn = default!;
+    [Dependency] private AiTraceSystem _trace = default!;
 
     /// <summary>How often (in seconds) busy AI players are re-checked - scaled by LOD like every other
     /// periodic scan in this subsystem. Not per-tick: busy-state only ever changes on a real HTN/goal
@@ -78,6 +80,13 @@ public sealed partial class AiBusyStateSystem : EntitySystem
                 continue;
 
             multiplier = MathF.Min(multiplier, _lod.GetMultiplier(uid));
+
+            // Spec section 3: steering being registered is the moment the AI stops merely intending to travel
+            // and starts actually doing it. Noticed on this scan, which already runs about once a second, so
+            // nothing is logged per movement tick.
+            if (IsForcedDestinationAction(busy.CurrentAction) && HasComp<NPCSteeringComponent>(uid))
+                _trace.DecisionMovementStarted(uid);
+
             CheckBusyState(uid, busy);
         }
 
@@ -132,10 +141,16 @@ public sealed partial class AiBusyStateSystem : EntitySystem
             // here: decide what this place is for, now, rather than on the next tick of the clock.
             var wasTravelling = IsForcedDestinationAction(busy.CurrentAction);
 
+            if (wasTravelling)
+                JudgeJourney(uid);
+
             Clear(busy);
 
             if (wasTravelling && TryComp<CognitiveModeComponent>(uid, out var arrived))
+            {
                 arrived.ReflectionAccumulator = 0f;
+                _trace.DecisionReevaluation(uid);
+            }
         }
     }
 
@@ -190,6 +205,46 @@ public sealed partial class AiBusyStateSystem : EntitySystem
 
         if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
             cognitive.ReflectionAccumulator = 0f;
+    }
+
+    /// <summary>
+    /// AI Players 0.6.3: decides whether a finished journey was an arrival or a failure, and remembers the
+    /// latter.
+    ///
+    /// The destination key vanishing tells us the journey ended, but not how - arrival and abandonment look
+    /// identical from here. Comparing where the AI actually is against where it meant to go separates them.
+    /// This matters because without it an AI that cannot reach somewhere learns nothing about the place: the
+    /// door in the way gets remembered, but the choice of destination is made long before any route exists, so
+    /// it picks the same unreachable spot again on its very next reflection - which is exactly what live play
+    /// showed, two passengers repeatedly setting off for the same closet neither could get into.
+    /// </summary>
+    private void JudgeJourney(EntityUid uid)
+    {
+        if (!TryComp<ExplorationComponent>(uid, out var exploration) ||
+            exploration.CurrentTargetName is not { } place ||
+            exploration.CurrentTargetCoordinates is not { } target)
+        {
+            return;
+        }
+
+        exploration.CurrentTargetName = null;
+        exploration.CurrentTargetCoordinates = null;
+
+        if (!TryComp(uid, out TransformComponent? xform) ||
+            !xform.Coordinates.TryDistance(EntityManager, target, out var distance))
+        {
+            return;
+        }
+
+        // Comfortably looser than the movement system's own arrival tolerance: the question here is "did it
+        // broadly get where it was going", not "did it stop on the exact tile".
+        if (distance <= NearDestinationTolerance * 2f)
+            return;
+
+        exploration.UnreachablePlaces[place] =
+            _timing.CurTime + TimeSpan.FromSeconds(exploration.UnreachableMemorySeconds);
+
+        _trace.DecisionFeedback(uid, $"NoPath: не удалось добраться до «{place}»");
     }
 
     /// <summary>

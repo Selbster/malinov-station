@@ -23,6 +23,21 @@ public sealed partial class DoorApproachComponent : Component
     [DataField]
     public float ApproachRadius = 3f;
 
+    [ViewVariables]
+    public float AccessScanAccumulator;
+
+    /// <summary>How often (seconds) to work out, in advance, which doors nearby this AI simply has no access
+    /// to. Far less often than the approach scan: access changes rarely, and this exists to inform pathfinding
+    /// before it commits to a route, not to react to anything.</summary>
+    [DataField]
+    public float AccessScanCooldown = 5f;
+
+    /// <summary>How far ahead to work that out. Deliberately much wider than
+    /// <see cref="ApproachRadius"/> - the point is to know a door is shut to us while it is still a routing
+    /// decision, not once we are already standing in front of it.</summary>
+    [DataField]
+    public float AccessScanRadius = 20f;
+
     /// <summary>The door currently being walked straight at, if any - while set, this system overrides
     /// movement input for this entity every tick.</summary>
     [ViewVariables]
@@ -45,4 +60,14 @@ public sealed partial class DoorApproachComponent : Component
     /// tick once in range.</summary>
     [ViewVariables]
     public TimeSpan? LastAttemptAt;
+
+    /// <summary>The prying tool this AI decided to force <see cref="ActiveDoor"/> with, if that is the plan.
+    /// Null for an ordinary door it means to click.</summary>
+    [ViewVariables]
+    public EntityUid? PryTool;
+
+    /// <summary>When the prying do-after was started, so a pry in progress is neither timed out as a failed
+    /// walk nor mistaken for a click that silently did nothing.</summary>
+    [ViewVariables]
+    public TimeSpan? PryingSince;
 }

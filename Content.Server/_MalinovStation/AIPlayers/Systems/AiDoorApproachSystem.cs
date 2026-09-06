@@ -1,11 +1,14 @@
 using System.Linq;
 using System.Numerics;
+using Content.Server._MalinovStation.AIPlayers.Actions;
 using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server.NPC.Components;
+using Content.Server.NPC.HTN;
 using Content.Server.NPC.Pathfinding;
 using Content.Server.NPC.Systems;
 using Content.Shared.Access.Systems;
 using Content.Shared.Doors.Components;
+using Content.Shared.Doors.Systems;
 using Content.Shared.Interaction;
 using Content.Shared.Movement.Components;
 using Content.Shared.Movement.Events;
@@ -31,7 +34,7 @@ namespace Content.Server._MalinovStation.AIPlayers.Systems;
 /// input, reusing exactly the same public fields <c>NPCSteeringSystem.SetDirection</c> itself writes
 /// (<see cref="InputMoverComponent.CurTickSprintMovement"/> etc.) - never a custom movement/physics
 /// implementation, and reusing vanilla's own door/access primitives
-/// (<see cref="AccessReaderSystem.IsAllowed"/>, <see cref="SharedInteractionSystem.InteractionActivate"/>)
+/// (<see cref="SharedDoorSystem.CanOpen"/>, <see cref="SharedInteractionSystem.InteractionActivate"/>)
 /// rather than reimplementing them.
 ///
 /// Added unconditionally to every AI player at spawn (not cognitive-gated) - dancing/access-ignoring are
@@ -49,13 +52,15 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
 {
     [Dependency] private EntityLookupSystem _lookup = default!;
     [Dependency] private SharedInteractionSystem _interaction = default!;
-    [Dependency] private AccessReaderSystem _accessReader = default!;
+    [Dependency] private SharedDoorSystem _door = default!;
     [Dependency] private SharedMoverController _mover = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
     [Dependency] private SharedMapSystem _mapSystem = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private AiLodSystem _lod = default!;
     [Dependency] private MemorySystem _memory = default!;
+    [Dependency] private AiTraceSystem _trace = default!;
+    [Dependency] private HTNSystem _htn = default!;
 
     /// <summary>How many upcoming polys of <see cref="NPCSteeringComponent.CurrentPath"/> to check for a door
     /// obstacle - bounded so this stays cheap and only ever considers the door the AI is actually about to
@@ -84,6 +89,10 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
     /// doorway geometry it can't actually reach in a straight line).</summary>
     private static readonly TimeSpan ApproachTimeout = TimeSpan.FromSeconds(3);
 
+    /// <summary>How long to let a prying do-after run before concluding it is not going to finish. Generous
+    /// next to <see cref="ApproachTimeout"/> because levering a door is genuinely slow work.</summary>
+    private static readonly TimeSpan PryTimeout = TimeSpan.FromSeconds(25);
+
     private readonly HashSet<Entity<DoorComponent>> _nearbyDoors = new();
 
     public override void Initialize()
@@ -111,6 +120,15 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
                 continue;
             }
 
+            // Runs whether or not the AI is currently moving: the whole point is for pathfinding to already
+            // know which doors are shut to this character by the time it picks a route.
+            approach.AccessScanAccumulator -= frameTime;
+            if (approach.AccessScanAccumulator <= 0f)
+            {
+                approach.AccessScanAccumulator = approach.AccessScanCooldown * _lod.GetMultiplier(uid);
+                ScanForInaccessibleDoors(uid, approach, xform);
+            }
+
             // Only look for a new door to approach while actually mid-move - nothing to override otherwise.
             if (!TryComp<NPCSteeringComponent>(uid, out var steering))
                 continue;
@@ -120,7 +138,95 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
                 continue;
 
             approach.ScanAccumulator = approach.ScanCooldown * _lod.GetMultiplier(uid);
+
+            // Judge the whole journey before judging the next few steps of it. If the route leads through
+            // something that will not open, there is no point looking for a door to walk up to on the way.
+            ReviewCurrentRoute(uid, approach, steering);
+            if (approach.ActiveDoor is not null)
+                continue;
+
             TryFindDoor(uid, approach, xform, steering);
+        }
+    }
+
+    /// <summary>
+    /// AI Players 0.6.3: works out in advance which nearby doors this AI has no access to, and tells
+    /// pathfinding, so it never routes through them in the first place.
+    ///
+    /// This is the fix for a problem every previous attempt missed by looking in the wrong place. AI players
+    /// are spawned with <c>NavAccessInteract</c> (see <c>AIPlayerSystem</c>), which becomes
+    /// <see cref="PathFlags.AccessInteract"/> - telling the pathfinder that access-controlled doors are
+    /// passable. That flag says nothing about whether <em>this</em> character holds the access, so the router
+    /// happily plans straight through a door the AI can never open; vanilla <c>NPCSteeringSystem</c> then walks
+    /// it over and clicks, discovers the denial, and only *then* records it. The AI trying doors it cannot open
+    /// was therefore never this system's approach behaviour at all - gating that (as earlier milestones did)
+    /// could not have fixed it.
+    ///
+    /// <see cref="NPCDeniedAccessComponent"/> is vanilla's own channel for "do not route me through this" -
+    /// <c>PathfindingSystem.GetDeniedTiles</c> reads it when building a path request. Populating it up front
+    /// rather than by collision is the whole change.
+    ///
+    /// Uses <see cref="SharedDoorSystem.HasAccess"/> rather than <c>CanOpen</c>: access is the stable,
+    /// knowable-in-advance part and costs only component lookups, whereas CanOpen raises an event per door and
+    /// answers questions (bolts, power) that change moment to moment and are better caught close up, which
+    /// <see cref="TryFindDoor"/> still does.
+    /// </summary>
+    private void ScanForInaccessibleDoors(EntityUid uid, DoorApproachComponent approach, TransformComponent xform)
+    {
+        PruneExpiredDenials(approach);
+
+        _nearbyDoors.Clear();
+        _lookup.GetEntitiesInRange(xform.Coordinates, approach.AccessScanRadius, _nearbyDoors);
+
+        foreach (var (doorUid, door) in _nearbyDoors)
+        {
+            if (doorUid == uid || Deleted(doorUid))
+                continue;
+
+            // An open door is passable regardless of what it would take to open it.
+            if (door.State != DoorState.Closed)
+                continue;
+
+            // AI Players 0.6.3: the ordered judgement, asked without the momentary half - see JudgeDoor.
+            // A door it could pry open is a way through, not a wall, so only a genuine Blocked is written off.
+            var judgement = JudgeDoor(uid, doorUid, door, includeMomentaryState: false);
+            if (judgement.Passability != DoorPassability.Blocked)
+                continue;
+
+            // Re-affirmed on every sweep rather than skipped once known: entries expire after
+            // DeniedMemoryDuration, and letting one lapse while the AI is still standing next to an impassable
+            // door just invites it to path into the thing again ninety seconds later.
+            var alreadyKnown = IsDenied(approach, doorUid);
+
+            // Silent: this is routing knowledge, not an experience. Being unable to enter Cargo is not
+            // something a passenger needs to have walked into a door to know.
+            MarkDenied(uid, approach, doorUid, judgement.Reason, blocking: false);
+
+            // Deliberately does NOT ask HTN to replan here, though an earlier version of this scan did and it
+            // was a bad mistake: idle wandering picks a *random* remembered place on every planning pass, so
+            // forcing a replan always produces a different destination, which aborts the move already in
+            // flight. Walking across a station full of locked doors meant a steady trickle of newly-discovered
+            // ones, hence a steady stream of replans, hence the AI re-targeting every few seconds and never
+            // arriving anywhere - a flood of "MoveToOperator (reason=PlanAborted)" in the trace.
+            //
+            // Nothing is lost by leaving the current route alone: the denial is recorded, so the *next* path
+            // request routes around this door anyway, and the case that genuinely cannot wait - the door being
+            // in the way right now - is handled precisely by AbandonRouteThrough as the AI reaches it.
+            _ = alreadyKnown;
+        }
+    }
+
+    /// <summary>Keeps both denial maps from growing for the whole round as an AI wanders past more and more
+    /// doors. Expired entries are meaningless to <c>GetDeniedTiles</c> anyway - this just stops us carrying
+    /// them around.</summary>
+    private void PruneExpiredDenials(DoorApproachComponent approach)
+    {
+        foreach (var (doorUid, expiry) in approach.DeniedDoors)
+        {
+            if (_timing.CurTime < expiry && !Deleted(doorUid))
+                continue;
+
+            approach.DeniedDoors.Remove(doorUid);
         }
     }
 
@@ -130,6 +236,7 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         _lookup.GetEntitiesInRange(xform.Coordinates, approach.ApproachRadius, _nearbyDoors);
 
         EntityUid? nearest = null;
+        EntityUid? nearestTool = null;
         var nearestDistance = float.MaxValue;
 
         foreach (var (doorUid, door) in _nearbyDoors)
@@ -140,21 +247,40 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
             if (door.State != DoorState.Closed)
                 continue;
 
-            // AI Players 0.6.2: shutters and blast doors only ever move on a button or a signal - clicking one
-            // does nothing whatsoever. Pathfinding still routes through them (they are ordinary Door polys), so
-            // an AI would walk up and click at one forever. DoorComponent.ClickOpen is the door's own statement
-            // that this is so, which means no prototype needs hardcoding here: anything configured that way is
-            // treated as a wall, and recorded as impassable so the next path request goes around it instead.
-            if (!door.ClickOpen)
-            {
-                MarkDenied(uid, approach, doorUid, "эту створку не открыть руками");
-                continue;
-            }
-
             // AI Players 0.6.1: only ever engage a door that's actually part of the AI's current route - see
             // this system's own class doc comment. A door merely nearby but irrelevant to where the AI is
             // going is left alone entirely.
-            if (!IsOnCurrentRoute(doorUid, steering, xform))
+            var onRoute = IsOnCurrentRoute(doorUid, steering, xform);
+
+            // AI Players 0.6.3: whether this door will open for this AI is settled HERE, before a single step
+            // is taken toward it - walking over to find out is itself the dithering reported from live play.
+            // Same ordered judgement as the long-range sweep, plus the momentary half now that the answer will
+            // still be current when it is acted on.
+            var judgement = JudgeDoor(uid, doorUid, door, includeMomentaryState: true);
+
+            if (judgement.Passability == DoorPassability.Blocked)
+            {
+                // Remembered as impassable either way (so pathfinding routes around it), but only treated as a
+                // real event - memory, abandoned journey - when it was genuinely in the way. Otherwise merely
+                // walking down a corridor past a dozen locked doors would fill the AI's head with them.
+                MarkDenied(uid, approach, doorUid, judgement.Reason, blocking: onRoute);
+
+                // Calling off a journey needs the stronger of the two route signals. LiesAheadOnTheWay is
+                // geometric - roughly along the line to the destination - which is the right test for "should
+                // I walk over and open this", because it still answers while a path request is in flight. It
+                // is the wrong test for "is my trip impossible": a door set into the side of a corridor the AI
+                // is merely passing through satisfies it without being in the way at all. Live play showed the
+                // cost - an exploration trip abandoned over a counter hatch beside the route, reported as
+                // "AccessDenied: это окошко на стойке, а не проход".
+                //
+                // The computed path is the honest answer to that question, so only it may end a journey.
+                if (IsBlockingPath(doorUid, steering))
+                    AbandonRouteThrough(uid, judgement.Reason);
+
+                continue;
+            }
+
+            if (!onRoute)
                 continue;
 
             if (IsDenied(approach, doorUid))
@@ -166,6 +292,7 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
 
             nearestDistance = distance;
             nearest = doorUid;
+            nearestTool = judgement.Passability == DoorPassability.Pry ? judgement.Tool : null;
         }
 
         if (nearest is not { } chosen)
@@ -174,28 +301,45 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         approach.ActiveDoor = chosen;
         approach.ActiveSince = _timing.CurTime;
         approach.LastAttemptAt = null;
+        approach.PryTool = nearestTool;
+        approach.PryingSince = null;
     }
 
     private void ProcessActiveApproach(EntityUid uid, DoorApproachComponent approach, EntityUid doorUid, TransformComponent xform, InputMoverComponent mover)
     {
         if (Deleted(doorUid) || !TryComp<DoorComponent>(doorUid, out var door))
         {
-            approach.ActiveDoor = null;
+            ClearApproach(approach);
             return;
         }
 
         if (door.State != DoorState.Closed)
         {
-            // Already opening (we clicked it, or something/someone else did) - GentleApproach already lets
-            // vanilla steering walk an opening door through cleanly from here. Job done, hand back.
-            approach.ActiveDoor = null;
+            // Already opening (we clicked it, we pried it, or something/someone else did) - GentleApproach
+            // already lets vanilla steering walk an opening door through cleanly from here. Job done.
+            ClearApproach(approach);
+            return;
+        }
+
+        // Levering a door apart takes far longer than walking to one, so a pry already under way is judged
+        // against its own clock rather than being written off as a failed approach.
+        if (approach.PryingSince is { } pryStarted)
+        {
+            if (_timing.CurTime - pryStarted <= PryTimeout)
+            {
+                HoldStill(mover);
+                return;
+            }
+
+            MarkDenied(uid, approach, doorUid, "вскрыть её не вышло");
+            ClearApproach(approach);
             return;
         }
 
         if (_timing.CurTime - approach.ActiveSince > ApproachTimeout)
         {
             MarkDenied(uid, approach, doorUid, "до неё не получается дойти");
-            approach.ActiveDoor = null;
+            ClearApproach(approach);
             return;
         }
 
@@ -213,19 +357,42 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         if (approach.LastAttemptAt is { } lastAttempt)
         {
             if (_timing.CurTime - lastAttempt < AttemptGracePeriod)
-                return; // Already clicked it - waiting to see whether it actually opens.
+            {
+                // Already clicked it - stand still and see whether it opens.
+                //
+                // Standing still has to be said out loud. Writing no movement at all does not mean the AI
+                // stops: this system runs after vanilla steering, so a tick we leave alone is a tick steering
+                // owns, and steering goes on pushing toward a destination that lies beyond the very door we
+                // are waiting on. Half a second of that, then our own straight approach again, then steering
+                // again - which from the outside is a character jittering back and forth against a door, and
+                // is what live play reported as the most irritating thing to watch.
+                //
+                // While this system owns an approach it owns every tick of it, waiting included.
+                HoldStill(mover);
+                return;
+            }
 
             // Grace period elapsed and it's still Closed (the check at the top of this method would have
             // already handed back if it changed) - no power, welded, or any other silent failure. Back off.
             MarkDenied(uid, approach, doorUid, "она не открывается");
-            approach.ActiveDoor = null;
+            ClearApproach(approach);
             return;
         }
 
-        if (!_accessReader.IsAllowed(uid, doorUid))
+        // Re-asked on arrival with the same ordered judgement the approach was authorised by - a door can be
+        // bolted, welded or lose power during the few seconds it took to walk over.
+        var judgement = JudgeDoor(uid, doorUid, door, includeMomentaryState: true);
+
+        if (judgement.Passability == DoorPassability.Blocked)
         {
-            MarkDenied(uid, approach, doorUid, "у тебя нет доступа");
-            approach.ActiveDoor = null;
+            MarkDenied(uid, approach, doorUid, judgement.Reason);
+            ClearApproach(approach);
+            return;
+        }
+
+        if (judgement.Passability == DoorPassability.Pry)
+        {
+            TryStartPrying(uid, approach, doorUid, judgement.Tool);
             return;
         }
 
@@ -233,10 +400,66 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         approach.LastAttemptAt = _timing.CurTime;
     }
 
+    /// <summary>
+    /// Levers an unpowered door apart. The tool has to reach a hand first - a crowbar in the backpack opens
+    /// nothing - and a character with both hands full simply cannot do this, which is a denial like any other
+    /// rather than a silent no-op.
+    /// </summary>
+    private void TryStartPrying(EntityUid uid, DoorApproachComponent approach, EntityUid doorUid, EntityUid? tool)
+    {
+        if (tool is not { } pryTool || Deleted(pryTool))
+        {
+            MarkDenied(uid, approach, doorUid, "вскрывать её нечем");
+            ClearApproach(approach);
+            return;
+        }
+
+        if (!_hands.IsHolding(uid, pryTool) && !_hands.TryPickupAnyHand(uid, pryTool))
+        {
+            MarkDenied(uid, approach, doorUid, "лом не взять в руки");
+            ClearApproach(approach);
+            return;
+        }
+
+        if (!_prying.TryPry(doorUid, uid, out var doAfter, pryTool) || doAfter is null)
+        {
+            MarkDenied(uid, approach, doorUid, "вскрыть её не выходит");
+            ClearApproach(approach);
+            return;
+        }
+
+        approach.PryingSince = _timing.CurTime;
+    }
+
+    /// <summary>Drops every trace of the current approach, including a half-planned pry. Kept in one place so
+    /// a new exit path cannot leave <see cref="DoorApproachComponent.PryTool"/> pointing at a door the AI has
+    /// already given up on.</summary>
+    private static void ClearApproach(DoorApproachComponent approach)
+    {
+        approach.ActiveDoor = null;
+        approach.PryTool = null;
+        approach.PryingSince = null;
+        approach.LastAttemptAt = null;
+    }
+
     /// <summary>The same 4 field writes NPCSteeringSystem.SetDirection performs internally on these exact
     /// public fields - direction must be pre-rotated by -GetParentGridAngle before writing here, matching
     /// SharedMoverController.AssertValidWish's own downstream RotateVec(parentRotation), the same transform
     /// NPCSteeringSystem.Context.cs's own offsetRot already applies for the identical reason.</summary>
+    /// <summary>
+    /// Plants the AI where it stands for this tick.
+    ///
+    /// The counterpart to <see cref="WalkToward"/>, and needed for the same reason: this system runs after
+    /// vanilla steering and overwrites its movement input, so "do nothing" and "stand still" are different
+    /// instructions. Doing nothing hands the tick back to steering.
+    /// </summary>
+    private void HoldStill(InputMoverComponent mover)
+    {
+        mover.CurTickSprintMovement = Vector2.Zero;
+        mover.LastInputTick = _timing.CurTick;
+        mover.LastInputSubTick = ushort.MaxValue;
+    }
+
     private void WalkToward(EntityUid uid, InputMoverComponent mover, Vector2 myWorldPos, Vector2 targetWorldPos)
     {
         var diff = targetWorldPos - myWorldPos;
@@ -271,14 +494,15 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
     /// Entries expire (see <see cref="DeniedMemoryDuration"/>): access can legitimately change, and a shutter
     /// someone opens from a console should stop being a wall.
     /// </summary>
-    private void MarkDenied(EntityUid uid, DoorApproachComponent approach, EntityUid doorUid, string reason)
+    private void MarkDenied(EntityUid uid, DoorApproachComponent approach, EntityUid doorUid, string reason, bool blocking = true)
     {
         var expiry = _timing.CurTime + DeniedMemoryDuration;
 
         approach.DeniedDoors[doorUid] = expiry;
         EnsureComp<NPCDeniedAccessComponent>(uid).DeniedDoors[doorUid] = expiry;
 
-        if (!HasComp<CognitiveModeComponent>(uid))
+        // A door that was never in the way is worth routing around, but is not an experience worth having.
+        if (!blocking || !HasComp<CognitiveModeComponent>(uid))
             return;
 
         // Deduped against the recent past rather than written every retry - otherwise a door the AI passes
@@ -306,6 +530,33 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
 
     private bool IsDenied(DoorApproachComponent approach, EntityUid doorUid) =>
         approach.DeniedDoors.TryGetValue(doorUid, out var expiry) && _timing.CurTime < expiry;
+
+    /// <summary>
+    /// AI Players 0.6.3: gives up on the current destination when the door in the way is one this AI can never
+    /// get through.
+    ///
+    /// Marking the door impassable stops future <em>path requests</em> going through it, but on its own it
+    /// leaves the AI still committed to a destination it now has no route to: HTN keeps re-planning toward it,
+    /// failing, and re-planning, which is the other half of what looks like dithering at a door. Dropping the
+    /// destination ends that immediately and hands the decision back to cognition, with the reason attached so
+    /// it picks somewhere else rather than the same place again - spec 0.6.2 section 19's AccessDenied
+    /// feedback, arriving at the moment the route is actually known to be dead.
+    /// </summary>
+    private void AbandonRouteThrough(EntityUid uid, string reason)
+    {
+        if (!TryComp<HTNComponent>(uid, out var htn) ||
+            !htn.Blackboard.TryGetValue<EntityCoordinates>(MoveToAction.ForcedDestinationKey, out _, EntityManager))
+        {
+            return;
+        }
+
+        htn.Blackboard.Remove<EntityCoordinates>(MoveToAction.ForcedDestinationKey);
+        _trace.DecisionFeedback(uid, $"AccessDenied: {reason}");
+
+        // Decide again now rather than standing about until the routine reflection interval comes round.
+        if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
+            cognitive.ReflectionAccumulator = 0f;
+    }
 
     /// <summary>
     /// AI Players 0.6.1: whether <paramref name="doorUid"/> is genuinely part of the route this AI is

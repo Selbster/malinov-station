@@ -297,4 +297,59 @@ public sealed class PassengerBoredomTests : GameTest
         await server.WaitPost(() => server.EntMan.DeleteEntity(aiPlayer));
         await server.WaitPost(() => server.System<GameTicker>().RestartRound());
     }
+
+    /// <summary>
+    /// AI Players 0.6.3: the case the 0.6.1 reconfirmation fix could not cover. A real model rarely repeats an
+    /// intent verbatim - it re-words the same ongoing activity every reflection - so the name-changed check
+    /// stamped a fresh timestamp anyway, roughly every reflection cycle, and the drain (fifty times the gain)
+    /// erased everything boredom had accumulated. Live dumps showed the result: скука=0.00 on every passenger.
+    ///
+    /// An AI that has not left the corridor it is standing in is bored, regardless of how eloquently it keeps
+    /// describing what it is doing there. Deliberately started from a non-zero value so a regression shows up
+    /// as an actual decline rather than being hidden by the clamp at 0.
+    /// </summary>
+    [Test]
+    public async Task Boredom_SurvivesReflectionsThatRewordTheIntent()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        var station = await StartRoundAndGetStation(pair);
+
+        EntityUid aiPlayer = default;
+        await server.WaitPost(() =>
+        {
+            aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station, cognitiveMode: true)!.Value;
+            server.EntMan.GetComponent<PersonalityComponent>(aiPlayer).Curiosity = 1f;
+            server.EntMan.GetComponent<NeedsComponent>(aiPlayer).Boredom = 0.5f;
+        });
+        MakeIntentAndAreaStale(pair, aiPlayer);
+
+        var gateway = server.System<LlmGatewaySystem>();
+        var before = server.EntMan.GetComponent<NeedsComponent>(aiPlayer).Boredom;
+
+        // Three reflections, each phrasing the very same ongoing activity differently - which is what a live
+        // model actually produces, and what used to reset the clock every single time.
+        foreach (var wording in new[] { "осматриваюсь_вокруг", "разглядываю_коридор", "продолжаю_осмотр" })
+        {
+            await pair.RunTicksSync(150);
+
+            var decision = new LlmCognitiveDecision(
+                "boredom", wording, 0.4f, 0.6f, "Всё ещё стою здесь.",
+                ContinueActivityAction.ActionName, new Dictionary<string, string>());
+
+            await server.WaitPost(() => Assert.That(gateway.TryApplyCognitiveDecision(aiPlayer, decision), Is.True));
+        }
+
+        await pair.RunTicksSync(150);
+
+        await server.WaitAssertion(() =>
+        {
+            var after = server.EntMan.GetComponent<NeedsComponent>(aiPlayer).Boredom;
+            Assert.That(after, Is.GreaterThan(before),
+                "Re-wording the same activity is not doing something new, so it must not relieve boredom.");
+        });
+
+        await server.WaitPost(() => server.EntMan.DeleteEntity(aiPlayer));
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
 }

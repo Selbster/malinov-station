@@ -31,6 +31,7 @@ public sealed partial class LandmarkPerceptionSystem : EntitySystem
     [Dependency] private AiLodSystem _lod = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
+    [Dependency] private AiTraceSystem _trace = default!;
 
     public override void Update(float frameTime)
     {
@@ -140,11 +141,21 @@ public sealed partial class LandmarkPerceptionSystem : EntitySystem
             return;
 
         landmark.CurrentAreaLabel = nearbyText;
-        landmark.AreaEnteredAt = _timing.CurTime;
 
         // Left every beacon's range (e.g. walking through a corridor) - nothing to record a visit to.
-        if (nearbyText is not null)
-            RecordVisit(uid, nearbyText);
+        if (nearbyText is null)
+            return;
+
+        // AI Players 0.6.3: only arriving somewhere *different* counts as having got anywhere. Stepping out of
+        // a room into the corridor and back is pacing, not travel, and treating it as travel is what kept
+        // boredom pinned near zero (see LandmarkPerceptionComponent.AreaEnteredAt).
+        if (landmark.LastNamedArea != nearbyText)
+        {
+            landmark.LastNamedArea = nearbyText;
+            landmark.AreaEnteredAt = _timing.CurTime;
+        }
+
+        RecordVisit(uid, nearbyText);
     }
 
     /// <summary>
@@ -173,6 +184,10 @@ public sealed partial class LandmarkPerceptionSystem : EntitySystem
 
         place.VisitCount++;
         place.LastVisitedAt = _timing.CurTime;
+
+        // Spec section 3: the far end of the chain - somewhere was actually reached and is now known better
+        // than it was. Recorded against the decision that set off for it.
+        _trace.DecisionDiscovery(uid, placeName);
         place.Familiarity = MathF.Min(1f, 0.15f * place.VisitCount);
 
         var mood = TryComp<EmotionComponent>(uid, out var emotion) ? emotion.Joy - emotion.Sadness : 0f;

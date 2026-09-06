@@ -131,7 +131,8 @@ public sealed class HierarchicalActionSelectionTests : GameTest
 
             Assert.That(eligibleInGeneral, Has.Count.EqualTo(1));
             Assert.That(eligibleInGeneral[0].Name, Is.EqualTo(ContinueActivityAction.ActionName),
-                "This is exactly the condition LlmGatewaySystem.HandleCompletedIntentRequest skips the Action Selection role for.");
+                "General holding nothing but ContinueActivity is the premise LlmGatewaySystem.ChooseActionsToOffer " +
+                "treats as an unusable category - see the 0.6.3 tests at the bottom of this file.");
         });
 
         await server.WaitPost(() => server.EntMan.DeleteEntity(aiPlayer));
@@ -247,6 +248,88 @@ public sealed class HierarchicalActionSelectionTests : GameTest
         });
 
         await server.WaitPost(() => server.EntMan.DeleteEntity(aiPlayer));
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
+    /// <summary>
+    /// AI Players 0.6.3. Live play produced this exact decision:
+    ///
+    ///   намерение=исследовать окружение, чтобы разобраться в неизвестном  категория=General
+    ///   пригодные=ContinueActivity
+    ///   выбрано=ContinueActivity
+    ///
+    /// The intent was exploration, ExploreStation was eligible under Movement the whole time, and the AI stood
+    /// still - because one mislabelled category word narrowed the offer down to "carry on as before", which is
+    /// not a choice at all. A category that leaves only inaction must therefore be treated the same way as one
+    /// that matches nothing.
+    /// </summary>
+    [Test]
+    public async Task ACategoryOfferingOnlyInaction_IsWidened_SoTheModelCanStillReachExploration()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        await StartRoundAndGetStation(pair);
+
+        await server.WaitAssertion(() =>
+        {
+            var all = server.System<AiActionRegistrySystem>().AllActions;
+            var carryOn = all.First(a => a.Name == ContinueActivityAction.ActionName);
+            var explore = all.First(a => a.Name == ExploreStationAction.ActionName);
+
+            var offered = LlmGatewaySystem.ChooseActionsToOffer(
+                new List<IAiAction> { carryOn, explore }, AiActionCategories.General, out var unusable);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(unusable, Is.True, "A category that leaves only ContinueActivity is not a usable category.");
+                Assert.That(offered.Select(a => a.Name), Does.Contain(ExploreStationAction.ActionName),
+                    "Exploration was eligible all along; the model must at least be shown it.");
+            });
+        });
+
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
+    /// <summary>
+    /// The other half of the same rule: widening must not become forcing. When a category genuinely narrows the
+    /// choice to real actions it is left alone, and when inaction really is all there is, the offer stays
+    /// exactly that - so the skip-the-second-call path still applies to an AI that has nothing else to do.
+    /// </summary>
+    [Test]
+    public async Task AUsefulCategoryStillNarrows_AndGenuineInactionIsLeftAlone()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        await StartRoundAndGetStation(pair);
+
+        await server.WaitAssertion(() =>
+        {
+            var all = server.System<AiActionRegistrySystem>().AllActions;
+            var carryOn = all.First(a => a.Name == ContinueActivityAction.ActionName);
+            var explore = all.First(a => a.Name == ExploreStationAction.ActionName);
+            var both = new List<IAiAction> { carryOn, explore };
+
+            var narrowed = LlmGatewaySystem.ChooseActionsToOffer(both, AiActionCategories.Movement, out var movementUnusable);
+            var aloneWithInaction = LlmGatewaySystem.ChooseActionsToOffer(
+                new List<IAiAction> { carryOn }, AiActionCategories.General, out var inactionUnusable);
+            var mislabelled = LlmGatewaySystem.ChooseActionsToOffer(both, "Движение", out var mislabelledUnusable);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(movementUnusable, Is.False, "Movement genuinely offers a real action, so it must narrow.");
+                Assert.That(narrowed.Select(a => a.Name), Is.EquivalentTo(new[] { ExploreStationAction.ActionName }));
+
+                Assert.That(inactionUnusable, Is.False,
+                    "When carrying on really is the only option, that is a fact about the world, not a bad category.");
+                Assert.That(aloneWithInaction.Select(a => a.Name),
+                    Is.EquivalentTo(new[] { ContinueActivityAction.ActionName }));
+
+                // AI Players 0.6.2's case, kept honest: a Russian-language label matches nothing at all.
+                Assert.That(mislabelledUnusable, Is.True);
+                Assert.That(mislabelled, Has.Count.EqualTo(2));
+            });
+        });
+
         await server.WaitPost(() => server.System<GameTicker>().RestartRound());
     }
 }

@@ -43,27 +43,38 @@ public sealed partial class NeedsSystem : EntitySystem
     }
 
     /// <summary>
-    /// AI Players 0.6: positive while the current intent and current area have both been unchanged for longer
-    /// than <see cref="NeedsComponent.BoredomGraceSeconds"/> (scaled by <see cref="PersonalityComponent.Curiosity"/>),
-    /// negative (draining back toward 0) while either is still fresh or a conversation only just ended. Reads
-    /// <see cref="IntentComponent"/>/<see cref="LandmarkPerceptionComponent"/> directly rather than needing a
-    /// separate "did this change since last tick" flag - both already carry a timestamp of when they last
-    /// changed, and neither exists on a legacy (non-cognitive) AI player, which is what keeps boredom
-    /// naturally inert for one without an explicit <see cref="CognitiveModeComponent"/> check.
+    /// AI Players 0.6: positive while nothing has actually happened to this AI for longer than
+    /// <see cref="NeedsComponent.BoredomGraceSeconds"/>, negative (draining back toward 0) while it has.
+    /// Requires <see cref="IntentComponent"/>, which no legacy (non-cognitive) AI player has - that is what
+    /// keeps boredom naturally inert for one without an explicit <see cref="CognitiveModeComponent"/> check.
+    ///
+    /// AI Players 0.6.3: "something happened" deliberately means a change in the *world* - the AI went
+    /// somewhere new, or it just finished a conversation - and no longer includes picking a new intent.
+    ///
+    /// Intent used to count, and 0.6.1 already had to patch around it once by not re-stamping
+    /// <see cref="IntentComponent.ChosenAt"/> when a reflection reconfirmed the same intent name. That was not
+    /// enough, because it only helps when the wording repeats exactly. In live play the model phrases its
+    /// intent afresh nearly every reflection, so the timestamp reset anyway, roughly every
+    /// <see cref="CognitiveModeComponent.ReflectionCooldown"/> seconds - and since the drain is some fifty
+    /// times the gain, one reset wipes out everything accumulated. The arithmetic left boredom structurally
+    /// unable to exceed about 0.08 no matter how long an AI stood in one corridor, which made
+    /// <c>Restlessness</c> a permanently near-zero desire and matched exactly what live dumps showed
+    /// (скука=0.00 on every passenger, every time).
+    ///
+    /// Re-narrating an activity is not the same as doing something new, so it should never have relieved
+    /// boredom in the first place. Time in one place, and company, are things boredom genuinely responds to.
     /// </summary>
     private float BoredomDelta(EntityUid uid, NeedsComponent needs, float curiosity)
     {
-        if (!TryComp<IntentComponent>(uid, out var intent) || !TryComp<LandmarkPerceptionComponent>(uid, out var landmark))
+        if (!HasComp<IntentComponent>(uid) || !TryComp<LandmarkPerceptionComponent>(uid, out var landmark))
             return 0f;
 
-        var intentAge = (_timing.CurTime - intent.ChosenAt).TotalSeconds;
         var areaAge = (_timing.CurTime - landmark.AreaEnteredAt).TotalSeconds;
         var justFinishedTalking = TryComp<ConversationComponent>(uid, out var conversation) &&
             conversation.State == ConversationState.None &&
             _timing.CurTime < conversation.CooldownUntil;
 
-        var isFresh = intentAge < needs.BoredomGraceSeconds || areaAge < needs.BoredomGraceSeconds || justFinishedTalking;
-        if (isFresh)
+        if (areaAge < needs.BoredomGraceSeconds || justFinishedTalking)
             return -needs.BoredomResetPerSecond;
 
         return needs.BaseBoredomGainPerSecond * (0.5f + curiosity);

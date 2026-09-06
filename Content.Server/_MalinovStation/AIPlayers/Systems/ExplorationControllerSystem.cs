@@ -126,11 +126,22 @@ public sealed partial class ExplorationControllerSystem : EntitySystem
         var socialPlaces = _memory.GetKnownPersonLocations(uid);
         var currentArea = TryComp<LandmarkPerceptionComponent>(uid, out var landmark) ? landmark.CurrentAreaLabel : null;
 
+        TryComp<ExplorationComponent>(uid, out var exploration);
+
         foreach (var name in _memory.GetExplorationCandidates(uid, max: 8))
         {
             // Standing in it already is not exploring it.
             if (currentArea is not null && string.Equals(name, currentArea, StringComparison.OrdinalIgnoreCase))
                 continue;
+
+            // Somewhere this AI has already set out for and failed to reach. Offering it again is how an AI
+            // ends up trying the same blocked route every reflection for the rest of the round.
+            if (exploration is not null &&
+                exploration.UnreachablePlaces.TryGetValue(name, out var writtenOffUntil) &&
+                _timing.CurTime < writtenOffUntil)
+            {
+                continue;
+            }
 
             if (_memory.FindKnownLocation(uid, name) is not { } coordinates)
                 continue;

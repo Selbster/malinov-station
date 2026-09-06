@@ -144,6 +144,12 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
                     $"служит желанию {intent.DesireServed}) - живёт отдельно от цели выше, см. IntentComponent");
             }
 
+            // AI Players 0.6.3, spec section 3: the whole decision chain for the most recent decision, so
+            // "where does the behaviour stop?" is answered by reading one block rather than by correlating
+            // scattered log lines across several AI players. The first "-" is the broken link.
+            if (EntityManager.System<AiTraceSystem>().DescribeLastDecision(uid.Value) is { } decisionTrace)
+                sb.AppendLine(decisionTrace);
+
             if (EntityManager.TryGetComponent<BeliefComponent>(uid, out var belief))
                 sb.AppendLine($"Убеждения: {belief.Beliefs.Count} из {belief.MaxBeliefs}");
 

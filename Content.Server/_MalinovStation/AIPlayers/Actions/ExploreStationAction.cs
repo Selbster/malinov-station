@@ -106,13 +106,20 @@ public sealed class ExploreStationAction : IAiAction
         {
             exploration.NoTargetCooldownUntil = _timing.CurTime + TimeSpan.FromSeconds(exploration.NoTargetCooldownSeconds);
             exploration.CurrentTargetName = null;
+            _entManager.System<AiTraceSystem>().DecisionFeedback(uid, "NoTarget");
             return AiActionResult.NoTarget("Ты не смог(ла) придумать, куда сейчас стоит пойти.");
         }
 
         exploration.CurrentTargetName = target.PlaceName;
+        exploration.CurrentTargetCoordinates = target.Coordinates;
 
         var htn = _entManager.GetComponent<HTNComponent>(uid);
         htn.Blackboard.SetValue(MoveToAction.ForcedDestinationKey, target.Coordinates);
+
+        // Spec section 3: which kind of target won, and the actual point handed to navigation - the pair that
+        // distinguishes "decided to explore but had nowhere to go" from "went somewhere unreachable".
+        _entManager.System<AiTraceSystem>().DecisionTarget(uid,
+            $"{target.Kind} ({target.PlaceName ?? "без имени"})", target.Coordinates);
 
         return AiActionResult.Started(target.Reason);
     }

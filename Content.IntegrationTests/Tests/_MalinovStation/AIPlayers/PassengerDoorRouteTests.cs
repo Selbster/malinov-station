@@ -8,9 +8,11 @@ using Content.Server._MalinovStation.AIPlayers.Components;
 using Content.Server._MalinovStation.AIPlayers.Systems;
 using Content.Server.GameTicking;
 using Content.Server.NPC.Components;
+using Content.Server.NPC.HTN;
 using Content.Server.Power.Components;
 using Content.Shared.CCVar;
 using Content.Shared.Doors.Components;
+using Content.Shared.Doors.Systems;
 using Content.Shared.GameTicking;
 using Content.Shared.Roles;
 using Content.Shared.Station.Components;
@@ -309,6 +311,196 @@ public sealed class PassengerDoorRouteTests : GameTest
         {
             server.EntMan.DeleteEntity(aiPlayer);
             server.EntMan.DeleteEntity(door);
+        });
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
+    /// <summary>
+    /// Live play, 0.6.3: passengers still walked up to airlocks they had no access to and dithered there. The
+    /// cause was where the access question was answered - only at point-blank range, after the whole approach
+    /// had already been walked. Access is a plain query, so a door this AI can never open must not become an
+    /// approach target at all: no walk, no dither, and the journey through it abandoned rather than replanned
+    /// into forever.
+    /// </summary>
+    [Test]
+    public async Task ADoorWithoutAccess_IsNeverApproached_AndTheJourneyThroughItIsAbandoned()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        var station = await StartRoundAndGetStation(pair);
+
+        EntityUid aiPlayer = default;
+        EntityUid door = default;
+
+        await server.WaitPost(() =>
+        {
+            // A Passenger has no Engineering access.
+            aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station, cognitiveMode: true)!.Value;
+            var coords = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates;
+
+            door = server.EntMan.SpawnEntity(Locked, coords.Offset(new Vector2(0, 3)));
+            server.EntMan.SpawnEntity("WallSolid", coords.Offset(new Vector2(-1, 3)));
+            server.EntMan.SpawnEntity("WallSolid", coords.Offset(new Vector2(1, 3)));
+            UnpowerGate(pair, door);
+
+            var destination = coords.Offset(new Vector2(0, 6));
+            var actions = server.System<AiActionRegistrySystem>();
+            Assert.That(actions.TryDoAction(aiPlayer, "MoveTo", new MoveToActionParams(destination), out var reason), Is.True, reason);
+        });
+
+        var everEngaged = false;
+        for (var i = 0; i < 40; i++)
+        {
+            await pair.RunTicksSync(5);
+
+            if (server.EntMan.GetComponent<DoorApproachComponent>(aiPlayer).ActiveDoor == door)
+                everEngaged = true;
+        }
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(everEngaged, Is.False,
+                    "A door this passenger can never open must not become an approach target - walking over to " +
+                    "find that out is the dithering itself.");
+                Assert.That(server.EntMan.GetComponent<DoorComponent>(door).State, Is.EqualTo(DoorState.Closed),
+                    "And it must certainly never open.");
+                Assert.That(server.EntMan.TryGetComponent<NPCDeniedAccessComponent>(aiPlayer, out var denied) &&
+                    denied.DeniedDoors.ContainsKey(door), Is.True,
+                    "Pathfinding must be told, so it stops routing back through it.");
+
+                var htn = server.EntMan.GetComponent<HTNComponent>(aiPlayer);
+                Assert.That(htn.Blackboard.TryGetValue<EntityCoordinates>(MoveToAction.ForcedDestinationKey, out _, server.EntMan),
+                    Is.False,
+                    "A destination whose only way through is shut to us has to be given up, not replanned into.");
+            });
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.EntMan.DeleteEntity(aiPlayer);
+            server.EntMan.DeleteEntity(door);
+        });
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
+    /// <summary>
+    /// Live play, 0.6.3: passengers kept walking up to airlocks and trying them. Gating this system's own
+    /// approach could never have fixed that, because it is not what takes them there - AI players are spawned
+    /// with NavAccessInteract, so the pathfinder treats every access-controlled door as passable regardless of
+    /// whose access it wants, and vanilla steering walks them over and clicks.
+    ///
+    /// So the AI has to know which doors are shut to it before a route is ever planned. Note this passenger is
+    /// given nowhere to go and never moves: knowing must not depend on setting off first.
+    /// </summary>
+    [Test]
+    public async Task APassengerLearnsWhichDoorsAreShutToIt_BeforeGoingAnywhere()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        var station = await StartRoundAndGetStation(pair);
+
+        EntityUid aiPlayer = default;
+        EntityUid lockedDoor = default;
+        EntityUid openDoor = default;
+
+        await server.WaitPost(() =>
+        {
+            aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station, cognitiveMode: true)!.Value;
+            var coords = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates;
+
+            // Well beyond ApproachRadius - the AI has no business being near either of these.
+            lockedDoor = server.EntMan.SpawnEntity(Locked, coords.Offset(new Vector2(-8, 0)));
+            openDoor = server.EntMan.SpawnEntity("Airlock", coords.Offset(new Vector2(-8, 3)));
+            UnpowerGate(pair, lockedDoor);
+            UnpowerGate(pair, openDoor);
+
+            // Do the access sweep now instead of waiting out its five-second cadence.
+            server.EntMan.GetComponent<DoorApproachComponent>(aiPlayer).AccessScanAccumulator = 0f;
+        });
+
+        await pair.RunTicksSync(15);
+
+        await server.WaitAssertion(() =>
+        {
+            var approach = server.EntMan.GetComponent<DoorApproachComponent>(aiPlayer);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(server.EntMan.TryGetComponent<NPCDeniedAccessComponent>(aiPlayer, out var denied) &&
+                    denied.DeniedDoors.ContainsKey(lockedDoor), Is.True,
+                    "A door this passenger has no access to must be known to pathfinding before any route is planned.");
+
+                Assert.That(approach.ActiveDoor, Is.Null,
+                    "Learning that must not involve walking over to it.");
+
+                Assert.That(approach.DeniedDoors.ContainsKey(openDoor), Is.False,
+                    "A door it can actually open must not be written off - that would strand it needlessly.");
+            });
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.EntMan.DeleteEntity(aiPlayer);
+            server.EntMan.DeleteEntity(lockedDoor);
+            server.EntMan.DeleteEntity(openDoor);
+        });
+        await server.WaitPost(() => server.System<GameTicker>().RestartRound());
+    }
+
+    /// <summary>
+    /// Live play, 0.6.3: bots kept walking into shutters. Shutters carry no AccessReaderComponent at all, and
+    /// the door system answers "has access" whenever it cannot resolve one - so an access-only sweep read every
+    /// shutter as passable, pathfinding routed through it, and steering walked the AI over to click at a door
+    /// that only ever moves on a lever. What actually distinguishes them is ClickOpen, so the sweep has to ask
+    /// the full question, not just the access half.
+    /// </summary>
+    [Test]
+    public async Task AShutterIsWrittenOffInAdvance_EvenThoughNothingDeniesAccessToIt()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+        var station = await StartRoundAndGetStation(pair);
+
+        EntityUid aiPlayer = default;
+        EntityUid shutter = default;
+
+        await server.WaitPost(() =>
+        {
+            aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station, cognitiveMode: true)!.Value;
+            var coords = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates;
+
+            shutter = server.EntMan.SpawnEntity(Unclickable, coords.Offset(new Vector2(-9, 0)));
+            UnpowerGate(pair, shutter);
+
+            server.EntMan.GetComponent<DoorApproachComponent>(aiPlayer).AccessScanAccumulator = 0f;
+        });
+
+        await pair.RunTicksSync(15);
+
+        await server.WaitAssertion(() =>
+        {
+            Assert.Multiple(() =>
+            {
+                // The premise: nothing about access stops this AI, which is exactly why an access-only sweep
+                // missed it.
+                Assert.That(server.System<SharedDoorSystem>().HasAccess(shutter, aiPlayer), Is.True,
+                    "Test premise: a shutter denies nobody access - it simply cannot be clicked open.");
+
+                Assert.That(server.EntMan.TryGetComponent<NPCDeniedAccessComponent>(aiPlayer, out var denied) &&
+                    denied.DeniedDoors.ContainsKey(shutter), Is.True,
+                    "Pathfinding still has to know it is not a way through, or the AI will be routed into it.");
+
+                Assert.That(server.EntMan.GetComponent<DoorApproachComponent>(aiPlayer).ActiveDoor, Is.Null,
+                    "And it must learn that without walking over to try.");
+            });
+        });
+
+        await server.WaitPost(() =>
+        {
+            server.EntMan.DeleteEntity(aiPlayer);
+            server.EntMan.DeleteEntity(shutter);
         });
         await server.WaitPost(() => server.System<GameTicker>().RestartRound());
     }
