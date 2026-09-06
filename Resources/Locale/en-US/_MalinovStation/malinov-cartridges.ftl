@@ -24,13 +24,16 @@ malinov-messenger-no-idcard = Insert your ID card.
 malinov-messenger-notification-popup = New message from { $sender }
 malinov-messenger-server-unavailable = server unavailable
 
-malinov-messenger-mute-command-description = Mutes a messenger sender for the rest of the round.
-malinov-messenger-mute-command-help = Usage: messengermute <name>
-malinov-messenger-mute-command-success = Muted messenger sender { $name }.
-malinov-messenger-unmute-command-description = Unmutes a messenger sender.
-malinov-messenger-unmute-command-help = Usage: messengerunmute <name>
-malinov-messenger-unmute-command-success = Unmuted messenger sender { $name }.
-malinov-messenger-command-wrong-arguments-number = Usage: provide exactly one sender name.
+malinov-messenger-mute-command-description = Mutes a messenger account (SS14 launcher username) for the rest of the round. Survives ID card swaps.
+malinov-messenger-mute-command-help = Usage: messengermute <account name>
+malinov-messenger-mute-command-arg = account name
+malinov-messenger-mute-command-success = Muted messenger account { $name }.
+malinov-messenger-unmute-command-description = Unmutes a messenger account (SS14 launcher username).
+malinov-messenger-unmute-command-help = Usage: messengerunmute <account name>
+malinov-messenger-unmute-command-arg = account name
+malinov-messenger-unmute-command-success = Unmuted messenger account { $name }.
+malinov-messenger-command-wrong-arguments-number = Usage: provide exactly one account name.
+malinov-messenger-command-player-not-found = Player { $name } is not on the server.
 malinov-messenger-command-no-server = No active messenger server.
 
 device-frequency-malinov-messenger = Malinov Messenger

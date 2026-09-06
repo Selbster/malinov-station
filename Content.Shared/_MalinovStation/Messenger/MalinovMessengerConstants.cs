@@ -28,12 +28,31 @@ public static class MalinovMessengerConstants
     public const string SenderNameKey = "sender_name";
 
     /// <summary>
+    ///     Payload key for the stable sender account name (SS14 launcher username).
+    ///     The mute identity; <see cref="SenderNameKey"/> is only a display label.
+    ///     <see cref="SenderCardKey"/> is the routing/presence identity.
+    /// </summary>
+    public const string SenderAccountKey = "sender_account";
+
+    /// <summary>
+    ///     Payload key for the stable sender ID card id (round-local NetEntity of the card).
+    ///     The routing/presence identity: the messenger account is the inserted card, so a
+    ///     card keeps its identity independent of which PDA holds it and who carries that PDA.
+    /// </summary>
+    public const string SenderCardKey = "sender_card";
+
+    /// <summary>
+    ///     Payload key for the card id -> display-name map delivered with the directory.
+    /// </summary>
+    public const string DisplayNamesKey = "display_names";
+
+    /// <summary>
     ///     Payload key for the message text.
     /// </summary>
     public const string TextKey = "text";
 
     /// <summary>
-    ///     Payload key for the intended recipient name (used by server relay logic).
+    ///     Payload key for the intended recipient card id (used by server relay logic).
     /// </summary>
     public const string TargetKey = "target";
 

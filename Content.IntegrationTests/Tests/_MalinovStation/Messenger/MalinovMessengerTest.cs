@@ -23,6 +23,7 @@ using Content.Shared.Radio.Components;
 using Content.Shared.StationRecords;
 using Content.Shared.StationRecords.Systems;
 using Robust.Server.Containers;
+using Robust.Server.Console;
 using Robust.Server.Player;
 using Robust.Shared.Containers;
 using Robust.Shared.Enums;
@@ -498,6 +499,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string recipientKey = null!;
+        string senderKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -511,6 +514,9 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
@@ -520,13 +526,15 @@ public sealed class MalinovMessengerTest : GameTest
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
 
-            Assert.That(session1.Peers, Does.ContainKey(recipientName),
+            Assert.That(session1.Peers, Does.ContainKey(recipientKey),
                 "Sender should see recipient online after receiving the server directory");
-            Assert.That(session1.Peers, Does.Not.ContainKey(senderName),
+            Assert.That(session1.Peers, Does.Not.ContainKey(senderKey),
                 "Sender should not see itself in the peer directory");
-            Assert.That(session2.Peers, Does.ContainKey(senderName),
+            Assert.That(session1.Peers[recipientKey].Name, Is.EqualTo(recipientName),
+                "Recipient peer should carry the card display name");
+            Assert.That(session2.Peers, Does.ContainKey(senderKey),
                 "Recipient should see sender online after receiving the server directory");
-            Assert.That(session2.Peers, Does.Not.ContainKey(recipientName),
+            Assert.That(session2.Peers, Does.Not.ContainKey(recipientKey),
                 "Recipient should not see itself in the peer directory");
         });
 
@@ -675,6 +683,7 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda1 = default;
         EntityUid pda2 = default;
         EntityUid program = default;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -687,6 +696,7 @@ public sealed class MalinovMessengerTest : GameTest
             SetPdaIdentity(entityManager, pda2, recipientName);
 
             program = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         // Wait for the cartridge Update loop to announce presence and build the directory.
@@ -694,7 +704,7 @@ public sealed class MalinovMessengerTest : GameTest
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(program, recipientName, "Hello"), Is.True,
+            Assert.That(messengerSystem.TrySendMessage(program, recipientKey, "Hello"), Is.True,
                 "Sending a message should succeed against an online contact");
         });
 
@@ -703,19 +713,19 @@ public sealed class MalinovMessengerTest : GameTest
         await server.WaitAssertion(() =>
         {
             var session = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(program);
-            Assert.That(session.SelectedContact, Is.EqualTo(recipientName),
+            Assert.That(session.SelectedContact, Is.EqualTo(recipientKey),
                 "Sending should select the recipient conversation");
 
             // Simulate the client refreshing the selected contact through the UI message path.
             // Raised through the base type so the relay-style subscription matches.
             CartridgeMessageEvent refresh =
-                new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.RefreshContacts, targetName: recipientName)
+                new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.RefreshContacts, targetName: recipientKey)
                 {
                     LoaderUid = entityManager.GetNetEntity(pda1)
                 };
             entityManager.EventBus.RaiseLocalEvent(program, refresh);
 
-            Assert.That(session.SelectedContact, Is.EqualTo(recipientName),
+            Assert.That(session.SelectedContact, Is.EqualTo(recipientKey),
                 "RefreshContacts should keep the recipient selected");
 
             CartridgeMessageEvent close = new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.CloseChat)
@@ -728,7 +738,7 @@ public sealed class MalinovMessengerTest : GameTest
                 "CloseChat should clear the selected contact");
 
             var sessions = GetAccountSessions(entityManager, session);
-            Assert.That(sessions, Does.ContainKey(recipientName),
+            Assert.That(sessions, Does.ContainKey(recipientKey),
                 "Closing a chat must not erase the conversation history");
 
             var evt = new CartridgeUiReadyEvent(pda1);
@@ -795,6 +805,7 @@ public sealed class MalinovMessengerTest : GameTest
 
         EntityUid pda1 = default;
         EntityUid prog1 = default;
+        string selfKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -804,13 +815,14 @@ public sealed class MalinovMessengerTest : GameTest
             SetPdaIdentity(entityManager, pda1, selfName);
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            selfKey = GetCardKey(entityManager, pda1);
         });
 
         await server.WaitRunTicks(5);
 
         await server.WaitAssertion(() =>
         {
-            var result = messengerSystem.TrySendMessage(prog1, selfName, "Hello me!");
+            var result = messengerSystem.TrySendMessage(prog1, selfKey, "Hello me!");
             Assert.That(result, Is.False, "Sending a message to yourself should fail");
 
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
@@ -892,6 +904,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -905,6 +919,9 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
@@ -914,10 +931,10 @@ public sealed class MalinovMessengerTest : GameTest
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             Assert.That(session1.ServerAddress, Is.Not.Null,
                 "Sender should have discovered the active messenger server");
-            Assert.That(session1.Peers, Does.ContainKey(recipientName),
+            Assert.That(session1.Peers, Does.ContainKey(recipientKey),
                 "Sender should see recipient in the server directory before sending");
 
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, messageText), Is.True,
                 "Sending to a known online contact through the server should succeed");
 
             var evt1 = new CartridgeUiReadyEvent(pda1);
@@ -935,9 +952,9 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2, Does.ContainKey(senderName),
+            Assert.That(sessions2, Does.ContainKey(senderKey),
                 "Recipient should have a session from the sender");
-            Assert.That(sessions2[senderName].Any(m =>
+            Assert.That(sessions2[senderKey].Any(m =>
                     m.SenderName == senderName && m.Text == messageText && !m.Outgoing),
                 Is.True, "Recipient session should contain the original incoming message");
 
@@ -949,7 +966,7 @@ public sealed class MalinovMessengerTest : GameTest
             Assert.That(state.Messages.Any(m => m.SenderName == senderName && m.Text == messageText && !m.Outgoing),
                 Is.False, "An incoming message must not auto-open the sender's conversation");
 
-            session2.SelectedContact = senderName;
+            session2.SelectedContact = senderKey;
             evt = new CartridgeUiReadyEvent(pda2);
             entityManager.EventBus.RaiseLocalEvent(prog2, ref evt);
 
@@ -1211,6 +1228,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -1224,6 +1243,9 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
@@ -1231,21 +1253,21 @@ public sealed class MalinovMessengerTest : GameTest
         // A -> B
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A1"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "A1"), Is.True);
         });
         await server.WaitRunTicks(5);
 
         // B -> A
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog2, senderName, "B1"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog2, senderKey, "B1"), Is.True);
         });
         await server.WaitRunTicks(5);
 
         // A -> B
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A2"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "A2"), Is.True);
         });
         await server.WaitRunTicks(5);
 
@@ -1253,10 +1275,10 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             var sessions1 = GetAccountSessions(entityManager, session1);
-            Assert.That(sessions1, Does.ContainKey(recipientName),
+            Assert.That(sessions1, Does.ContainKey(recipientKey),
                 "Sender should have a history with the recipient");
 
-            var history = sessions1[recipientName];
+            var history = sessions1[recipientKey];
             Assert.That(history, Has.Count.EqualTo(3), "History should contain three messages");
             Assert.That(history[0].Text, Is.EqualTo("A1"));
             Assert.That(history[0].Outgoing, Is.True);
@@ -1274,7 +1296,7 @@ public sealed class MalinovMessengerTest : GameTest
             cartridgeLoaderSystem.ActivateProgram((pda1, loader1), prog1);
 
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
-            session1.SelectedContact = recipientName;
+            session1.SelectedContact = recipientKey;
 
             var evt = new CartridgeUiReadyEvent(pda1);
             entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
@@ -1294,7 +1316,7 @@ public sealed class MalinovMessengerTest : GameTest
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "A3"), Is.True);
         });
         await server.WaitRunTicks(3);
 
@@ -1302,7 +1324,7 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             var sessions1 = GetAccountSessions(entityManager, session1);
-            var history = sessions1[recipientName];
+            var history = sessions1[recipientKey];
             Assert.That(history, Has.Count.EqualTo(2), "History should be capped at the configured limit");
             Assert.That(history[0].Text, Is.EqualTo("A2"));
             Assert.That(history[0].Outgoing, Is.True);
@@ -1388,6 +1410,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid prog1 = default;
         EntityUid prog2 = default;
         EntityUid prog3 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -1404,13 +1428,16 @@ public sealed class MalinovMessengerTest : GameTest
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
             prog3 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda3)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "First message"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "First message"), Is.True);
         });
         await server.WaitRunTicks(5);
 
@@ -1418,8 +1445,8 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2, Does.ContainKey(senderName));
-            Assert.That(sessions2[senderName], Has.Count.EqualTo(1));
+            Assert.That(sessions2, Does.ContainKey(senderKey));
+            Assert.That(sessions2[senderKey], Has.Count.EqualTo(1));
 
             // Eject recipient's ID card from pda2.
             Assert.That(itemSlotsSystem.TryEject(pda2, PdaComponent.PdaIdSlotId, null, out var transferredCard), Is.True);
@@ -1437,7 +1464,7 @@ public sealed class MalinovMessengerTest : GameTest
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "Second message"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "Second message"), Is.True);
         });
         await server.WaitRunTicks(5);
 
@@ -1445,14 +1472,14 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session3 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog3);
             var sessions3 = GetAccountSessions(entityManager, session3);
-            Assert.That(sessions3, Does.ContainKey(senderName),
+            Assert.That(sessions3, Does.ContainKey(senderKey),
                 "Transferred ID card should carry the conversation history to the new PDA");
-            Assert.That(sessions3[senderName], Has.Count.EqualTo(2),
+            Assert.That(sessions3[senderKey], Has.Count.EqualTo(2),
                 "History should contain both messages sent to the recipient");
 
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2, Does.Not.ContainKey(senderName),
+            Assert.That(sessions2, Does.Not.ContainKey(senderKey),
                 "Old PDA without the ID card should no longer have access to the account");
         });
 
@@ -1522,6 +1549,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -1535,23 +1564,26 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, longText), Is.True,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, longText), Is.True,
                 "Sending a long message should succeed and be truncated");
 
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             var sessions1 = GetAccountSessions(entityManager, session1);
-            Assert.That(sessions1, Does.ContainKey(recipientName),
+            Assert.That(sessions1, Does.ContainKey(recipientKey),
                 "Sender should have a history with the recipient");
-            Assert.That(sessions1[recipientName], Has.Count.EqualTo(1));
-            Assert.That(sessions1[recipientName][0].Text, Is.EqualTo(expectedText),
+            Assert.That(sessions1[recipientKey], Has.Count.EqualTo(1));
+            Assert.That(sessions1[recipientKey][0].Text, Is.EqualTo(expectedText),
                 "Sender history should store the truncated message");
-            Assert.That(sessions1[recipientName][0].Text.Length, Is.EqualTo(100));
+            Assert.That(sessions1[recipientKey][0].Text.Length, Is.EqualTo(100));
         });
 
         await server.WaitRunTicks(5);
@@ -1560,12 +1592,12 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2, Does.ContainKey(senderName),
+            Assert.That(sessions2, Does.ContainKey(senderKey),
                 "Recipient should have a history from the sender");
-            Assert.That(sessions2[senderName], Has.Count.EqualTo(1));
-            Assert.That(sessions2[senderName][0].Text, Is.EqualTo(expectedText),
+            Assert.That(sessions2[senderKey], Has.Count.EqualTo(1));
+            Assert.That(sessions2[senderKey][0].Text, Is.EqualTo(expectedText),
                 "Recipient history should store the truncated message");
-            Assert.That(sessions2[senderName][0].Text.Length, Is.EqualTo(100));
+            Assert.That(sessions2[senderKey][0].Text.Length, Is.EqualTo(100));
         });
 
         await server.WaitIdleAsync();
@@ -1636,6 +1668,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -1651,6 +1685,9 @@ public sealed class MalinovMessengerTest : GameTest
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
 
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
+
             // Activate the recipient program AND select the sender conversation:
             // the notification is suppressed only when the PDA window is also open.
             // In this test we verify that with program active + conversation selected,
@@ -1660,7 +1697,7 @@ public sealed class MalinovMessengerTest : GameTest
             cartridgeLoaderSystem.ActivateProgram((pda2, loader2), prog2);
 
             CartridgeMessageEvent refresh =
-                new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.RefreshContacts, targetName: senderName)
+                new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.RefreshContacts, targetName: senderKey)
                 {
                     LoaderUid = entityManager.GetNetEntity(pda2)
                 };
@@ -1681,12 +1718,12 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             Assert.That(session2.IsProgramActive, Is.True);
-            Assert.That(session2.SelectedContact, Is.EqualTo(senderName));
+            Assert.That(session2.SelectedContact, Is.EqualTo(senderKey));
 
             // Without a genuinely open PDA window (server-side tests cannot fake client UI state),
             // the notification fires even though the conversation is selected.
             messengerSystem.OnNotificationSent += OnNotification;
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, messageText), Is.True);
         });
 
         await server.WaitRunTicks(5);
@@ -1699,7 +1736,7 @@ public sealed class MalinovMessengerTest : GameTest
             Assert.That(notifiedSender, Is.EqualTo(senderName));
 
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
-            Assert.That(session2.UnreadContacts, Does.Contain(senderName),
+            Assert.That(session2.UnreadContacts, Does.Contain(senderKey),
                 "The conversation should be marked unread when the window is closed");
         });
 
@@ -1780,6 +1817,7 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -1794,6 +1832,8 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            recipientKey = GetCardKey(entityManager, pda2);
 
             cartridgeLoaderSystem.ActivateProgram((pda2, entityManager.GetComponent<CartridgeLoaderComponent>(pda2)), prog2);
         });
@@ -1816,7 +1856,7 @@ public sealed class MalinovMessengerTest : GameTest
             // Notification should fire.
 
             messengerSystem.OnNotificationSent += OnNotification;
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, messageText), Is.True);
         });
 
         await server.WaitRunTicks(5);
@@ -1908,6 +1948,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -1922,6 +1964,9 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
 
             var loader2 = entityManager.GetComponent<CartridgeLoaderComponent>(pda2);
             cartridgeLoaderSystem.ActivateProgram((pda2, loader2), prog2);
@@ -1953,7 +1998,7 @@ public sealed class MalinovMessengerTest : GameTest
                 "A different conversation should stay selected");
 
             messengerSystem.OnNotificationSent += OnNotification;
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, messageText), Is.True);
         });
 
         await server.WaitRunTicks(5);
@@ -1968,7 +2013,7 @@ public sealed class MalinovMessengerTest : GameTest
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             Assert.That(session2.SelectedContact, Is.EqualTo(otherContact),
                 "Arriving message must not switch away from the selected conversation");
-            Assert.That(session2.UnreadContacts, Does.Contain(senderName),
+            Assert.That(session2.UnreadContacts, Does.Contain(senderKey),
                 "The sender's conversation should be marked unread");
             Assert.That(session2.UnreadContacts, Does.Not.Contain(otherContact));
         });
@@ -2041,6 +2086,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -2056,6 +2103,9 @@ public sealed class MalinovMessengerTest : GameTest
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
 
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
+
             cartridgeLoaderSystem.ActivateProgram((pda2, entityManager.GetComponent<CartridgeLoaderComponent>(pda2)), prog2);
         });
 
@@ -2066,7 +2116,7 @@ public sealed class MalinovMessengerTest : GameTest
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             Assert.That(session2.SelectedContact, Is.Null, "No conversation should be auto-opened before any message");
 
-            messengerSystem.TrySendMessage(prog1, recipientName, messageText);
+            messengerSystem.TrySendMessage(prog1, recipientKey, messageText);
         });
 
         await server.WaitRunTicks(5);
@@ -2076,7 +2126,7 @@ public sealed class MalinovMessengerTest : GameTest
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             Assert.That(session2.SelectedContact, Is.Null,
                 "An incoming message must not auto-open the sender's conversation");
-            Assert.That(session2.UnreadContacts, Does.Contain(senderName),
+            Assert.That(session2.UnreadContacts, Does.Contain(senderKey),
                 "The sender should be marked unread");
 
             Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda2, PdaUiKey.Key, out var state), Is.True);
@@ -2087,7 +2137,7 @@ public sealed class MalinovMessengerTest : GameTest
 
             // Opening the sender conversation clears the unread flag.
             CartridgeMessageEvent refresh =
-                new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.RefreshContacts, targetName: senderName)
+                new MalinovMessengerUiMessageEvent(MalinovMessengerUiAction.RefreshContacts, targetName: senderKey)
                 {
                     LoaderUid = entityManager.GetNetEntity(pda2)
                 };
@@ -2099,12 +2149,13 @@ public sealed class MalinovMessengerTest : GameTest
         await server.WaitAssertion(() =>
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
-            Assert.That(session2.SelectedContact, Is.EqualTo(senderName));
-            Assert.That(session2.UnreadContacts, Does.Not.Contain(senderName),
+            Assert.That(session2.SelectedContact, Is.EqualTo(senderKey));
+            Assert.That(session2.UnreadContacts, Does.Not.Contain(senderKey),
                 "Opening the conversation should clear the unread indicator");
 
             Assert.That(userInterfaceSystem.TryGetUiState<MalinovMessengerUiState>(pda2, PdaUiKey.Key, out var state), Is.True);
-            Assert.That(state.Contacts.Single(c => c.Name == senderName).HasUnread, Is.False);
+            Assert.That(state.Contacts.Single(c => c.Name == senderName).HasUnread, Is.False,
+                "Contact list should reflect the cleared unread indicator");
         });
 
         await server.WaitIdleAsync();
@@ -2174,6 +2225,7 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -2188,6 +2240,8 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            recipientKey = GetCardKey(entityManager, pda2);
 
             // Activate then deactivate the recipient program so it is running in the background
             // but not currently open in the UI.
@@ -2212,7 +2266,7 @@ public sealed class MalinovMessengerTest : GameTest
             Assert.That(session2.IsProgramActive, Is.False, "Recipient program should be inactive");
 
             messengerSystem.OnNotificationSent += OnNotification;
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, messageText), Is.True);
         });
 
         await server.WaitRunTicks(5);
@@ -2296,6 +2350,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -2311,6 +2367,9 @@ public sealed class MalinovMessengerTest : GameTest
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
 
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
+
             var loader2 = entityManager.GetComponent<CartridgeLoaderComponent>(pda2);
             cartridgeLoaderSystem.ActivateProgram((pda2, loader2), prog2);
             cartridgeLoaderSystem.DeactivateProgram((pda2, loader2), prog2);
@@ -2320,7 +2379,7 @@ public sealed class MalinovMessengerTest : GameTest
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, messageText), Is.True,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, messageText), Is.True,
                 "Sending with sound disabled should succeed");
         });
 
@@ -2330,7 +2389,7 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2, Does.ContainKey(senderName),
+            Assert.That(sessions2, Does.ContainKey(senderKey),
                 "Message should still be delivered when sound is disabled");
         });
 
@@ -2403,6 +2462,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -2416,6 +2477,9 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
@@ -2426,10 +2490,10 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             session1.Peers.Clear();
-            Assert.That(session1.Peers, Does.Not.ContainKey(recipientName),
+            Assert.That(session1.Peers, Does.Not.ContainKey(recipientKey),
                 "Precondition: no cached peer for the recipient");
 
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "NoCache"), Is.True,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "NoCache"), Is.True,
                 "Sending must not require a cached peer entry");
         });
         await server.WaitRunTicks(6);
@@ -2438,7 +2502,7 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2[senderName].Any(m => m.Text == "NoCache" && !m.Outgoing), Is.True,
+            Assert.That(sessions2[senderKey].Any(m => m.Text == "NoCache" && !m.Outgoing), Is.True,
                 "Message should be delivered without a sender-side peer cache entry");
         });
 
@@ -2512,6 +2576,8 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -2525,6 +2591,9 @@ public sealed class MalinovMessengerTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
@@ -2532,13 +2601,13 @@ public sealed class MalinovMessengerTest : GameTest
         // First two messages within the window are delivered.
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A1"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "A1"), Is.True);
         });
         await server.WaitRunTicks(5);
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A2"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "A2"), Is.True);
         });
         await server.WaitRunTicks(5);
 
@@ -2546,7 +2615,7 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2[senderName], Has.Count.EqualTo(2),
+            Assert.That(sessions2[senderKey], Has.Count.EqualTo(2),
                 "Both messages within the window should be delivered");
         });
 
@@ -2558,7 +2627,7 @@ public sealed class MalinovMessengerTest : GameTest
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             var sessions1 = GetAccountSessions(entityManager, session1);
 
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3"), Is.False,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "A3"), Is.False,
                 "The third message within the window should be rejected synchronously by the sender gate");
             Assert.That(session1.LastError, Is.EqualTo("malinov-messenger-error-rate-limited"),
                 "Sender should receive the rate-limit error on the first rejected attempt");
@@ -2566,7 +2635,7 @@ public sealed class MalinovMessengerTest : GameTest
                 "Only the two within-window sends should count against the limit");
             Assert.That(session1.RateLimitUntil, Is.Not.Null,
                 "A fixed cooldown should be scheduled from the moment the limit was hit");
-            Assert.That(sessions1[recipientName].Any(m => m.Text == "A3" && m.Outgoing), Is.False,
+            Assert.That(sessions1[recipientKey].Any(m => m.Text == "A3" && m.Outgoing), Is.False,
                 "The rejected message must not appear in the sender history at all");
         });
 
@@ -2574,7 +2643,7 @@ public sealed class MalinovMessengerTest : GameTest
         await server.WaitAssertion(() =>
         {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A3-again"), Is.False,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "A3-again"), Is.False,
                 "Sends must stay rejected while the cooldown is active");
             Assert.That(session1.RateLimitUntil, Is.Not.Null,
                 "Cooldown must remain scheduled while active");
@@ -2594,7 +2663,7 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2[senderName], Has.Count.EqualTo(2),
+            Assert.That(sessions2[senderKey], Has.Count.EqualTo(2),
                 "Recipient history should not be extended by any rejected message");
         });
 
@@ -2604,7 +2673,7 @@ public sealed class MalinovMessengerTest : GameTest
         await server.WaitAssertion(() =>
         {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "A4"), Is.True,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "A4"), Is.True,
                 "Sending after the cooldown expires should succeed");
             Assert.That(session1.RateLimitUntil, Is.Null,
                 "A successful send should clear the scheduled cooldown");
@@ -2615,7 +2684,7 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2[senderName], Has.Count.EqualTo(3),
+            Assert.That(sessions2[senderKey], Has.Count.EqualTo(3),
                 "Message after cooldown expiry should be delivered");
 
             // Once the cooldown has passed and sending resumed, the client-visible remaining is zero.
@@ -2649,9 +2718,11 @@ public sealed class MalinovMessengerTest : GameTest
         var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
         var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
         var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
-        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
         var serverSystem = entSysMan.GetEntitySystem<MalinovMessengerServerSystem>();
         var userInterfaceSystem = entSysMan.GetEntitySystem<SharedUserInterfaceSystem>();
+        var containerSystem = entSysMan.GetEntitySystem<ContainerSystem>();
+        var playerManager = server.ResolveDependency<IPlayerManager>();
 
         var testMap = await pair.CreateTestMap();
         var grid = testMap.Grid.Owner;
@@ -2701,6 +2772,9 @@ public sealed class MalinovMessengerTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string? accountName = null;
+        string senderKey = null!;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -2712,8 +2786,17 @@ public sealed class MalinovMessengerTest : GameTest
             SetPdaIdentity(entityManager, pda1, senderName);
             SetPdaIdentity(entityManager, pda2, recipientName);
 
+            // pda1 is held by the test client session, so the cartridge resolves a stable
+            // launcher account name for it; pda2 stays unheld (display-name fallback).
+            HoldPdaWithSession(entityManager, containerSystem, playerManager, pda1, coords);
+            accountName = playerManager.Sessions.Single().Name;
+            Assert.That(accountName, Is.Not.Null.And.Not.Empty, "Test session should expose an account name");
+
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
@@ -2721,13 +2804,13 @@ public sealed class MalinovMessengerTest : GameTest
         // Sanity: delivery works before muting.
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "Before"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "Before"), Is.True);
         });
         await server.WaitRunTicks(5);
 
         await server.WaitAssertion(() =>
         {
-            serverSystem.Mute(relay, senderName);
+            serverSystem.Mute(relay, accountName!);
         });
 
         // Muting propagates through the directory broadcast and blocks the sender
@@ -2738,7 +2821,7 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
             Assert.That(session1.IsMuted, Is.True,
-                "Muted identity should be propagated to the cartridge session");
+                "Muted account should be propagated to the cartridge session");
 
             var evt = new CartridgeUiReadyEvent(pda1);
             entityManager.EventBus.RaiseLocalEvent(prog1, ref evt);
@@ -2750,7 +2833,7 @@ public sealed class MalinovMessengerTest : GameTest
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "Muted1"), Is.False,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "Muted1"), Is.False,
                 "Muted sender must be blocked locally before any packet leaves the device");
 
             var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
@@ -2763,14 +2846,36 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2[senderName], Has.Count.EqualTo(1),
+            Assert.That(sessions2[senderKey], Has.Count.EqualTo(1),
                 "Recipient should not receive messages while sender is muted");
+        });
+
+        // Swapping the ID card must NOT lift the account mute: the account is tied to the
+        // player holding the PDA, not to the card display name.
+        await server.WaitAssertion(() =>
+        {
+            var card = entityManager.GetComponent<PdaComponent>(pda1).ContainedId!.Value;
+            entityManager.GetComponent<IdCardComponent>(card).FullName = "Renamed Card";
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.IdentityName, Is.EqualTo("Renamed Card"),
+                "Card name should change with the new ID card");
+            Assert.That(session1.AccountName, Is.EqualTo(accountName),
+                "Account name must survive the card swap");
+            Assert.That(session1.IsMuted, Is.True,
+                "Mute must survive the card swap");
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "Muted2"), Is.False,
+                "Muted account must remain blocked after the card swap");
         });
 
         // Unmute restores delivery.
         await server.WaitAssertion(() =>
         {
-            serverSystem.Unmute(relay, senderName);
+            serverSystem.Unmute(relay, accountName!);
         });
         await server.WaitRunTicks(5);
 
@@ -2783,7 +2888,7 @@ public sealed class MalinovMessengerTest : GameTest
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "After"), Is.True,
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "After"), Is.True,
                 "Delivery should be restored after unmute");
         });
         await server.WaitRunTicks(5);
@@ -2792,7 +2897,7 @@ public sealed class MalinovMessengerTest : GameTest
         {
             var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
             var sessions2 = GetAccountSessions(entityManager, session2);
-            Assert.That(sessions2[senderName], Has.Count.EqualTo(2),
+            Assert.That(sessions2[senderKey], Has.Count.EqualTo(2),
                 "Message after unmute should be delivered");
         });
 
@@ -2838,6 +2943,435 @@ public sealed class MalinovMessengerTest : GameTest
         await server.WaitIdleAsync();
     }
 
+    [Test]
+    public async Task Mute_DoesNotAffectPeerWithSameCardName()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var serverSystem = entSysMan.GetEntitySystem<MalinovMessengerServerSystem>();
+        var containerSystem = entSysMan.GetEntitySystem<ContainerSystem>();
+        var playerManager = server.ResolveDependency<IPlayerManager>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string sharedName = "Shared Test";
+
+        await server.WaitAssertion(() =>
+        {
+            var key = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = sharedName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid relay = default;
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+        string? accountName = null;
+        string senderKey = null!;
+        string recipientKey = null!;
+
+        await server.WaitAssertion(() =>
+        {
+            relay = SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            // Both ID cards carry the exact same display name.
+            SetPdaIdentity(entityManager, pda1, sharedName);
+            SetPdaIdentity(entityManager, pda2, sharedName);
+
+            // Only the first PDA is held by the test session; the second one shares the name
+            // but is a different card.
+            HoldPdaWithSession(entityManager, containerSystem, playerManager, pda1, coords);
+            accountName = playerManager.Sessions.Single().Name;
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
+        });
+
+        await server.WaitRunTicks(5);
+
+        // Same-name delivery works before muting. The two same-name cards stay distinct by id.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "Hi1"), Is.True);
+        });
+
+        await PoolManager.WaitUntil(server, async () =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            return sessions2.TryGetValue(senderKey, out var lines) && lines.Count >= 1;
+        });
+
+        // Mute only the account holding pda1.
+        await server.WaitAssertion(() =>
+        {
+            serverSystem.Mute(relay, accountName!);
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.IsMuted, Is.True,
+                "Held account should be muted");
+
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            Assert.That(session2.IsMuted, Is.False,
+                "A same-card-name peer must not be muted");
+        });
+
+        // The unheld peer with the identical card name keeps sending and is delivered.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog2, senderKey, "Hi2"), Is.True,
+                "Same-card-name peer must not be blocked by the other account's mute");
+        });
+
+        await PoolManager.WaitUntil(server, async () =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            var sessions1 = GetAccountSessions(entityManager, session1);
+            return sessions1.TryGetValue(recipientKey, out var lines) && lines.Count >= 2;
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task MuteCommand_MutesOnlineSessionByAccountName()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>();
+        var containerSystem = entSysMan.GetEntitySystem<ContainerSystem>();
+        var playerManager = server.ResolveDependency<IPlayerManager>();
+        var consoleHost = server.ResolveDependency<Robust.Server.Console.IServerConsoleHost>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string senderName = "Alice Console";
+        const string recipientName = "Bob Console";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = senderName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = recipientName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid relay = default;
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid prog1 = default;
+        EntityUid prog2 = default;
+        string? accountName = null;
+        string senderKey = null!;
+        string recipientKey = null!;
+
+        await server.WaitAssertion(() =>
+        {
+            relay = SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, senderName);
+            SetPdaIdentity(entityManager, pda2, recipientName);
+
+            HoldPdaWithSession(entityManager, containerSystem, playerManager, pda1, coords);
+            accountName = playerManager.Sessions.Single().Name;
+            Assert.That(accountName, Is.Not.Null.And.Not.Empty, "Test session should expose an account name");
+
+            prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            senderKey = GetCardKey(entityManager, pda1);
+            recipientKey = GetCardKey(entityManager, pda2);
+        });
+
+        await server.WaitRunTicks(5);
+
+        // Sanity: delivery works before muting.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "Before"), Is.True);
+        });
+        await PoolManager.WaitUntil(server, async () =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            return sessions2.TryGetValue(senderKey, out var lines) && lines.Count >= 1;
+        });
+
+        // The admin command mutes the account through the real console command path.
+        await server.WaitAssertion(() =>
+        {
+            consoleHost.ExecuteCommand($"messengermute {accountName}");
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var relayComp = entityManager.GetComponent<MalinovMessengerServerComponent>(relay);
+            Assert.That(relayComp.Muted.Contains(accountName!), Is.True,
+                "Console mute should register the account on the relay");
+
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.IsMuted, Is.True,
+                "Console mute should propagate to the cartridge session");
+
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "Muted1"), Is.False,
+                "Console-muted sender must be blocked");
+        });
+        await server.WaitRunTicks(5);
+
+        // Unmute through the console restores delivery.
+        await server.WaitAssertion(() =>
+        {
+            consoleHost.ExecuteCommand($"messengerunmute {accountName}");
+        });
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var session1 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog1);
+            Assert.That(session1.IsMuted, Is.False,
+                "Console unmute should clear the cartridge mute state");
+
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "After"), Is.True,
+                "Delivery should be restored after the console unmute");
+        });
+        await PoolManager.WaitUntil(server, async () =>
+        {
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var sessions2 = GetAccountSessions(entityManager, session2);
+            return sessions2.TryGetValue(senderKey, out var lines) && lines.Count >= 2;
+        });
+
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task StolenCard_MovesPresenceWithoutDuplication()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var entSysMan = entityManager.EntitySysManager;
+        var prototypeManager = server.ResolveDependency<IPrototypeManager>();
+        var cartridgeLoaderSystem = entSysMan.GetEntitySystem<CartridgeLoaderSystem>();
+        var itemSlotsSystem = entSysMan.GetEntitySystem<ItemSlotsSystem>();
+        var stationSystem = entSysMan.GetEntitySystem<StationSystem>();
+        var recordsSystem = entSysMan.GetEntitySystem<StationRecordsSystem>();
+        var containerSystem = entSysMan.GetEntitySystem<ContainerSystem>();
+        var playerManager = server.ResolveDependency<IPlayerManager>();
+
+        var testMap = await pair.CreateTestMap();
+        var grid = testMap.Grid.Owner;
+        var coords = testMap.GridCoords;
+
+        var stationProto = prototypeManager.Index<GameMapPrototype>(StationMapId);
+        EntityUid station = default;
+
+        await server.WaitPost(() =>
+        {
+            station = stationSystem.InitializeNewStation(
+                stationProto.Stations["Station"], [grid], StationMapId, stationProto);
+        });
+
+        const string stolenName = "Alice Stolen";
+        const string thiefName = "Bob Thief";
+
+        await server.WaitAssertion(() =>
+        {
+            var key1 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = stolenName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key1);
+
+            var key2 = recordsSystem.AddRecordEntry(station, new GeneralStationRecord
+            {
+                Name = thiefName,
+                JobTitle = "Test",
+                JobPrototype = "Passenger",
+                Age = 30,
+                Species = "Human",
+                Gender = Gender.Epicene,
+            });
+            recordsSystem.Synchronize(key2);
+        });
+
+        await server.WaitRunTicks(1);
+
+        EntityUid relay = default;
+        EntityUid pda1 = default;
+        EntityUid pda2 = default;
+        EntityUid pda3 = default;
+        EntityUid prog2 = default;
+        EntityUid prog3 = default;
+        string stolenCardKey = null!;
+
+        await server.WaitAssertion(() =>
+        {
+            relay = SpawnMessengerServer(entityManager, coords);
+
+            pda1 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda2 = entityManager.SpawnEntity("PassengerPDA", coords);
+            pda3 = entityManager.SpawnEntity("PassengerPDA", coords);
+
+            SetPdaIdentity(entityManager, pda1, stolenName);
+            SetPdaIdentity(entityManager, pda2, thiefName);
+            // pda3 keeps its default empty ID card (no announce until the stolen card is inserted).
+
+            // The thief (a real actor session) carries the stolen card inside their own PDA.
+            HoldPdaWithSession(entityManager, containerSystem, playerManager, pda3, coords);
+            stolenCardKey = GetCardKey(entityManager, pda1);
+
+            prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+            prog3 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda3)!.Value.Owner;
+        });
+
+        // Sanity: both cards announce from their original PDAs.
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var relayComp = entityManager.GetComponent<MalinovMessengerServerComponent>(relay);
+            Assert.That(relayComp.Directory, Does.ContainKey(stolenCardKey),
+                "Stolen card should announce from its original PDA");
+        });
+
+        // Steal the card: eject empty default card from the thief's PDA, eject the victim's card
+        // from its PDA and insert it into the thief's PDA. Identity follows the CARD, not the PDA.
+        await server.WaitAssertion(() =>
+        {
+            Assert.That(itemSlotsSystem.TryEject(pda3, PdaComponent.PdaIdSlotId, null, out var emptyThiefCard), Is.True);
+            entityManager.DeleteEntity(emptyThiefCard!.Value);
+
+            Assert.That(itemSlotsSystem.TryEject(pda1, PdaComponent.PdaIdSlotId, null, out var stolenCard), Is.True);
+            Assert.That(itemSlotsSystem.TryInsert(pda3, PdaComponent.PdaIdSlotId, stolenCard!.Value, null), Is.True);
+        });
+
+        await server.WaitRunTicks(5);
+
+        await server.WaitAssertion(() =>
+        {
+            var relayComp = entityManager.GetComponent<MalinovMessengerServerComponent>(relay);
+
+            // The card now announces from the thief's PDA address; the old address is gone because
+            // the directory key is the card id (single entry, re-keyed on every announce).
+            var thiefAddress = entityManager.GetComponent<DeviceNetworkComponent>(pda3).Address;
+            Assert.That(relayComp.Directory[stolenCardKey], Is.EqualTo(thiefAddress),
+                "Stolen card should announce from the thief's PDA");
+
+            // Exactly one name entry may carry the stolen identity: no stale/duplicate peers.
+            Assert.That(relayComp.Names.Values.Count(v => v == stolenName), Is.EqualTo(1),
+                "Relay must hold a single entry for the stolen card's display name");
+        });
+
+        await server.WaitAssertion(() =>
+        {
+            // The holder's session is keyed by the card id: the stolen card stays linked.
+            var session3 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog3);
+            Assert.That(session3.CardId, Is.EqualTo(stolenCardKey),
+                "Thief's session should be linked to the stolen card");
+            Assert.That(session3.Peers, Does.Not.ContainKey(stolenCardKey),
+                "Thief must not see their own stolen card as a peer");
+
+            // A bystander sees the stolen identity exactly once, routed to the thief's PDA.
+            var session2 = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(prog2);
+            var alicePeers = session2.Peers.Values.Where(p => p.Name == stolenName).ToList();
+            Assert.That(alicePeers, Has.Count.EqualTo(1),
+                "Stolen identity must appear once, not duplicated between old and new PDA");
+            Assert.That(session2.Peers[stolenCardKey].Address,
+                Is.EqualTo(entityManager.GetComponent<DeviceNetworkComponent>(pda3).Address),
+                "The single stolen-identity peer must route to the thief's PDA");
+        });
+
+        await server.WaitIdleAsync();
+    }
+
     private static void SetPdaIdentity(IEntityManager entityManager, EntityUid pda, string name)
     {
         var pdaComp = entityManager.GetComponent<PdaComponent>(pda);
@@ -2845,6 +3379,13 @@ public sealed class MalinovMessengerTest : GameTest
 
         var idCard = entityManager.GetComponent<IdCardComponent>(pdaComp.ContainedId!.Value);
         idCard.FullName = name;
+    }
+
+    private static string GetCardKey(IEntityManager entityManager, EntityUid pda)
+    {
+        var pdaComp = entityManager.GetComponent<PdaComponent>(pda);
+        Assert.That(pdaComp.ContainedId, Is.Not.Null, "PassengerPDA should spawn with an ID card");
+        return entityManager.GetNetEntity(pdaComp.ContainedId!.Value).ToString();
     }
 
     private static void HoldPdaWithSession(

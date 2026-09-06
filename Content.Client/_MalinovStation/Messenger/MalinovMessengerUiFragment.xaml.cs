@@ -140,12 +140,12 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
                 : "malinov-messenger-contact-format",
                 ("name", contact.Name)), contact.HasUnread);
 
-            if (contact.Name == _selectedContact)
+            if (ContactKey(contact) == _selectedContact)
                 ContactsList[i].Selected = true;
         }
 
         ChatHeaderLabel.Text = _selectedContact != null
-            ? Loc.GetString("malinov-messenger-chat-header", ("name", _selectedContact))
+            ? Loc.GetString("malinov-messenger-chat-header", ("name", GetContactDisplayName(_selectedContact) ?? _selectedContact))
             : Loc.GetString("malinov-messenger-chat-header-empty");
 
         ChatContainer.RemoveAllChildren();
@@ -262,7 +262,8 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         if (args.ItemIndex < 0 || args.ItemIndex >= _contacts.Count)
             return;
 
-        _selectedContact = _contacts[args.ItemIndex].Name;
+        var contact = _contacts[args.ItemIndex];
+        _selectedContact = ContactKey(contact);
         OnContactSelected?.Invoke(_selectedContact);
     }
 
@@ -282,6 +283,31 @@ public sealed partial class MalinovMessengerUiFragment : BoxContainer
         _justSent = true;
         OnSendMessage?.Invoke(_selectedContact, text);
         Input.Clear();
+    }
+
+    /// <summary>
+    ///     Routing key of a contact: the stable card id when known, otherwise the display name.
+    /// </summary>
+    private static string ContactKey(MalinovMessengerContact contact)
+    {
+        return contact.Id ?? contact.Name;
+    }
+
+    /// <summary>
+    ///     Display label of the selected contact, since selection is keyed by card id.
+    /// </summary>
+    private string? GetContactDisplayName(string? key)
+    {
+        if (key == null)
+            return null;
+
+        foreach (var contact in _contacts)
+        {
+            if (ContactKey(contact) == key)
+                return contact.Name;
+        }
+
+        return null;
     }
 
     private bool IsRateLimitCooldownActive()

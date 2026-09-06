@@ -97,6 +97,7 @@ public sealed class MalinovMessengerAdminLogTest : GameTest
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
+        string recipientKey = null!;
 
         await server.WaitAssertion(() =>
         {
@@ -110,13 +111,15 @@ public sealed class MalinovMessengerAdminLogTest : GameTest
 
             prog1 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda1)!.Value.Owner;
             prog2 = cartridgeLoaderSystem.TryGetProgram<MalinovMessengerCartridgeComponent>(pda2)!.Value.Owner;
+
+            recipientKey = GetCardKey(entityManager, pda2);
         });
 
         await server.WaitRunTicks(5);
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(messengerSystem.TrySendMessage(prog1, recipientName, "Hello"), Is.True);
+            Assert.That(messengerSystem.TrySendMessage(prog1, recipientKey, "Hello"), Is.True);
         });
         await server.WaitRunTicks(5);
 
@@ -129,6 +132,7 @@ public sealed class MalinovMessengerAdminLogTest : GameTest
 
         // Relay anti-bypass rate limit: a burst of direct relay-bound packets (simulating a
         // client that defeats its own sender-side gate) must be rate-limited at the relay and logged.
+        // The packets carry no account/card id, so the rate-limit identity falls back to the name.
         var relayAddress = entityManager.GetComponent<DeviceNetworkComponent>(relay).Address;
         await server.WaitAssertion(() =>
         {
@@ -141,7 +145,7 @@ public sealed class MalinovMessengerAdminLogTest : GameTest
                     {
                         [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandMessage,
                         [MalinovMessengerConstants.SenderNameKey] = senderName,
-                        [MalinovMessengerConstants.TargetKey] = recipientName,
+                        [MalinovMessengerConstants.TargetKey] = recipientKey,
                         [MalinovMessengerConstants.TextKey] = $"Bypass {i}",
                         [MalinovMessengerConstants.MessageIdKey] = (long)(i + 1000),
                     });
@@ -188,6 +192,9 @@ public sealed class MalinovMessengerAdminLogTest : GameTest
 
             Assert.That(logs.Any(l => l.Type == LogType.MalinovMessengerMute
                 && l.Message.Contains(senderName)), "Mute log should name the muted sender");
+
+            Assert.That(logs.Any(l => l.Type == LogType.MalinovMessengerMute
+                && l.Message.Contains("account") && l.Message.Contains("card")), "Mute log should carry both the account name and the card context");
         });
     }
 
@@ -212,6 +219,13 @@ public sealed class MalinovMessengerAdminLogTest : GameTest
 
         var idCard = entityManager.GetComponent<IdCardComponent>(pdaComp.ContainedId!.Value);
         idCard.FullName = name;
+    }
+
+    private static string GetCardKey(IEntityManager entityManager, EntityUid pda)
+    {
+        var pdaComp = entityManager.GetComponent<PdaComponent>(pda);
+        Assert.That(pdaComp.ContainedId, Is.Not.Null, "PassengerPDA should spawn with an ID card");
+        return entityManager.GetNetEntity(pdaComp.ContainedId!.Value).ToString();
     }
 
     private static EntityUid SpawnMessengerServer(IEntityManager entityManager, EntityCoordinates coords)

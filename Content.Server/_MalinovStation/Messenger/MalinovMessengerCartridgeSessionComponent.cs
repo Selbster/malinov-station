@@ -22,6 +22,22 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     public string? IdentityName;
 
     /// <summary>
+    ///     Stable account name (SS14 launcher username) of the player currently holding the PDA.
+    ///     This is the mute identity; it survives ID card swaps. Null when the PDA is not held
+    ///     by a player (e.g. lying on the floor).
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public string? AccountName;
+
+    /// <summary>
+    ///     Stable card id (round-local NetEntity of the linked ID card) providing the messenger
+    ///     presence/routing identity. Unlike <see cref="AccountName"/> it never changes when the
+    ///     card is moved between PDAs or picked up by another player. Null when no card is linked.
+    /// </summary>
+    [ViewVariables(VVAccess.ReadWrite)]
+    public string? CardId;
+
+    /// <summary>
     ///     Name of the contact currently selected in the UI.
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
@@ -35,7 +51,7 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     public Dictionary<string, List<MalinovMessengerMessage>> LocalSessions = new();
 
     /// <summary>
-    ///     Known peers: display name -> cached address and expiry.
+    ///     Known peers: card id -> cached address, expiry and display name.
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
     public Dictionary<string, PeerCache> Peers = new();
@@ -120,16 +136,18 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
 }
 
 /// <summary>
-/// Cached device-network address of a peer plus its TTL.
+/// Cached device-network address of a peer plus its TTL and display name.
 /// </summary>
 public sealed class PeerCache
 {
     public string Address;
     public TimeSpan Expiry;
+    public string Name;
 
-    public PeerCache(string address, TimeSpan expiry)
+    public PeerCache(string address, TimeSpan expiry, string name)
     {
         Address = address;
         Expiry = expiry;
+        Name = name;
     }
 }

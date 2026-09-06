@@ -7,6 +7,7 @@ using Content.Server.Station.Systems;
 using Content.Shared._MalinovStation.Messenger;
 using Content.Shared.Database;
 using Robust.Server.Containers;
+using Robust.Server.Player;
 using Content.Shared.Access.Components;
 using Content.Shared.Audio;
 using Content.Shared.CartridgeLoader;
@@ -22,6 +23,7 @@ using Robust.Shared.Audio.Systems;
 using Robust.Shared.Configuration;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Timing;
+using System.Collections.Generic;
 
 namespace Content.Server._MalinovStation.Messenger;
 
@@ -46,6 +48,7 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private IAdminLogManager _adminLog = default!;
+    [Dependency] private IPlayerManager _playerManager = default!;
     [Dependency] private SharedUserInterfaceSystem _uiSystem = default!;
 
     public override void Initialize()
@@ -124,6 +127,25 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
                     UpdateUiState(uid, loaderUid, session: session);
                 }
+            }
+
+            // The account (launcher username) is the stable mute identity. It only depends
+            // on whoever holds the PDA, so it survives ID card swaps. Re-announce on change so
+            // the relay refreshes the account-to-card context for admin logs.
+            var accountName = GetAccountName(loaderUid);
+            if (session.AccountName != accountName)
+            {
+                session.AccountName = accountName;
+
+                if (GetServerAddress(loaderUid, session) != null && !string.IsNullOrWhiteSpace(session.IdentityName))
+                {
+                    AnnouncePresence(loaderUid, session);
+                    RequestDirectory(loaderUid, session);
+                    session.LastAnnounceTime = now;
+                    session.LastDirectoryRequestTime = now;
+                }
+
+                UpdateUiState(uid, loaderUid, session: session);
             }
 
             if (session.LinkedAccount is { } idUid && TryComp<IdCardComponent>(idUid, out var idCard))
@@ -224,12 +246,14 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
         EnsureComp<MalinovMessengerAccountComponent>(idUid);
         session.LinkedAccount = idUid;
+        session.CardId = GetNetEntity(idUid).ToString();
         session.IdentityName = idCard.FullName;
     }
 
     private void UnlinkAccount(MalinovMessengerCartridgeSessionComponent session)
     {
         session.LinkedAccount = null;
+        session.CardId = null;
         session.IdentityName = null;
         session.SelectedContact = null;
     }
@@ -274,6 +298,8 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandAnnounce,
             [MalinovMessengerConstants.SenderNameKey] = session.IdentityName,
+            [MalinovMessengerConstants.SenderAccountKey] = session.AccountName ?? string.Empty,
+            [MalinovMessengerConstants.SenderCardKey] = session.CardId ?? string.Empty,
         };
 
         _deviceNetwork.QueuePacket(loaderUid, serverAddress, payload, MalinovMessengerConstants.Frequency);
@@ -397,7 +423,9 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             return;
         }
 
-        if (targetName == session.IdentityName)
+        // The presence identity is the inserted card, so sending to yourself means sending
+        // to your own card id. Different cards held by the same player remain addressable.
+        if (targetName == session.CardId)
         {
             SetSendError(uid, loaderUid, component, session, "malinov-messenger-error-self");
             return;
@@ -429,6 +457,8 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandMessage,
             [MalinovMessengerConstants.SenderNameKey] = session.IdentityName,
+            [MalinovMessengerConstants.SenderAccountKey] = session.AccountName ?? string.Empty,
+            [MalinovMessengerConstants.SenderCardKey] = session.CardId ?? string.Empty,
             [MalinovMessengerConstants.TargetKey] = targetName,
             [MalinovMessengerConstants.TextKey] = text,
             [MalinovMessengerConstants.MessageIdKey] = messageId,
@@ -436,8 +466,10 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
         _deviceNetwork.QueuePacket(loaderUid, serverAddress, payload, MalinovMessengerConstants.Frequency);
 
+        // The target contact key is the card id; log the display name too for readability.
+        var targetDisplay = session.Peers.TryGetValue(targetName, out var targetPeer) ? targetPeer.Name : targetName;
         _adminLog.Add(LogType.MalinovMessengerSend, LogImpact.Low,
-            $"Messenger message sent from '{session.IdentityName}' to '{targetName}'");
+            $"Messenger message sent from '{session.IdentityName}' to '{targetDisplay}'");
 
         var message = new MalinovMessengerMessage(session.IdentityName, text, _timing.CurTime, outgoing: true, messageId);
         AddSessionMessage(session, targetName, message);
@@ -541,11 +573,17 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         if (string.IsNullOrWhiteSpace(name))
             return;
 
-        if (name == session.IdentityName)
+        var cardId = packet.Data.TryGetValue(MalinovMessengerConstants.SenderCardKey, out var cardObj) && cardObj is string cardStr
+            ? cardStr
+            : null;
+
+        // The card id is the peer identity; the same card never appears as two peers.
+        var key = string.IsNullOrWhiteSpace(cardId) ? name : cardId;
+        if (key == session.CardId)
             return;
 
         var ttl = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerPeerTtlSeconds));
-        session.Peers[name] = new PeerCache(packet.SenderAddress, _timing.CurTime + ttl);
+        session.Peers[key] = new PeerCache(packet.SenderAddress, _timing.CurTime + ttl, name);
     }
 
     private void HandleMessage(
@@ -560,6 +598,10 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
         if (!packet.Data.TryGetValue(MalinovMessengerConstants.TextKey, out var textObj) || textObj is not string text)
             return;
+
+        var senderCard = packet.Data.TryGetValue(MalinovMessengerConstants.SenderCardKey, out var cardObj) && cardObj is string cardStr
+            ? cardStr
+            : null;
 
         var maxLength = _cfg.GetCVar(CCVars.MalinovMessengerMaxMessageLength);
         if (text.Length > maxLength)
@@ -590,22 +632,24 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             return;
         }
 
-        // Ignore looped-back messages addressed to the local account.
-        if (sender == session.IdentityName)
+        // Ignore looped-back messages addressed to the local card.
+        var selfKey = session.CardId;
+        var senderKey = string.IsNullOrWhiteSpace(senderCard) ? sender : senderCard;
+        if (senderKey == selfKey)
             return;
 
         var message = new MalinovMessengerMessage(sender, text, _timing.CurTime, outgoing: false);
-        AddSessionMessage(session, sender, message);
+        AddSessionMessage(session, senderKey, message);
 
         // Suppress the notification only when the player is actually looking at this
         // conversation: the PDA window is open, the messenger is the active program and
         // the receiving conversation is selected. Any other state (window closed, other
         // program active, other conversation open) still notifies.
         var windowOpen = IsWindowOpen(loaderUid);
-        var viewing = session.IsProgramActive && windowOpen && session.SelectedContact == sender;
+        var viewing = session.IsProgramActive && windowOpen && session.SelectedContact == senderKey;
 
         if (!viewing)
-            session.UnreadContacts.Add(sender);
+            session.UnreadContacts.Add(senderKey);
 
         if (viewing)
             return;
@@ -658,6 +702,18 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         return false;
     }
 
+    /// <summary>
+    ///     Resolves the SS14 launcher username of the player holding the PDA via the container
+    ///     chain up to the <see cref="ActorComponent"/>-bearing entity. Null when nobody holds it.
+    /// </summary>
+    private string? GetAccountName(EntityUid loaderUid)
+    {
+        if (!TryGetPdaHolder(loaderUid, out var holderUid))
+            return null;
+
+        return _playerManager.TryGetSessionByEntity(holderUid, out var session) ? session.Name : null;
+    }
+
     private void HandleDirectory(EntityUid uid, MalinovMessengerCartridgeSessionComponent session, DeviceNetworkPacketEvent packet)
     {
         if (!packet.Data.TryGetValue(MalinovMessengerConstants.EntriesKey, out var entriesObj) || entriesObj is not Dictionary<string, string> entries)
@@ -666,25 +722,34 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         var ttl = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerPeerTtlSeconds));
         var expiry = _timing.CurTime + ttl;
 
-        foreach (var (name, address) in entries)
+        var names = packet.Data.TryGetValue(MalinovMessengerConstants.DisplayNamesKey, out var namesObj) && namesObj is Dictionary<string, string> namesDict
+            ? namesDict
+            : new Dictionary<string, string>();
+
+        // Directory entries are keyed by the stable card id, so two cards with the same display
+        // name stay distinct. The display name is only a label. The local card is never a peer.
+        foreach (var (cardId, address) in entries)
         {
-            if (string.IsNullOrWhiteSpace(name))
+            if (string.IsNullOrWhiteSpace(cardId))
                 continue;
 
-            if (name == session.IdentityName)
+            if (cardId == session.CardId)
                 continue;
 
-            // known simplification: contacts are matched by their station-record display
-            // name string; two crew members with identical names resolve to whichever peer
-            // is online when the message is sent.
-            session.Peers[name] = new PeerCache(address, expiry);
+            var displayName = names.TryGetValue(cardId, out var mappedName) && !string.IsNullOrWhiteSpace(mappedName)
+                ? mappedName
+                : cardId;
+
+            session.Peers[cardId] = new PeerCache(address, expiry, displayName);
         }
 
+        // The mute list is keyed by account: it applies to the account holding the PDA, so an
+        // unheld card is never muted by its mere display name.
         if (packet.Data.TryGetValue(MalinovMessengerConstants.MutedNamesKey, out var mutedObj)
             && mutedObj is string[] mutedNames
-            && !string.IsNullOrWhiteSpace(session.IdentityName))
+            && !string.IsNullOrWhiteSpace(session.AccountName))
         {
-            session.IsMuted = Array.IndexOf(mutedNames, session.IdentityName) >= 0;
+            session.IsMuted = Array.IndexOf(mutedNames, session.AccountName) >= 0;
         }
     }
 
@@ -787,6 +852,21 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         var (_, entries) = _crewManifest.GetCrewManifest(owningStation.Value);
         var contacts = new List<MalinovMessengerContact>();
 
+        // Online peers first: one contact per card id, so two cards with an identical name stay
+        // distinct by their stable card id. The card display name is only a label.
+        var onlineNames = new HashSet<string>();
+        var selfKey = session.CardId;
+
+        foreach (var (cardId, peer) in session.Peers)
+        {
+            if (cardId == selfKey)
+                continue;
+
+            onlineNames.Add(peer.Name);
+            contacts.Add(new MalinovMessengerContact(peer.Name, cardId, session.UnreadContacts.Contains(cardId)));
+        }
+
+        // Crew manifest names with no known online account: offline placeholder contacts.
         if (entries != null)
         {
             foreach (var entry in entries.Entries)
@@ -794,12 +874,15 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
                 if (entry.Name == session.IdentityName)
                     continue;
 
-                contacts.Add(new MalinovMessengerContact(entry.Name, session.UnreadContacts.Contains(entry.Name)));
+                if (onlineNames.Contains(entry.Name))
+                    continue;
+
+                contacts.Add(new MalinovMessengerContact(entry.Name, id: null, session.UnreadContacts.Contains(entry.Name)));
             }
         }
 
         // A previously selected self-contact should no longer stay selected after the filter is applied.
-        if (session.SelectedContact == session.IdentityName)
+        if (selfKey != null && session.SelectedContact == selfKey)
             session.SelectedContact = null;
 
         var status = session.LastError ?? string.Empty;

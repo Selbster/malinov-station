@@ -1,18 +1,21 @@
+using System.Linq;
 using Content.Server.Administration;
 using Content.Shared.Administration;
 using Content.Shared._MalinovStation.Messenger;
+using Robust.Server.Player;
 using Robust.Shared.Console;
 
 namespace Content.Server._MalinovStation.Messenger;
 
 /// <summary>
-///     Admin command that mutes a messenger sender name for the rest of the round.
-///     The target is the ID card owner name of the messenger account.
+///     Admin command that mutes a messenger account (SS14 launcher username) for the rest of the round.
+///     The mute survives ID card swaps and never touches another player with the same card name.
 /// </summary>
 [AdminCommand(AdminFlags.Admin)]
 public sealed partial class MessengerMuteCommand : IConsoleCommand
 {
     [Dependency] private IEntityManager _entManager = default!;
+    [Dependency] private IPlayerManager _playerManager = default!;
 
     public string Command => "messengermute";
 
@@ -28,7 +31,12 @@ public sealed partial class MessengerMuteCommand : IConsoleCommand
             return;
         }
 
-        var targetName = args[0];
+        if (!_playerManager.TryGetSessionByUsername(args[0], out var target))
+        {
+            shell.WriteError(Loc.GetString("malinov-messenger-command-player-not-found", ("name", args[0])));
+            return;
+        }
+
         var system = _entManager.System<MalinovMessengerServerSystem>();
         var adminName = shell.Player?.Name;
         var found = false;
@@ -36,7 +44,7 @@ public sealed partial class MessengerMuteCommand : IConsoleCommand
         var query = _entManager.EntityQueryEnumerator<MalinovMessengerServerComponent>();
         while (query.MoveNext(out var serverUid, out _))
         {
-            system.Mute(serverUid, targetName, adminName);
+            system.Mute(serverUid, target.Name, adminName);
             found = true;
         }
 
@@ -46,6 +54,17 @@ public sealed partial class MessengerMuteCommand : IConsoleCommand
             return;
         }
 
-        shell.WriteLine(Loc.GetString("malinov-messenger-mute-command-success", ("name", targetName)));
+        shell.WriteLine(Loc.GetString("malinov-messenger-mute-command-success", ("name", target.Name)));
+    }
+
+    public CompletionResult GetCompletion(IConsoleShell shell, string[] args)
+    {
+        if (args.Length == 1)
+        {
+            var options = _playerManager.Sessions.Select(c => c.Name).OrderBy(c => c).ToArray();
+            return CompletionResult.FromHintOptions(options, Loc.GetString("malinov-messenger-mute-command-arg"));
+        }
+
+        return CompletionResult.Empty;
     }
 }

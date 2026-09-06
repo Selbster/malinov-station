@@ -20,7 +20,8 @@ public sealed class MalinovMessengerUiMessageEvent : CartridgeMessageEvent
     public readonly MalinovMessengerUiAction Action;
 
     /// <summary>
-    ///     Selected contact name. Used by <see cref="MalinovMessengerUiAction.RefreshContacts"/>.
+    ///     Selected contact key (card id or manifest name). Used by
+    ///     <see cref="MalinovMessengerUiAction.RefreshContacts"/>.
     /// </summary>
     public readonly string? TargetName;
 

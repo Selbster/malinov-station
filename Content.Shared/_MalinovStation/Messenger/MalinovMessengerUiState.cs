@@ -20,7 +20,7 @@ public sealed class MalinovMessengerUiState : BoundUserInterfaceState
     public string Status;
 
     /// <summary>
-    ///     Name of the currently selected contact.
+    ///     Key of the currently selected contact (card id for online peers, manifest name otherwise).
     /// </summary>
     public string? SelectedContact;
 

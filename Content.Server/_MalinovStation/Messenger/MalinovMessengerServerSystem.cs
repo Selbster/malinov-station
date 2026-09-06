@@ -16,7 +16,8 @@ namespace Content.Server._MalinovStation.Messenger;
 
 /// <summary>
 ///     Server-side relay for the Malinov Messenger.
-///     Maintains a name-to-address directory and re-routes messages between clients.
+///     Maintains a card-id-to-address directory and re-routes messages between clients.
+///     Presence follows the inserted ID card; mutes follow the account holding the PDA.
 /// </summary>
 public sealed partial class MalinovMessengerServerSystem : EntitySystem
 {
@@ -26,10 +27,16 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
     [Dependency] private IAdminLogManager _adminLog = default!;
 
     /// <summary>
-    ///     Per-sender-name timestamps of messages routed through the relay, used to duplicate
+    ///     Per-sender timestamps of messages routed through the relay, used to duplicate
     ///     the sender-side rate-limit and protect against clients that bypass it.
     /// </summary>
     private readonly Dictionary<string, List<TimeSpan>> _rateWindows = new();
+
+    /// <summary>
+    ///     Last announce time per directory key, used to prune entries whose card has not
+    ///     re-announced within the peer TTL.
+    /// </summary>
+    private readonly Dictionary<string, TimeSpan> _lastSeen = new();
 
     public override void Initialize()
     {
@@ -70,15 +77,21 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
     private void OnRemove(EntityUid uid, MalinovMessengerServerComponent component, ComponentRemove args)
     {
         component.Directory.Clear();
+        component.Names.Clear();
+        component.AccountCards.Clear();
         component.Muted.Clear();
         _rateWindows.Clear();
+        _lastSeen.Clear();
     }
 
     private void OnDisconnected(EntityUid uid, MalinovMessengerServerComponent component, ref DeviceNetServerDisconnectedEvent args)
     {
         component.Directory.Clear();
+        component.Names.Clear();
+        component.AccountCards.Clear();
         component.Muted.Clear();
         _rateWindows.Clear();
+        _lastSeen.Clear();
     }
 
     private void HandleAnnounce(EntityUid uid, MalinovMessengerServerComponent component, DeviceNetworkPacketEvent args)
@@ -89,18 +102,71 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         if (string.IsNullOrWhiteSpace(name))
             return;
 
-        component.Directory[name] = args.SenderAddress;
+        var cardId = args.Data.TryGetValue(MalinovMessengerConstants.SenderCardKey, out var cardObj) && cardObj is string cardStr
+            ? cardStr
+            : null;
+
+        var account = args.Data.TryGetValue(MalinovMessengerConstants.SenderAccountKey, out var accountObj) && accountObj is string accountStr
+            ? accountStr
+            : null;
+
+        // The card id is the stable routing key: a card keeps its identity regardless of
+        // which PDA holds it, so a stolen card never shows up twice. The display name is
+        // only a fallback key when the announce carries no card id.
+        var key = string.IsNullOrWhiteSpace(cardId) ? name : cardId;
+
+        PruneDirectory(component);
+
+        component.Directory[key] = args.SenderAddress;
+        component.Names[key] = name;
+        _lastSeen[key] = _timing.CurTime;
+
+        // Track which card the account was last seen with, for admin-log context only.
+        // When the account is absent (card on the floor) the display name is the context key.
+        var contextKey = string.IsNullOrWhiteSpace(account) ? name : account;
+        component.AccountCards[contextKey] = key;
+
         BroadcastDirectory(uid, component);
+    }
+
+    /// <summary>
+    ///     Removes directory entries whose card has not re-announced within the peer TTL.
+    /// </summary>
+    private void PruneDirectory(MalinovMessengerServerComponent component)
+    {
+        var ttl = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerPeerTtlSeconds));
+        var now = _timing.CurTime;
+
+        List<string>? expired = null;
+        foreach (var (key, lastSeen) in _lastSeen)
+        {
+            if (now - lastSeen <= ttl)
+                continue;
+
+            (expired ??= new List<string>()).Add(key);
+        }
+
+        if (expired == null)
+            return;
+
+        foreach (var key in expired)
+        {
+            component.Directory.Remove(key);
+            component.Names.Remove(key);
+            _lastSeen.Remove(key);
+        }
     }
 
     private void BroadcastDirectory(EntityUid uid, MalinovMessengerServerComponent component)
     {
         var entries = new Dictionary<string, string>(component.Directory);
+        var names = new Dictionary<string, string>(component.Names);
 
         var payload = new NetworkPayload
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandDirectory,
             [MalinovMessengerConstants.EntriesKey] = entries,
+            [MalinovMessengerConstants.DisplayNamesKey] = names,
             [MalinovMessengerConstants.MutedNamesKey] = component.Muted.ToArray(),
         };
 
@@ -113,11 +179,13 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
     private void HandleDirectoryRequest(EntityUid uid, MalinovMessengerServerComponent component, DeviceNetworkPacketEvent args)
     {
         var entries = new Dictionary<string, string>(component.Directory);
+        var names = new Dictionary<string, string>(component.Names);
 
         var payload = new NetworkPayload
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandDirectory,
             [MalinovMessengerConstants.EntriesKey] = entries,
+            [MalinovMessengerConstants.DisplayNamesKey] = names,
             [MalinovMessengerConstants.MutedNamesKey] = component.Muted.ToArray(),
         };
 
@@ -151,13 +219,27 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
             return;
         }
 
-        if (component.Muted.Contains(senderName))
+        var senderAccount = args.Data.TryGetValue(MalinovMessengerConstants.SenderAccountKey, out var accountObj) && accountObj is string accountStr
+            ? accountStr
+            : null;
+
+        var senderCard = args.Data.TryGetValue(MalinovMessengerConstants.SenderCardKey, out var cardObj) && cardObj is string cardStr
+            ? cardStr
+            : null;
+
+        // Account is the authoritative mute identity: a mute follows the account holding the
+        // PDA, so it survives card swaps and never blocks a different card with the same name.
+        // A card without a held account (lying on the floor) has no muteable identity.
+        if (senderAccount != null && component.Muted.Contains(senderAccount))
         {
             ReplyError(uid, args.SenderAddress, "malinov-messenger-error-muted", messageId);
             return;
         }
 
-        if (IsRelayRateLimited(senderName))
+        // Rate-limit keying falls back from the account to the card id so an anti-bypass
+        // window is still enforced for unheld cards.
+        var blockKey = senderAccount ?? senderCard ?? senderName;
+        if (IsRelayRateLimited(blockKey))
         {
             ReplyError(uid, args.SenderAddress, "malinov-messenger-error-rate-limited", messageId);
             return;
@@ -173,6 +255,8 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandMessage,
             [MalinovMessengerConstants.SenderNameKey] = senderName,
+            [MalinovMessengerConstants.SenderAccountKey] = senderAccount,
+            [MalinovMessengerConstants.SenderCardKey] = senderCard,
             [MalinovMessengerConstants.TextKey] = text,
         };
 
@@ -180,48 +264,62 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
     }
 
     /// <summary>
-    ///     Mutes a sender name for the rest of the round. Muted senders are silently dropped
-    ///     by the relay and notified with the mute error.
+    ///     Mutes a sender account (launcher username) for the rest of the round. Muted accounts are
+    ///     silently dropped by the relay and notified with the mute error. Survives ID card swaps.
     /// </summary>
-    public void Mute(EntityUid uid, string name, string? admin = null)
+    public void Mute(EntityUid uid, string accountName, string? admin = null)
     {
         if (!TryComp<MalinovMessengerServerComponent>(uid, out var component))
             return;
 
-        component.Muted.Add(name);
+        component.Muted.Add(accountName);
         _adminLog.Add(LogType.MalinovMessengerMute, LogImpact.Medium,
-            $"Messenger sender '{name}' muted by '{admin ?? "an administrator"}'");
+            $"Messenger account '{accountName}' muted by '{admin ?? "an administrator"}'{GetCardContext(component, accountName)}");
         BroadcastDirectory(uid, component);
     }
 
     /// <summary>
-    ///     Unmutes a previously muted sender name, restoring their message delivery.
+    ///     Unmutes a previously muted sender account, restoring their message delivery.
     /// </summary>
-    public void Unmute(EntityUid uid, string name, string? admin = null)
+    public void Unmute(EntityUid uid, string accountName, string? admin = null)
     {
         if (!TryComp<MalinovMessengerServerComponent>(uid, out var component))
             return;
 
-        component.Muted.Remove(name);
+        component.Muted.Remove(accountName);
         _adminLog.Add(LogType.MalinovMessengerMute, LogImpact.Medium,
-            $"Messenger sender '{name}' unmuted by '{admin ?? "an administrator"}'");
+            $"Messenger account '{accountName}' unmuted by '{admin ?? "an administrator"}'{GetCardContext(component, accountName)}");
         BroadcastDirectory(uid, component);
+    }
+
+    /// <summary>
+    ///     Appends the last known display name (ID card name) behind an account to admin-log lines.
+    ///     The account may be a launcher username or, when the PDA was never held, the display name.
+    /// </summary>
+    private static string GetCardContext(MalinovMessengerServerComponent component, string accountName)
+    {
+        if (!component.AccountCards.TryGetValue(accountName, out var cardId))
+            return string.Empty;
+
+        return component.Names.TryGetValue(cardId, out var cardName) && !string.IsNullOrWhiteSpace(cardName)
+            ? $" (card: '{cardName}')"
+            : string.Empty;
     }
 
     /// <summary>
     ///     Server-side duplication of the sender rate-limit, guarding against clients that
-    ///     bypass their local check. Prunes stale entries per sender.
+    ///     bypass their local check. Prunes stale entries per sender identity.
     /// </summary>
-    private bool IsRelayRateLimited(string senderName)
+    private bool IsRelayRateLimited(string senderAccount)
     {
         var window = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds));
         var maxMessages = _cfg.GetCVar(CCVars.MalinovMessengerRateMaxMessages);
         var now = _timing.CurTime;
 
-        if (!_rateWindows.TryGetValue(senderName, out var timestamps))
+        if (!_rateWindows.TryGetValue(senderAccount, out var timestamps))
         {
             timestamps = new List<TimeSpan>();
-            _rateWindows[senderName] = timestamps;
+            _rateWindows[senderAccount] = timestamps;
         }
 
         timestamps.RemoveAll(t => now - t > window);
@@ -229,7 +327,7 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         if (timestamps.Count >= maxMessages)
         {
             _adminLog.Add(LogType.MalinovMessengerRateLimited, LogImpact.Medium,
-                $"Messenger sender '{senderName}' was rate-limited (window: {_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds)}s, limit: {maxMessages})");
+                $"Messenger sender '{senderAccount}' was rate-limited (window: {_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds)}s, limit: {maxMessages})");
             return true;
         }
 

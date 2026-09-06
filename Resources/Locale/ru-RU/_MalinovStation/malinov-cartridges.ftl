@@ -24,13 +24,16 @@ malinov-messenger-no-idcard = Вставьте свою ID-карту.
 malinov-messenger-notification-popup = Новое сообщение от { $sender }
 malinov-messenger-server-unavailable = сервер недоступен
 
-malinov-messenger-mute-command-description = Заглушает отправителя мессенджера до конца раунда.
-malinov-messenger-mute-command-help = Использование: messengermute <имя>
-malinov-messenger-mute-command-success = Отправитель { $name } заглушен.
-malinov-messenger-unmute-command-description = Снимает глушение с отправителя мессенджера.
-malinov-messenger-unmute-command-help = Использование: messengerunmute <имя>
-malinov-messenger-unmute-command-success = Глушение с отправителя { $name } снято.
-malinov-messenger-command-wrong-arguments-number = Укажите ровно одно имя отправителя.
+malinov-messenger-mute-command-description = Заглушает аккаунт мессенджера (ник лаунчера SS14) до конца раунда. Глушение переживает смену ID-карты.
+malinov-messenger-mute-command-help = Использование: messengermute <имя аккаунта>
+malinov-messenger-mute-command-arg = имя аккаунта
+malinov-messenger-mute-command-success = Аккаунт { $name } заглушен.
+malinov-messenger-unmute-command-description = Снимает глушение с аккаунта мессенджера (ника лаунчера SS14).
+malinov-messenger-unmute-command-help = Использование: messengerunmute <имя аккаунта>
+malinov-messenger-unmute-command-arg = имя аккаунта
+malinov-messenger-unmute-command-success = Глушение с аккаунта { $name } снято.
+malinov-messenger-command-wrong-arguments-number = Укажите ровно одно имя аккаунта.
+malinov-messenger-command-player-not-found = Игрок { $name } не на сервере.
 malinov-messenger-command-no-server = Нет активного сервера мессенджера.
 
 device-frequency-malinov-messenger = Мессенджер Малинова
