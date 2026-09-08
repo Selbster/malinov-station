@@ -1,18 +1,10 @@
+using Content.Server._MalinovStation.AIPlayers.Actions;
+
 namespace Content.Server._MalinovStation.AIPlayers.Components;
 
 /// <summary>
-/// AI Players 0.6.3 (spec section 3): one cognitive decision, recorded end to end.
-///
-/// <see cref="Systems.AiTraceSystem"/> already logged every stage of a decision - but as separate lines, each
-/// stamped only with the entity, and interleaved with every other AI player's lines. Following a single
-/// decision from "this passenger is bored" to "it physically moved" was therefore not actually possible, which
-/// is precisely why "where does the behaviour stop?" kept being answered by reasoning rather than by evidence.
-/// This carries one decision's stages on the entity as they happen, so the whole chain can be emitted as a
-/// single readable block and read back later from <c>aiplayer_debug</c>.
-///
-/// Deliberately a plain record of what happened, not a state machine: nothing here influences behaviour, and
-/// a stage that never arrives simply stays null - which is the interesting part, because the first null is the
-/// broken link (spec section 24).
+/// Bounded diagnostic history connecting decisions to their execution and terminal result.
+/// New cognitive decisions may coexist with an older journey; these records never control execution.
 /// </summary>
 [RegisterComponent]
 public sealed partial class AiDecisionTraceComponent : Component
@@ -29,12 +21,14 @@ public sealed partial class AiDecisionTraceComponent : Component
     /// <summary>The last decision that finished, kept for inspection after the fact.</summary>
     [ViewVariables]
     public AiDecisionTrace? Last;
+
+    /// <summary>Recent records, including <see cref="Current"/>, retained for events carrying an older ID.</summary>
+    [ViewVariables]
+    public List<AiDecisionTrace> History = new();
 }
 
 /// <summary>
-/// AI Players 0.6.3: the stages of a single decision, in the order spec section 3 lists them. Every field is
-/// nullable and filled in as its stage is reached; whichever is still null when the decision ends is where the
-/// runtime chain actually stopped.
+/// Observed stages of one decision. A missing stage is distinct from a failed or cancelled execution.
 /// </summary>
 public sealed class AiDecisionTrace
 {
@@ -56,7 +50,16 @@ public sealed class AiDecisionTrace
     public string? ExplorationTarget;
     public string? NavigationTarget;
 
+    /// <summary>The execution that owns these observations, independent of later cognitive decisions.</summary>
+    public long? ExecutionId;
+
+    /// <summary>Diagnostic state only; the busy-state system owns the actual journey lifecycle.</summary>
+    public string ExecutionState = "Deciding";
+
     // Stage 4 - what happened in the world as a result.
+    public bool SteeringStarted;
+
+    /// <summary>True only after observed physical progress, never merely from steering registration.</summary>
     public bool MovementStarted;
     public string? Discovery;
     public bool LocationKnowledgeUpdated;
@@ -64,6 +67,9 @@ public sealed class AiDecisionTrace
     // Stage 5 - how it ended, and whether cognition was told.
     public string? Feedback;
     public bool Reevaluation;
+
+    public AiActionResult? Result;
+    public bool CognitiveFeedbackDelivered;
 
     /// <summary>Set once the decision has reached a terminal state, so the block is only emitted once.</summary>
     public bool Finished;

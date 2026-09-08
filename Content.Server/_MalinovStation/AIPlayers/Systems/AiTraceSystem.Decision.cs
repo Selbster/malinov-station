@@ -1,192 +1,198 @@
 using System.Linq;
-using System.Text;
+using Content.Server._MalinovStation.AIPlayers.Actions;
 using Content.Server._MalinovStation.AIPlayers.Components;
 using Robust.Shared.Map;
 using Robust.Shared.Timing;
 
 namespace Content.Server._MalinovStation.AIPlayers.Systems;
 
-/// <summary>
-/// AI Players 0.6.3, spec section 3: the end-to-end decision trace.
-///
-/// Kept in its own partial rather than added to <see cref="AiTraceSystem"/>'s existing body because it works
-/// differently to everything else there: the other methods log an event and are done, whereas these accumulate
-/// one decision's stages on <see cref="AiDecisionTraceComponent"/> and emit a single block at the end. Every
-/// method here is a no-op for an entity without that component, so nothing needs to check first.
-///
-/// Stage count is bounded by the number of real transitions in the chain, so spec section 3's "do not log
-/// every movement tick" holds by construction rather than by a rate limit.
-/// </summary>
+/// <summary>Bounded decision history. Intermediate navigation observations never close a result record.</summary>
 public sealed partial class AiTraceSystem
 {
     [Dependency] private IGameTiming _traceTiming = default!;
+    public const int DecisionHistoryLimit = 16;
 
-    /// <summary>
-    /// Starts recording a new decision, closing out any previous one that never reached a terminal stage -
-    /// an abandoned decision is itself a finding, and emitting it is how a silent dead end becomes visible.
-    /// </summary>
-    public void DecisionStarted(EntityUid uid, float boredom, float curiosity, string? topDesire)
+    public int DecisionStarted(EntityUid uid, float boredom, float curiosity, string? topDesire)
     {
-        if (!TryComp<AiDecisionTraceComponent>(uid, out var trace))
-            return;
+        if (!TryComp<AiDecisionTraceComponent>(uid, out var comp))
+            return 0;
 
-        if (trace.Current is { Finished: false } previous)
-            Emit(uid, previous, DescribeUnfinished(previous));
+        if (comp.Current is { Finished: false, ExecutionId: null, SelectedAction: null } previous)
+            FinishRecord(uid, previous, AiActionResult.Cancelled("Решение заменено до выбора действия."), false);
 
-        trace.DecisionId++;
-        trace.Current = new AiDecisionTrace
+        var trace = new AiDecisionTrace
         {
-            Id = trace.DecisionId,
+            Id = ++comp.DecisionId,
             StartedAt = _traceTiming.CurTime,
             Boredom = boredom,
             Curiosity = curiosity,
             TopDesire = topDesire,
         };
+        comp.Current = trace;
+        comp.History.Add(trace);
+        while (comp.History.Count > DecisionHistoryLimit)
+        {
+            var index = comp.History.FindIndex(t => t.Finished);
+            if (index < 0)
+            {
+                var activeId = TryComp<AiBusyStateComponent>(uid, out var busy) && busy.CurrentAction is not null
+                    ? busy.DecisionId : 0;
+                index = comp.History.FindIndex(t => t != trace && t.Id != activeId);
+            }
+            comp.History.RemoveAt(index);
+        }
+        return trace.Id;
     }
 
-    public void DecisionIntent(EntityUid uid, string intent, string category, IEnumerable<string> eligibleActions)
-    {
-        if (Current(uid) is not { } trace)
-            return;
+    public int GetCurrentDecisionId(EntityUid uid) =>
+        TryComp<AiDecisionTraceComponent>(uid, out var comp) ? comp.Current?.Id ?? 0 : 0;
 
+    public AiDecisionTrace? GetDecision(EntityUid uid, int decisionId) =>
+        TryComp<AiDecisionTraceComponent>(uid, out var comp)
+            ? comp.History.Find(t => t.Id == decisionId) : null;
+
+    public AiDecisionTrace? GetExecution(EntityUid uid, long executionId) =>
+        TryComp<AiDecisionTraceComponent>(uid, out var comp)
+            ? comp.History.Find(t => t.ExecutionId == executionId) : null;
+
+    /// <summary>Creates a record for direct dispatch, or uses the unbound decision awaiting an action.</summary>
+    public int BeginAction(EntityUid uid, string action)
+    {
+        var trace = GetDecision(uid, GetCurrentDecisionId(uid));
+        if (trace is null || trace.Finished || trace.SelectedAction is not null)
+        {
+            var id = DecisionStarted(uid,
+                TryComp<NeedsComponent>(uid, out var needs) ? needs.Boredom : 0f,
+                TryComp<PersonalityComponent>(uid, out var personality) ? personality.Curiosity : 0f,
+                TryComp<IntentComponent>(uid, out var intent) ? intent.DesireServed : null);
+            trace = GetDecision(uid, id);
+            if (trace is not null && TryComp<IntentComponent>(uid, out var currentIntent))
+                trace.Intent = currentIntent.Name;
+        }
+
+        if (trace is null)
+            return 0;
+        trace.SelectedAction = action;
+        trace.ExecutionState = "ActionSelected";
+        return trace.Id;
+    }
+
+    public void DecisionIntent(EntityUid uid, string intent, string category,
+        IEnumerable<string> eligibleActions, int? decisionId = null)
+    {
+        if (GetDecision(uid, decisionId ?? GetCurrentDecisionId(uid)) is not { Finished: false } trace)
+            return;
         trace.Intent = intent;
         trace.Category = category;
         trace.EligibleActions = string.Join(", ", eligibleActions);
     }
 
-    public void DecisionAction(EntityUid uid, string action)
+    public int BindExecution(EntityUid uid, long executionId, string action, string target, EntityCoordinates destination)
     {
-        if (Current(uid) is { } trace)
-            trace.SelectedAction = action;
-    }
+        var trace = GetDecision(uid, GetCurrentDecisionId(uid));
+        if (trace is null || trace.Finished || trace.ExecutionId is not null || trace.SelectedAction != action)
+            trace = GetDecision(uid, BeginAction(uid, action));
+        if (trace is null)
+            return 0;
 
-    public void DecisionTarget(EntityUid uid, string target, EntityCoordinates destination)
-    {
-        if (Current(uid) is not { } trace)
-            return;
-
+        trace.SelectedAction = action;
+        trace.ExecutionId = executionId;
         trace.ExplorationTarget = target;
         trace.NavigationTarget = destination.ToString();
+        trace.ExecutionState = "TargetSelected";
+        return trace.Id;
     }
 
-    /// <summary>Movement genuinely began - the point past which the AI is doing something in the world rather
-    /// than merely having decided to. Emits the block: everything after this is consequence, not decision.</summary>
-    public void DecisionMovementStarted(EntityUid uid)
+    public void ExecutionPlanning(EntityUid uid, long executionId)
     {
-        if (Current(uid) is not { } trace || trace.MovementStarted)
-            return;
+        if (GetExecution(uid, executionId) is { Finished: false, SteeringStarted: false } trace)
+            trace.ExecutionState = "Planning";
+    }
 
-        trace.MovementStarted = true;
-        Emit(uid, trace, "пошёл");
+    public void ExecutionSteeringStarted(EntityUid uid, long executionId)
+    {
+        if (GetExecution(uid, executionId) is not { Finished: false } trace)
+            return;
+        trace.SteeringStarted = true;
+        trace.ExecutionState = "Executing";
+    }
+
+    public void DecisionMovementStarted(EntityUid uid, long executionId)
+    {
+        if (GetExecution(uid, executionId) is { Finished: false } trace)
+            trace.MovementStarted = true;
     }
 
     public void DecisionDiscovery(EntityUid uid, string place)
     {
-        // Discovery legitimately arrives after the block was emitted - movement starts, the block prints, and
-        // the AI only reaches the new area seconds later. So this writes to the last decision too, keeping
-        // aiplayer_debug's view complete even though the log line has already gone out.
-        if (!TryComp<AiDecisionTraceComponent>(uid, out var comp) || (comp.Current ?? comp.Last) is not { } trace)
+        // Perception runs independently of cognition. Only the active journey may own this observation.
+        if (!TryComp<AiBusyStateComponent>(uid, out var busy) || busy.JourneyTarget is null ||
+            GetExecution(uid, busy.ExecutionId) is not { Finished: false } trace)
             return;
-
         trace.Discovery = place;
         trace.LocationKnowledgeUpdated = true;
     }
 
-    public void DecisionFeedback(EntityUid uid, string feedback)
+    public void ExecutionFinished(EntityUid uid, long executionId, AiActionResult result, bool delivered)
     {
-        if (Current(uid) is not { } trace)
+        if (GetExecution(uid, executionId) is { } trace)
+            FinishRecord(uid, trace, result, delivered);
+    }
+
+    public void DecisionResult(EntityUid uid, int decisionId, AiActionResult result, bool delivered = false)
+    {
+        if (GetDecision(uid, decisionId) is { } trace)
+        {
+            if (result.Outcome == AiActionOutcome.Started && trace.ExecutionId is null)
+                trace.ExecutionState = "Executing";
+            FinishRecord(uid, trace, result, delivered);
+        }
+    }
+
+    private void FinishRecord(EntityUid uid, AiDecisionTrace trace, AiActionResult result, bool delivered)
+    {
+        if (trace.Finished || result.Outcome == AiActionOutcome.Started)
             return;
-
-        trace.Feedback = feedback;
-        Emit(uid, trace, "не вышло");
-    }
-
-    public void DecisionReevaluation(EntityUid uid)
-    {
-        if (TryComp<AiDecisionTraceComponent>(uid, out var trace) && (trace.Current ?? trace.Last) is { } record)
-            record.Reevaluation = true;
-    }
-
-    /// <summary>The decision currently being recorded, or null if there is none in flight or it already ended.
-    /// Stages arriving after the block was emitted are dropped rather than reopening it.</summary>
-    private AiDecisionTrace? Current(EntityUid uid) =>
-        TryComp<AiDecisionTraceComponent>(uid, out var trace) && trace.Current is { Finished: false } current
-            ? current
-            : null;
-
-    /// <summary>
-    /// Writes the whole decision out as one block, in the order spec section 3 lists the stages. A stage that
-    /// never happened is printed as "-" rather than omitted: the gaps are the point, and a missing line would
-    /// be much easier to overlook than an explicitly empty one.
-    /// </summary>
-    private void Emit(EntityUid uid, AiDecisionTrace trace, string outcome)
-    {
         trace.Finished = true;
-
+        trace.Result = result;
+        trace.Feedback = $"{result.Outcome}: {result.Reason}";
+        trace.CognitiveFeedbackDelivered = delivered;
+        trace.Reevaluation = delivered;
+        trace.ExecutionState = result.Outcome switch
+        {
+            AiActionOutcome.Completed => "Completed",
+            AiActionOutcome.Cancelled => "Cancelled",
+            _ => "Failed",
+        };
         if (TryComp<AiDecisionTraceComponent>(uid, out var comp))
             comp.Last = trace;
-
         TraceEventsMetric.WithLabels("Decision").Inc();
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"[AI:{ToPrettyString(uid)}] решение #{trace.Id} — {outcome}");
-        sb.AppendLine($"  скука={trace.Boredom:0.00} любопытство={trace.Curiosity:0.00} желание={Or(trace.TopDesire)}");
-        sb.AppendLine($"  намерение={Or(trace.Intent)} категория={Or(trace.Category)}");
-        sb.AppendLine($"  пригодные={Or(trace.EligibleActions)}");
-        sb.AppendLine($"  выбрано={Or(trace.SelectedAction)}");
-        sb.AppendLine($"  цель={Or(trace.ExplorationTarget)} точка={Or(trace.NavigationTarget)}");
-        sb.AppendLine($"  движение={(trace.MovementStarted ? "началось" : "-")} открыто={Or(trace.Discovery)} знание обновлено={(trace.LocationKnowledgeUpdated ? "да" : "-")}");
-        sb.Append($"  обратная связь={Or(trace.Feedback)} переосмысление={(trace.Reevaluation ? "да" : "-")}");
-
-        _sawmill.Info(sb.ToString());
+        _sawmill.Info($"[AI:{ToPrettyString(uid)}] Decision #{trace.Id}, execution={trace.ExecutionId}, " +
+            $"action={trace.SelectedAction}, target={trace.NavigationTarget}, progress={trace.MovementStarted}, " +
+            $"result={result.Outcome}, reason={result.Reason}, cognitiveFeedback={delivered}");
     }
 
-    /// <summary>
-    /// How a decision that never reached a terminal stage of its own should be described when the next one
-    /// closes it out.
-    ///
-    /// Not every such decision is broken, and saying so indiscriminately was actively misleading: an action
-    /// like <c>ContinueActivity</c> or <c>Rest</c> finishes correctly without ever moving the AI anywhere, yet
-    /// the block still announced that the decision "never reached an action" directly above a line naming the
-    /// action it had chosen. So the wording is derived from how far the chain actually got, which keeps a
-    /// genuine dead end - a route picked but never walked, a category that produced no choice - distinguishable
-    /// at a glance from an ordinary stationary decision.
-    /// </summary>
-    private static string DescribeUnfinished(AiDecisionTrace trace)
-    {
-        if (string.IsNullOrWhiteSpace(trace.SelectedAction))
-        {
-            return string.IsNullOrWhiteSpace(trace.Intent)
-                ? "оборвалось: модель не дала намерения"
-                : "оборвалось: действие так и не выбрано";
-        }
-
-        if (!string.IsNullOrWhiteSpace(trace.NavigationTarget))
-            return "маршрут выбран, но движение так и не началось";
-
-        return "выполнено без перемещения";
-    }
-
-    private static string Or(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
-
-    /// <summary>
-    /// AI Players 0.6.3: the last decision, rendered for <c>aiplayer_debug</c>. Same content as the logged
-    /// block, so what an admin reads live and what ends up in the log cannot drift apart.
-    /// </summary>
     public string? DescribeLastDecision(EntityUid uid)
     {
-        if (!TryComp<AiDecisionTraceComponent>(uid, out var comp) || (comp.Current ?? comp.Last) is not { } trace)
+        if (!TryComp<AiDecisionTraceComponent>(uid, out var comp) || comp.Current is not { } trace)
             return null;
-
-        var age = (_traceTiming.CurTime - trace.StartedAt).TotalSeconds;
-
-        return $"Последнее решение #{trace.Id} ({age:0} с назад){(trace.Finished ? string.Empty : ", ещё идёт")}:\n" +
-            $"  скука={trace.Boredom:0.00} любопытство={trace.Curiosity:0.00} желание={Or(trace.TopDesire)}\n" +
-            $"  намерение={Or(trace.Intent)} категория={Or(trace.Category)}\n" +
-            $"  пригодные={Or(trace.EligibleActions)}\n" +
-            $"  выбрано={Or(trace.SelectedAction)}\n" +
-            $"  цель={Or(trace.ExplorationTarget)} точка={Or(trace.NavigationTarget)}\n" +
-            $"  движение={(trace.MovementStarted ? "началось" : "-")} открыто={Or(trace.Discovery)} знание обновлено={(trace.LocationKnowledgeUpdated ? "да" : "-")}\n" +
-            $"  обратная связь={Or(trace.Feedback)} переосмысление={(trace.Reevaluation ? "да" : "-")}";
+        var described = Describe(trace);
+        var execution = comp.History.LastOrDefault(t => t.ExecutionId is not null && t != trace);
+        if (execution is not null)
+            described += "\n" + Describe(execution);
+        return described;
     }
+
+    private static string Describe(AiDecisionTrace trace) =>
+        $"Решение #{trace.Id}, исполнение={trace.ExecutionId?.ToString() ?? "-"}, состояние={trace.ExecutionState}:\n" +
+        $"  скука={trace.Boredom:0.00} любопытство={trace.Curiosity:0.00} желание={Or(trace.TopDesire)}\n" +
+        $"  намерение={Or(trace.Intent)} категория={Or(trace.Category)}\n" +
+        $"  пригодные={Or(trace.EligibleActions)}\n" +
+        $"  выбрано={Or(trace.SelectedAction)}\n" +
+        $"  цель={Or(trace.ExplorationTarget)} точка={Or(trace.NavigationTarget)}\n" +
+        $"  steering={trace.SteeringStarted} продвижение={trace.MovementStarted} открыто={Or(trace.Discovery)}\n" +
+        $"  результат={trace.Result?.Outcome.ToString() ?? "-"} причина={Or(trace.Result?.Reason)}\n" +
+        $"  передано когнитивному слою={trace.CognitiveFeedbackDelivered}";
+
+    private static string Or(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
 }

@@ -1,3 +1,6 @@
+using Content.Shared.DoAfter;
+using Robust.Shared.Map;
+
 namespace Content.Server._MalinovStation.AIPlayers.Components;
 
 /// <summary>
@@ -43,6 +46,9 @@ public sealed partial class DoorApproachComponent : Component
     [ViewVariables]
     public EntityUid? ActiveDoor;
 
+    /// <summary>Destination whose route authorized the current approach.</summary>
+    public EntityCoordinates? ApproachDestination;
+
     /// <summary>When the current ActiveDoor approach started, for the overall give-up timeout - guards
     /// against this system's own simple straight-line walk ever getting permanently stuck on a door it can
     /// physically reach but never actually approach cleanly (e.g. an awkward doorway geometry).</summary>
@@ -70,4 +76,8 @@ public sealed partial class DoorApproachComponent : Component
     /// walk nor mistaken for a click that silently did nothing.</summary>
     [ViewVariables]
     public TimeSpan? PryingSince;
+
+    /// <summary>The do-after owned by this approach, cancelled when its journey ends.</summary>
+    [ViewVariables]
+    public DoAfterId? PryDoAfter;
 }

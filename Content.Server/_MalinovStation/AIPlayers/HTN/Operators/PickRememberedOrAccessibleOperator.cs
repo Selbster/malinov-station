@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Content.Server._MalinovStation.AIPlayers.Systems;
 using Content.Server.NPC;
+using Content.Server.NPC.Components;
+using Content.Server.NPC.Systems;
 using Content.Server.NPC.HTN;
 using Content.Server.NPC.HTN.PrimitiveTasks;
 using Content.Server.NPC.Pathfinding;
@@ -60,10 +62,10 @@ public sealed partial class PickRememberedOrAccessibleOperator : HTNOperator
     private AiDoorApproachSystem _doors = default!;
 
     /// <summary>Blackboard key holding the destination this AI has already committed to wandering toward.</summary>
-    private const string WanderTargetKey = "AiWanderTarget";
+    public const string WanderTargetKey = "AiWanderTarget";
 
     /// <summary>Blackboard key holding when that commitment lapses.</summary>
-    private const string WanderExpiryKey = "AiWanderTargetExpiry";
+    public const string WanderExpiryKey = "AiWanderTargetExpiry";
 
     /// <summary>
     /// How long a wander destination is held onto before being reconsidered. Long enough to actually get
@@ -131,13 +133,14 @@ public sealed partial class PickRememberedOrAccessibleOperator : HTNOperator
         // this character cannot make, the memory is simply not used this time and wandering falls through to
         // somewhere it can genuinely reach.
         if (TryPickRemembered(owner) is { } remembered
-            && await IsWorthWalkingTo(owner, remembered, maxRange, flags, cancelToken))
+            && await IsWorthWalkingTo(owner, remembered, flags, cancelToken))
         {
             return (true, Commit(remembered, (EntityCoordinates) remembered[TargetCoordinates]));
         }
 
         var path = await _pathfinding.GetRandomPath(owner, maxRange, cancelToken, flags: flags);
-        if (path.Result != PathResult.Path)
+        if (path.Result != PathResult.Path ||
+            _doors.TryFindImpassableDoorOnRoute(owner, path.Path, out _, out _))
             return (false, null);
 
         var target = path.Path.Last().Coordinates;
@@ -174,6 +177,12 @@ public sealed partial class PickRememberedOrAccessibleOperator : HTNOperator
         if (_timing.CurTime >= expiry || !held.IsValid(_entManager))
             return false;
 
+        // A failed move is no longer a commitment. Reusing its target until expiry sends the next
+        // plan straight back to the same door even though steering has already reported failure.
+        if (!_entManager.TryGetComponent<NPCSteeringComponent>(owner, out var steering) ||
+            steering.Status != SteeringStatus.Moving || steering.Coordinates != held)
+            return false;
+
         if (!_entManager.TryGetComponent<TransformComponent>(owner, out var xform) ||
             !xform.Coordinates.TryDistance(_entManager, held, out var distance) ||
             distance <= ArrivedDistance)
@@ -196,7 +205,6 @@ public sealed partial class PickRememberedOrAccessibleOperator : HTNOperator
     private async Task<bool> IsWorthWalkingTo(
         EntityUid owner,
         Dictionary<string, object> remembered,
-        float maxRange,
         PathFlags flags,
         CancellationToken cancelToken)
     {
@@ -206,7 +214,7 @@ public sealed partial class PickRememberedOrAccessibleOperator : HTNOperator
             return false;
         }
 
-        var path = await _pathfinding.GetPathSafe(owner, xform.Coordinates, target, maxRange, cancelToken, flags);
+        var path = await _pathfinding.GetPathSafe(owner, xform.Coordinates, target, ArrivedDistance, cancelToken, flags);
 
         return path.Result == PathResult.Path &&
             !_doors.TryFindImpassableDoorOnRoute(owner, path.Path, out _, out _);

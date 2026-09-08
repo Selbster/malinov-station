@@ -153,7 +153,7 @@ public sealed class AiActionRegistrySystemTests : GameTest
 
             var second = actions.TryDoAction(uid, "Talk", new TalkActionParams("Hello again!"), out var secondReason);
             Assert.That(second, Is.False);
-            Assert.That(secondReason, Does.Contain("too soon"));
+            Assert.That(secondReason, Does.Contain("Слишком рано"));
         });
 
         await server.WaitPost(() =>

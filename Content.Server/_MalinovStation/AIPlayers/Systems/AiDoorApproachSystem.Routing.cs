@@ -102,6 +102,6 @@ public sealed partial class AiDoorApproachSystem
         // Recorded before abandoning, so the next path request routes around it rather than re-proposing the
         // same doorway, and so the AI's own memory carries why the trip was called off.
         MarkDenied(uid, approach, doorUid, reason);
-        AbandonRouteThrough(uid, reason);
+        AbandonRouteThrough(uid, doorUid, reason);
     }
 }

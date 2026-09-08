@@ -131,10 +131,12 @@ public sealed class PassengerDoorRouteTests : GameTest
         EntityUid aiPlayer = default;
         EntityUid doorOnRoute = default;
         EntityUid unrelatedDoor = default;
+        EntityCoordinates destination = default;
 
         await server.WaitPost(() =>
         {
             aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station)!.Value;
+            AiMovementTestMap.PaintNorthCorridor(pair, aiPlayer);
             var coords = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates;
 
             // The route: a wall with a single door-shaped gap directly between the AI and its destination.
@@ -149,7 +151,12 @@ public sealed class PassengerDoorRouteTests : GameTest
             UnpowerGate(pair, doorOnRoute);
             UnpowerGate(pair, unrelatedDoor);
 
-            var destination = coords.Offset(new Vector2(0, 6));
+            destination = coords.Offset(new Vector2(0, 6));
+        });
+
+        await pair.RunTicksSync(15);
+        await server.WaitPost(() =>
+        {
             var actions = server.System<AiActionRegistrySystem>();
             Assert.That(actions.TryDoAction(aiPlayer, "MoveTo", new MoveToActionParams(destination), out var reason), Is.True, reason);
         });

@@ -1,15 +1,13 @@
 using System.Diagnostics.CodeAnalysis;
+using Content.Server._MalinovStation.AIPlayers.Systems;
 using Content.Server.NPC.HTN;
 using Content.Shared.Mobs.Systems;
 
 namespace Content.Server._MalinovStation.AIPlayers.Actions;
 
 /// <summary>
-/// Sends an AI player to a specific location right now, interrupting its routine HTN behaviour until it
-/// arrives (see <c>ForcedMoveCompound</c> in Resources/Prototypes/_MalinovStation/AIPlayers/htn.yml, gated
-/// on the <see cref="ForcedDestinationKey"/> blackboard key). Reuses the vanilla MoveToOperator/steering
-/// stack entirely - this action only ever writes one blackboard value and lets HTN do the rest, including
-/// automatically clearing that key on arrival (MoveToOperator's RemoveKeyOnFinish default).
+/// Starts a coordinate-based journey through <see cref="AiBusyStateSystem"/>. ForcedMoveCompound hands it
+/// to vanilla steering; the busy-state system owns cancellation and the final result.
 /// </summary>
 /// <remarks>
 /// Takes its dependencies via constructor rather than [Dependency] fields - see <see cref="TalkAction"/>'s
@@ -74,8 +72,7 @@ public sealed class MoveToAction : IAiAction
     public AiActionResult Do(EntityUid uid, IAiActionParams parameters)
     {
         var move = (MoveToActionParams)parameters;
-        var htn = _entManager.GetComponent<HTNComponent>(uid);
-        htn.Blackboard.SetValue(ForcedDestinationKey, move.Destination);
+        _entManager.System<AiBusyStateSystem>().StartJourney(uid, Name, move.Destination);
         return AiActionResult.Started();
     }
 }

@@ -84,8 +84,7 @@ public sealed class GoToKnownLocationAction : IAiAction
         if (_memory.FindKnownLocation(uid, goTo.LocationHint) is not { } destination)
             return AiActionResult.NoTarget($"Ты не помнишь, где находится «{goTo.LocationHint}».");
 
-        var htn = _entManager.GetComponent<HTNComponent>(uid);
-        htn.Blackboard.SetValue(MoveToAction.ForcedDestinationKey, destination);
+        _entManager.System<AiBusyStateSystem>().StartJourney(uid, Name, destination, goTo.LocationHint);
         return AiActionResult.Started($"Ты направляешься к «{goTo.LocationHint}».");
     }
 }

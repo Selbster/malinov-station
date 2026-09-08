@@ -170,6 +170,7 @@ public sealed class PassengerDoorJudgementTests : GameTest
         Assert.That(xform.GridUid, Is.Not.Null, "Test setup: the passenger should have spawned on a grid.");
         var gridUid = xform.GridUid!.Value;
         var grid = server.EntMan.GetComponent<MapGridComponent>(gridUid);
+        grid.CanSplit = false;
 
         var mapSys = server.System<SharedMapSystem>();
         var tile = new Tile(server.ResolveDependency<ITileDefinitionManager>()["Plating"].TileId);

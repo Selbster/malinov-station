@@ -111,10 +111,12 @@ public sealed class AiDoorApproachTests : GameTest
         var server = pair.Server;
         EntityUid aiPlayer = default;
         EntityUid door = default;
+        EntityCoordinates destination = default;
 
         await server.WaitPost(() =>
         {
             aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(job, station)!.Value;
+            AiMovementTestMap.PaintNorthCorridor(pair, aiPlayer);
             var coords = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates;
 
             door = server.EntMan.SpawnEntity(doorProto, coords.Offset(new Vector2(0, 3)));
@@ -126,7 +128,12 @@ public sealed class AiDoorApproachTests : GameTest
             if (server.EntMan.TryGetComponent<ApcPowerReceiverComponent>(door, out var receiver))
                 receiver.NeedsPower = false;
 
-            var destination = coords.Offset(new Vector2(0, 6));
+            destination = coords.Offset(new Vector2(0, 6));
+        });
+
+        await pair.RunTicksSync(15);
+        await server.WaitPost(() =>
+        {
             var actions = server.System<AiActionRegistrySystem>();
             Assert.That(actions.TryDoAction(aiPlayer, "MoveTo", new MoveToActionParams(destination), out var reason), Is.True, reason);
         });

@@ -73,7 +73,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// <summary>AI Players 0.4 Milestone 3: the hierarchical decision's first stage - shares
     /// <see cref="_lastRequestAt"/>/<see cref="_inFlight"/> with the legacy path rather than tracking a
     /// separate budget, since an entity is never both cognitive and legacy.</summary>
-    private readonly Dictionary<EntityUid, (Task<LlmIntentDecision?> Task, TimeSpan StartedAt)> _pendingIntent = new();
+    private readonly Dictionary<EntityUid, (Task<LlmIntentDecision?> Task, TimeSpan StartedAt, int DecisionId)> _pendingIntent = new();
     private readonly List<EntityUid> _finishedIntentBuffer = new();
 
     /// <summary>The hierarchical decision's second stage - only ever populated from within
@@ -82,7 +82,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// single-eligible-action skip case that never reaches this dictionary at all). Carries the stage-one
     /// <see cref="LlmIntentDecision"/> forward so both results can be synthesized back into one
     /// <see cref="LlmCognitiveDecision"/> once stage two also resolves.</summary>
-    private readonly Dictionary<EntityUid, (Task<LlmActionSelectionDecision?> Task, TimeSpan StartedAt, LlmIntentDecision Intent)> _pendingActionSelection = new();
+    private readonly Dictionary<EntityUid, (Task<LlmActionSelectionDecision?> Task, TimeSpan StartedAt, LlmIntentDecision Intent, int DecisionId)> _pendingActionSelection = new();
     private readonly List<EntityUid> _finishedActionSelectionBuffer = new();
 
     public override void Initialize()
@@ -207,7 +207,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         // AI Players 0.6.3, spec section 3: stage one of the end-to-end decision trace. Captured here rather
         // than anywhere later because this is the only point that still knows *why* the AI is deciding at all -
         // by the time an intent comes back, the needs that prompted it are gone from view.
-        _trace.DecisionStarted(uid,
+        var decisionId = _trace.DecisionStarted(uid,
             TryComp<NeedsComponent>(uid, out var traceNeeds) ? traceNeeds.Boredom : 0f,
             TryComp<PersonalityComponent>(uid, out var tracePersonality) ? tracePersonality.Curiosity : 0f,
             context.CurrentDesires.Count > 0 ? context.CurrentDesires[0].Name : null);
@@ -217,7 +217,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         LlmRequestsMetric.Inc();
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
-        _pendingIntent[uid] = (_client.DecideIntentAsync(context, GetAllowedIntents(), eligibleCategories, cts.Token), _timing.CurTime);
+        _pendingIntent[uid] = (_client.DecideIntentAsync(context, GetAllowedIntents(), eligibleCategories, cts.Token), _timing.CurTime, decisionId);
         return true;
     }
 
@@ -331,7 +331,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
             _inFlight--;
 
             LlmDecisionLatencyMetric.Observe((_timing.CurTime - entry.StartedAt).TotalSeconds);
-            HandleCompletedIntentRequest(uid, entry.Task);
+            HandleCompletedIntentRequest(uid, entry.Task, entry.DecisionId);
         }
     }
 
@@ -345,8 +345,11 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// (the sole-eligible-action skip case - no second HTTP call for a choice that was never real, spec
     /// Milestone 2's "use LLM reasoning only when the question is genuinely cognitive") or kicks off stage two.
     /// </summary>
-    private void HandleCompletedIntentRequest(EntityUid uid, Task<LlmIntentDecision?> task)
+    private void HandleCompletedIntentRequest(EntityUid uid, Task<LlmIntentDecision?> task, int decisionId)
     {
+        if (Deleted(uid) || _trace.GetCurrentDecisionId(uid) != decisionId ||
+            _trace.GetDecision(uid, decisionId) is { Finished: true })
+            return;
         if (task.IsFaulted)
         {
             _sawmill.Warning($"LLM intent request for {ToPrettyString(uid)} threw: {task.Exception?.GetBaseException().Message}");
@@ -392,7 +395,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         }
 
         _trace.DecisionIntent(uid, intent.Intention, intent.Category ?? string.Empty,
-            eligibleInCategory.Select(a => a.Name));
+            eligibleInCategory.Select(a => a.Name), decisionId);
 
         if (eligibleInCategory.Count == 0)
         {
@@ -405,7 +408,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         {
             TryApplyCognitiveDecision(uid, new LlmCognitiveDecision(
                 intent.Desire, intent.Intention, intent.Priority, intent.Confidence, intent.Reason,
-                ContinueActivityAction.ActionName, new Dictionary<string, string>()));
+                ContinueActivityAction.ActionName, new Dictionary<string, string>()), decisionId);
             return;
         }
 
@@ -417,7 +420,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         LlmRequestsMetric.Inc();
 
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
-        _pendingActionSelection[uid] = (_client.SelectActionAsync(context, intent, eligibleInCategory, cts.Token), _timing.CurTime, intent);
+        _pendingActionSelection[uid] = (_client.SelectActionAsync(context, intent, eligibleInCategory, cts.Token), _timing.CurTime, intent, decisionId);
     }
 
     private void UpdatePendingActionSelections()
@@ -439,7 +442,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
             _inFlight--;
 
             LlmDecisionLatencyMetric.Observe((_timing.CurTime - entry.StartedAt).TotalSeconds);
-            HandleCompletedActionSelectionRequest(uid, entry.Task, entry.Intent);
+            HandleCompletedActionSelectionRequest(uid, entry.Task, entry.Intent, entry.DecisionId);
         }
     }
 
@@ -449,8 +452,11 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// only means the concrete action never got chosen/executed, exactly like a failed proposal in the old
     /// single-call path.
     /// </summary>
-    private void HandleCompletedActionSelectionRequest(EntityUid uid, Task<LlmActionSelectionDecision?> task, LlmIntentDecision intent)
+    private void HandleCompletedActionSelectionRequest(EntityUid uid, Task<LlmActionSelectionDecision?> task, LlmIntentDecision intent, int decisionId)
     {
+        if (Deleted(uid) || _trace.GetCurrentDecisionId(uid) != decisionId ||
+            _trace.GetDecision(uid, decisionId) is { Finished: true })
+            return;
         if (task.IsFaulted)
         {
             _sawmill.Warning($"LLM action selection request for {ToPrettyString(uid)} threw: {task.Exception?.GetBaseException().Message}");
@@ -492,7 +498,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
 
         TryApplyCognitiveDecision(uid, new LlmCognitiveDecision(
             intent.Desire, intent.Intention, intent.Priority, intent.Confidence, selection.Reason,
-            selection.Action, selection.ActionParameters));
+            selection.Action, selection.ActionParameters), decisionId);
     }
 
     private void UpdatePendingLines()
@@ -665,10 +671,26 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// well-formed and eligible but wrong (<see cref="AiTraceSystem.ActionFailed"/>, which writes an outcome
     /// memory and forces a fast re-reflection).
     /// </summary>
-    public bool TryApplyCognitiveDecision(EntityUid uid, LlmCognitiveDecision decision)
+    public bool TryApplyCognitiveDecision(EntityUid uid, LlmCognitiveDecision decision, int? decisionId = null)
     {
         if (Deleted(uid) || !TryComp<IntentComponent>(uid, out var intent))
             return false;
+
+        if (decisionId is { } requestedId && (_trace.GetCurrentDecisionId(uid) != requestedId ||
+            _trace.GetDecision(uid, requestedId) is { Finished: true }))
+            return false;
+
+        var record = _trace.GetDecision(uid, _trace.GetCurrentDecisionId(uid));
+        if (record is null || record.Finished || record.SelectedAction is not null)
+        {
+            decisionId = _trace.DecisionStarted(uid,
+                TryComp<NeedsComponent>(uid, out var needs) ? needs.Boredom : 0f,
+                TryComp<PersonalityComponent>(uid, out var personality) ? personality.Curiosity : 0f,
+                decision.Desire);
+        }
+        decisionId ??= _trace.GetCurrentDecisionId(uid);
+        if (_trace.GetDecision(uid, decisionId.Value) is { } appliedTrace)
+            appliedTrace.Intent = decision.Intention;
 
         ApplyIntentName(intent, decision.Intention);
         intent.Priority = Math.Clamp(decision.Priority, 0f, 1f);
@@ -679,6 +701,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         {
             _sawmill.Warning($"LLM proposed an invalid action for {ToPrettyString(uid)}: {resolveFailReason}");
             _trace.LlmFailure(uid, "InvalidActionProposal");
+            _trace.DecisionResult(uid, decisionId.Value, AiActionResult.Failed(resolveFailReason));
             return false;
         }
 
@@ -686,6 +709,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         {
             _sawmill.Warning($"LLM proposed action \"{proposal.ActionName}\" for {ToPrettyString(uid)}, which isn't currently eligible.");
             _trace.LlmFailure(uid, "ActionNotEligible");
+            _trace.DecisionResult(uid, decisionId.Value, AiActionResult.Failed("Действие больше недоступно."));
             return false;
         }
 
@@ -696,7 +720,6 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         }
 
         _trace.ActionProposed(uid, proposal.ActionName, decision.Reason);
-        _trace.DecisionAction(uid, proposal.ActionName);
 
         // AI Players 0.6, spec section 34: a richer trace specifically for travel decisions, on top of the
         // generic ActionProposed line above.

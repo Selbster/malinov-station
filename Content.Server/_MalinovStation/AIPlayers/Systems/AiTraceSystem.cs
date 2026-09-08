@@ -63,6 +63,17 @@ public sealed partial class AiTraceSystem : EntitySystem
 
     private void TracePlan(EntityUid uid, GoalComponent goal, HTNComponent htn, AiTraceStateComponent state)
     {
+        // Journeys report explicit results, including preemption. Do not also infer an outcome from
+        // the same plan disappearing before the busy-state system consumes its queued observation.
+        if (TryComp<AiBusyStateComponent>(uid, out var busy) && busy.JourneyTarget is not null)
+        {
+            state.LastPlan = null;
+            state.LastPlanIndex = -1;
+            state.LastOperatorName = null;
+            state.LastPlanGoal = null;
+            return;
+        }
+
         var plan = htn.Plan;
 
         if (plan is null)

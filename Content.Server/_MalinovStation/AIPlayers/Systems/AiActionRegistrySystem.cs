@@ -34,6 +34,8 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     [Dependency] private SocialSystem _social = default!;
     [Dependency] private IngestionSystem _ingestion = default!;
     [Dependency] private ExplorationControllerSystem _exploration = default!;
+    [Dependency] private AiBusyStateSystem _busyState = default!;
+    [Dependency] private AiTraceSystem _trace = default!;
 
     private readonly Dictionary<string, IAiAction> _actions = new();
 
@@ -131,14 +133,24 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     /// </summary>
     public bool TryDoAction(EntityUid uid, string actionName, IAiActionParams parameters, string reason, [NotNullWhen(false)] out string? failReason)
     {
+        var decisionId = _trace.BeginAction(uid, actionName);
         if (!_actions.TryGetValue(actionName, out var action))
         {
             failReason = $"Неизвестное действие «{actionName}».";
+            _trace.DecisionResult(uid, decisionId, AiActionResult.Failed(failReason));
             return false;
         }
 
         if (!action.CanDo(uid, parameters, out failReason))
+        {
+            _trace.DecisionResult(uid, decisionId, AiActionResult.Failed(failReason));
             return false;
+        }
+
+        // A new professional commitment preempts travel. Brief interactions and ContinueActivity may
+        // coexist with a journey; merely receiving another cognitive decision does not cancel movement.
+        if (actionName == PursueGoalAction.ActionName)
+            _busyState.CancelCurrentAction(uid, "Ты выбрал(а) другое занятие.");
 
         // AI Players 0.6.2: an action can now fail at execution time even after CanDo passed - the normal
         // case for anything that picks its own target while running (exploration). Surfaced through the same
@@ -148,6 +160,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
 
         if (!result.IsSuccess)
         {
+            _trace.DecisionResult(uid, decisionId, result);
             failReason = result.Reason;
             return false;
         }
@@ -160,16 +173,11 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
             busy.CurrentAction = action.Name;
             busy.StartedAt = _timing.CurTime;
             busy.Reason = reason;
-            busy.InterruptionNoticed = false;
-
-            // AI Players 0.6: the "was this entity relocated out of band" baseline AiBusyStateSystem.CheckBusyState
-            // compares against - seeded right here rather than left for that system's own next scan to fill in,
-            // since a relocation that happens between this commitment starting and that scan's first run would
-            // otherwise never have a "before" position to compare against at all.
-            if (_entManager.TryGetComponent<TransformComponent>(uid, out var xform))
-                busy.LastCheckedPosition = xform.Coordinates;
-            busy.LastCheckedAt = _timing.CurTime;
+            busy.ExternallyRelocated = false;
+            busy.DecisionId = decisionId;
         }
+
+        _trace.DecisionResult(uid, decisionId, result);
 
         failReason = null;
         return true;

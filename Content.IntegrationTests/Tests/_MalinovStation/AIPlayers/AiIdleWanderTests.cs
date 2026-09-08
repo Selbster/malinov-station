@@ -100,6 +100,7 @@ public sealed class AiIdleWanderTests : GameTest
         Assert.That(xform.GridUid, Is.Not.Null, "Test setup: the passenger should have spawned on a grid.");
         var gridUid = xform.GridUid!.Value;
         var grid = server.EntMan.GetComponent<MapGridComponent>(gridUid);
+        grid.CanSplit = false;
 
         var mapSys = server.System<SharedMapSystem>();
         var tile = new Tile(server.ResolveDependency<ITileDefinitionManager>()["Plating"].TileId);
@@ -120,6 +121,7 @@ public sealed class AiIdleWanderTests : GameTest
         await server.WaitPost(() =>
         {
             aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station)!.Value;
+            server.EntMan.GetComponent<HTNComponent>(aiPlayer).Enabled = false;
             var needs = server.EntMan.GetComponent<NeedsComponent>(aiPlayer);
             needs.Fatigue = 0f;
             needs.SocialNeed = 0f;
@@ -128,9 +130,9 @@ public sealed class AiIdleWanderTests : GameTest
             PaintFloorAround(pair, aiPlayer, radius: 12);
         });
 
-        // Deliberately no ticks here. Idle wander commits to a destination once it picks one (AI Players
-        // 0.6.3), so letting the passenger start pottering before a test has seeded its memory would mean
-        // testing against a decision made in ignorance of the very thing being seeded.
+        // Build navigation before checking reachability, while keeping planning paused until memory is seeded.
+        await pair.RunTicksSync(15);
+        await server.WaitPost(() => server.EntMan.GetComponent<HTNComponent>(aiPlayer).Enabled = true);
         return aiPlayer;
     }
 

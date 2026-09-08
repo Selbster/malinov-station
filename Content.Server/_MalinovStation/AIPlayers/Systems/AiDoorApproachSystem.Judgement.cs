@@ -7,6 +7,7 @@ using Content.Shared.Hands.EntitySystems;
 using Content.Shared.Inventory;
 using Content.Shared.Physics;
 using Content.Shared.Prying.Systems;
+using Content.Shared.Prying.Components;
 using Content.Shared.Storage;
 using Content.Shared.Tools.Components;
 using Content.Shared.Tools.Systems;
@@ -107,14 +108,25 @@ public sealed partial class AiDoorApproachSystem
 
         // 3. Unpowered airlock: the one case a crowbar solves. Judged only up close, because power is not
         //    knowable in advance the way the rungs above it are - see includeMomentaryState.
-        if (includeMomentaryState && IsGenuinelyUnpowered(doorUid))
+        // A confirmed unpowered door with a crowbar is traversable even without ID access. Include
+        // this positive capability in route checks too, otherwise the access scan rejects it before
+        // the actor can ever approach. Missing tools still only cause a power-related denial up close.
+        if (IsGenuinelyUnpowered(doorUid) &&
+            (includeMomentaryState || (door.CanPry && TryFindPryingTool(uid, out _))))
         {
             if (!door.CanPry)
                 return new DoorJudgement(DoorPassability.Blocked, "она обесточена, и вскрыть её не выйдет");
 
-            return TryFindPryingTool(uid, out var tool)
-                ? new DoorJudgement(DoorPassability.Pry, "она обесточена — можно вскрыть", tool)
-                : new DoorJudgement(DoorPassability.Blocked, "она обесточена, а вскрыть её нечем");
+            if (!TryFindPryingTool(uid, out var tool) ||
+                !TryComp<PryingComponent>(tool, out var prying) || !prying.Enabled)
+                return new DoorJudgement(DoorPassability.Blocked, "она обесточена, а вскрыть её нечем");
+
+            // Use the same permission event as PryingSystem, including bolts and force-capable tools.
+            var attempt = new BeforePryEvent(uid, prying.PryPowered, prying.Force, true);
+            RaiseLocalEvent(doorUid, ref attempt);
+            return attempt.Cancelled
+                ? new DoorJudgement(DoorPassability.Blocked, "вскрыть её сейчас нельзя")
+                : new DoorJudgement(DoorPassability.Pry, "она обесточена — можно вскрыть", tool);
         }
 
         // 4. Access. A stable fact about this door and this ID, so it is asked at any range.
