@@ -2,8 +2,7 @@
 # Priority order: immediate self-preservation (Flee) first, then survival (Food/Thirst, reusing the vanilla
 # FoodCompound gated on the mob's own SatiationComponent), then an explicit ForcedMoveCompound (Milestone
 # 5's MoveTo action), then altruism (HelpInjured), then professional work (RepairMachine, Milestone 11 - a
-# professional AI attempts a real repair before flopping down to rest, unless Fatigue is already past
-# RestCompound's own 0.75 threshold), then self-care (Rest, driven by NeedsComponent.Fatigue), falling back
+# professional AI attempts a real repair before flopping down to rest, while the selected goal and recovery threshold allow rest), then self-care (Rest, driven by NeedsComponent.Fatigue), falling back
 # to wandering (AIPlayerIdleCompound, memory-biased - see its own comment below) when nothing is urgent.
 #
 # Milestone 1: this top-to-bottom order is a coarse safety net, not the real arbitrator. Flee/HelpInjured/
@@ -20,7 +19,7 @@
           task: FleeCompound
     - tasks:
         - !type:HTNCompoundTask
-          task: FoodCompound
+          task: AiFoodCompound
     - tasks:
         - !type:HTNCompoundTask
           task: ForcedMoveCompound
@@ -163,7 +162,7 @@
         - !type:HTNPrimitiveTask
           preconditions:
             - !type:FatiguePrecondition
-              above: 0.75
+              above: 0.3
             - !type:CurrentGoalPrecondition
               goal: Rest
           operator: !type:PickAccessibleOperator
@@ -224,3 +223,54 @@
         - !type:HTNPrimitiveTask
           operator: !type:DeactivateAndStowToolOperator
             quality: Welding
+
+# AI players wait for ingestion itself, rather than a generic alternative interaction.
+- type: htnCompound
+  id: AiFoodCompound
+  branches:
+    # Approach a consumable, then wait for ingestion before choosing another task.
+    - tasks:
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:SatiationPrecondition
+              satiationType: Hunger
+              below: Peckish
+          operator: !type:UtilityOperator
+            proto: NearbyFood
+
+        - !type:HTNPrimitiveTask
+          operator: !type:MoveToOperator
+            pathfindInPlanning: false
+            removeKeyOnFinish: false
+            targetKey: TargetCoordinates
+            pathfindKey: TargetPathfind
+            rangeKey: InteractRange
+
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:KeyExistsPrecondition
+              key: Target
+          operator: !type:AiConsumeOperator
+    # The drink branch uses the same execution contract.
+    - tasks:
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:SatiationPrecondition
+              satiationType: Thirst
+              below: Parched
+          operator: !type:UtilityOperator
+            proto: NearbyDrink
+
+        - !type:HTNPrimitiveTask
+          operator: !type:MoveToOperator
+            pathfindInPlanning: false
+            removeKeyOnFinish: false
+            targetKey: TargetCoordinates
+            pathfindKey: TargetPathfind
+            rangeKey: InteractRange
+
+        - !type:HTNPrimitiveTask
+          preconditions:
+            - !type:KeyExistsPrecondition
+              key: Target
+          operator: !type:AiConsumeOperator

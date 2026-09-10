@@ -72,7 +72,7 @@ public sealed class PickUpItemAction : IAiAction
         }
 
         if (_entManager.Deleted(target) ||
-            !_interaction.InRangeUnobstructed(uid, target, opportunity.ScanRadius, CollisionGroup.Opaque))
+            !_interaction.InRangeUnobstructed(uid, target))
         {
             failReason = "Это уже недостаточно близко.";
             return false;
@@ -107,8 +107,9 @@ public sealed class PickUpItemAction : IAiAction
         if (FindCandidate(uid, opportunity, pickUp.Target) is not { } target)
             return AiActionResult.NoTarget($"Ты не видишь рядом «{pickUp.Target}».");
 
-        _hands.TryPickupAnyHand(uid, target);
-        return AiActionResult.Completed();
+        return _hands.TryPickupAnyHand(uid, target)
+            ? AiActionResult.Completed()
+            : AiActionResult.Failed("Не удалось взять предмет в руку.");
     }
 
     /// <summary>Case-insensitive substring match against each currently-visible candidate's live entity

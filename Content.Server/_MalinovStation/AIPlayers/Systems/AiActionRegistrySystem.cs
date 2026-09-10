@@ -131,9 +131,9 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
     /// action's static <see cref="IAiAction.Description"/>, so <see cref="Systems.ContextBuilderSystem"/> can
     /// surface "I am currently doing X because Y" back to the Cognitive LLM role.
     /// </summary>
-    public bool TryDoAction(EntityUid uid, string actionName, IAiActionParams parameters, string reason, [NotNullWhen(false)] out string? failReason)
+    public bool TryDoAction(EntityUid uid, string actionName, IAiActionParams parameters, string reason, [NotNullWhen(false)] out string? failReason, int? cognitiveDecisionId = null)
     {
-        var decisionId = _trace.BeginAction(uid, actionName);
+        var decisionId = _trace.BeginAction(uid, actionName, cognitiveDecisionId);
         if (!_actions.TryGetValue(actionName, out var action))
         {
             failReason = $"Неизвестное действие «{actionName}».";
@@ -143,7 +143,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
 
         if (!action.CanDo(uid, parameters, out failReason))
         {
-            _trace.DecisionResult(uid, decisionId, AiActionResult.Failed(failReason));
+            _trace.DecisionResult(uid, decisionId, AiActionResult.Failed(failReason), publishFeedback: true);
             return false;
         }
 
@@ -160,7 +160,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
 
         if (!result.IsSuccess)
         {
-            _trace.DecisionResult(uid, decisionId, result);
+            _trace.DecisionResult(uid, decisionId, result, publishFeedback: true);
             failReason = result.Reason;
             return false;
         }
@@ -177,6 +177,7 @@ public sealed partial class AiActionRegistrySystem : EntitySystem
             busy.DecisionId = decisionId;
         }
 
+        // Brief successes keep their normal reflection cadence; extended actions publish on completion.
         _trace.DecisionResult(uid, decisionId, result);
 
         failReason = null;

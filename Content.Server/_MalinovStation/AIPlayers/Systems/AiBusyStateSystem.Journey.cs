@@ -85,7 +85,6 @@ public sealed partial class AiBusyStateSystem
         if (busy.ExternallyRelocated)
             result = AiActionResult.Cancelled("Тебя переместили; прежнее действие отменено.");
         var place = busy.JourneyPlace;
-        var action = busy.CurrentAction!;
         busy.LastFinishedExecutionId = executionId;
         busy.LastResult = result;
         StopExecution(uid);
@@ -100,8 +99,7 @@ public sealed partial class AiBusyStateSystem
         }
 
         Clear(busy);
-        var delivered = PublishResult(uid, action, result);
-        _trace.ExecutionFinished(uid, executionId, result, delivered);
+        _trace.ExecutionFinished(uid, executionId, result);
         return true;
     }
 
@@ -120,11 +118,10 @@ public sealed partial class AiBusyStateSystem
             return;
         }
 
-        var action = busy.CurrentAction!;
         var decisionId = busy.DecisionId;
         if (stopExecution)
             StopExecution(uid);
-        if (action == PursueGoalAction.ActionName && TryComp<GoalComponent>(uid, out var goal))
+        if (busy.CurrentAction == PursueGoalAction.ActionName && TryComp<GoalComponent>(uid, out var goal))
         {
             goal.IsLlmOverride = false;
             goal.ReconsiderAccumulator = 0f;
@@ -132,19 +129,7 @@ public sealed partial class AiBusyStateSystem
 
         busy.LastResult = result;
         Clear(busy);
-        _trace.DecisionResult(uid, decisionId, result, PublishResult(uid, action, result));
-    }
-
-    private bool PublishResult(EntityUid uid, string action, AiActionResult result)
-    {
-        if (!TryComp<CognitiveModeComponent>(uid, out var cognitive))
-            return false;
-
-        var content = $"Действие {action}: {result.Reason}";
-        _memory.AddMemory(uid, content: content,
-            importance: MemoryImportanceScorer.Score("outcome", content: content), source: "outcome");
-        cognitive.ReflectionAccumulator = 0f;
-        return true;
+        _trace.DecisionResult(uid, decisionId, result, publishFeedback: true);
     }
 
     internal void StopExecution(EntityUid uid)

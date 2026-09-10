@@ -307,7 +307,7 @@ public sealed partial class GoalSystem : EntitySystem
         }
 
         // Lazier AI players want to rest sooner; more professional/authority-respecting ones push through longer.
-        if (!IsAbandoned(goal, AIGoals.Rest))
+        if (needs.Fatigue > 0.3f && !IsAbandoned(goal, AIGoals.Rest))
         {
             var restPriority = MathF.Max(0f, needs.Fatigue * (0.6f + personality.Laziness * 0.4f - personality.Professionalism * 0.2f));
             candidates.Add(new Desire(AIGoals.Rest, restPriority, "fatigue"));

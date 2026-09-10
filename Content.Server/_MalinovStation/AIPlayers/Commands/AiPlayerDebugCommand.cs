@@ -63,11 +63,11 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
             if (goal.LastLlmDecision is { } lastDecision)
             {
                 var decisionAge = (_timing.CurTime - goal.LastLlmDecisionAt).TotalSeconds;
-                sb.AppendLine($"Последнее решение LLM: {lastDecision} ({decisionAge:0} с назад)");
+                sb.AppendLine($"Последняя профессиональная цель от LLM: {lastDecision} ({decisionAge:0} с назад)");
             }
             else
             {
-                sb.AppendLine("Последнее решение LLM: не было");
+                sb.AppendLine("Последняя профессиональная цель от LLM: не назначалась");
             }
         }
 
@@ -122,6 +122,7 @@ public sealed partial class AiPlayerDebugCommand : LocalizedEntityCommands
         if (EntityManager.HasComponent<Components.CognitiveModeComponent>(uid))
         {
             sb.AppendLine("Когнитивный режим: включён");
+            sb.AppendLine(EntityManager.System<AiTraceSystem>().DescribeLastCognitiveDecision(uid.Value));
 
             if (EntityManager.TryGetComponent<EmotionComponent>(uid, out var emotion))
             {

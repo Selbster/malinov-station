@@ -67,6 +67,15 @@ public sealed partial class DoorApproachComponent : Component
     [ViewVariables]
     public TimeSpan? LastAttemptAt;
 
+    public TimeSpan NextActivateAttempt;
+
+    /// <summary>Minimum pause after opening begins, before handing movement back to steering.</summary>
+    [DataField]
+    public float OpeningWaitSeconds = 1f;
+
+    [ViewVariables]
+    public TimeSpan? OpeningWaitUntil;
+
     /// <summary>The prying tool this AI decided to force <see cref="ActiveDoor"/> with, if that is the plan.
     /// Null for an ordinary door it means to click.</summary>
     [ViewVariables]
@@ -76,6 +85,9 @@ public sealed partial class DoorApproachComponent : Component
     /// walk nor mistaken for a click that silently did nothing.</summary>
     [ViewVariables]
     public TimeSpan? PryingSince;
+
+    /// <summary>Limits permission and inventory rechecks while holding still for a pry.</summary>
+    public TimeSpan NextPryCheck;
 
     /// <summary>The do-after owned by this approach, cancelled when its journey ends.</summary>
     [ViewVariables]

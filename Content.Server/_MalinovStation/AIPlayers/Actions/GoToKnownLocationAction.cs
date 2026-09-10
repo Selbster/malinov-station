@@ -64,9 +64,15 @@ public sealed class GoToKnownLocationAction : IAiAction
             return false;
         }
 
-        if (_memory.FindKnownLocation(uid, goTo.LocationHint) is null)
+        if (_memory.FindKnownDestination(uid, goTo.LocationHint) is not { Subject: { } name })
         {
             failReason = $"Я не знаю места под названием «{goTo.LocationHint}».";
+            return false;
+        }
+
+        if (_memory.IsKnownLocationUnavailable(uid, name))
+        {
+            failReason = $"Недавно не удалось добраться до «{name}». Пока стоит выбрать другое место.";
             return false;
         }
 
@@ -81,10 +87,13 @@ public sealed class GoToKnownLocationAction : IAiAction
         // Re-resolved rather than smuggled through from CanDo, same convention PursueGoalAction already
         // established - CanDo/Do are only ever called back-to-back by AiActionRegistrySystem.TryDoAction, so
         // this can't observe a different result than CanDo just confirmed.
-        if (_memory.FindKnownLocation(uid, goTo.LocationHint) is not { } destination)
+        if (_memory.FindKnownDestination(uid, goTo.LocationHint) is not { Location: { } destination, Subject: { } name })
             return AiActionResult.NoTarget($"Ты не помнишь, где находится «{goTo.LocationHint}».");
 
-        _entManager.System<AiBusyStateSystem>().StartJourney(uid, Name, destination, goTo.LocationHint);
-        return AiActionResult.Started($"Ты направляешься к «{goTo.LocationHint}».");
+        if (_memory.IsKnownLocationUnavailable(uid, name))
+            return AiActionResult.Blocked($"Недавно не удалось добраться до «{name}». Пока стоит выбрать другое место.");
+
+        _entManager.System<AiBusyStateSystem>().StartJourney(uid, Name, destination, name);
+        return AiActionResult.Started($"Ты направляешься к «{name}».");
     }
 }

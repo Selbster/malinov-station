@@ -153,6 +153,10 @@ public sealed partial class MemorySystem : EntitySystem, IMemoryStore, IMemoryRe
     /// null if this AI has never perceived/found anywhere by that name.
     /// </summary>
     public EntityCoordinates? FindKnownLocation(EntityUid uid, string nameHint, MemoryComponent? memory = null)
+        => FindKnownDestination(uid, nameHint, memory)?.Location;
+
+    /// <summary>Resolves both the coordinates and canonical subject used by destination failure memory.</summary>
+    public AiMemory? FindKnownDestination(EntityUid uid, string nameHint, MemoryComponent? memory = null)
     {
         if (!Resolve(uid, ref memory, false) || string.IsNullOrWhiteSpace(nameHint))
             return null;
@@ -168,8 +172,20 @@ public sealed partial class MemorySystem : EntitySystem, IMemoryStore, IMemoryRe
                  nameHint.Contains(subject, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(m => m.Importance)
             .ThenByDescending(m => m.Timestamp)
-            .Select(m => m.Location)
             .FirstOrDefault();
+    }
+
+    public bool IsKnownLocationUnavailable(EntityUid uid, string name)
+    {
+        if (!TryComp<ExplorationComponent>(uid, out var exploration))
+            return false;
+
+        foreach (var (place, until) in exploration.UnreachablePlaces)
+        {
+            if (_timing.CurTime < until && string.Equals(place, name, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -208,8 +224,9 @@ public sealed partial class MemorySystem : EntitySystem, IMemoryStore, IMemoryRe
         if (!Resolve(uid, ref memory, false))
             return false;
 
-        return memory.Memories.Any(m => m.Subject is not null &&
-            (m.Source == "landmark" || m.Source == "search-result" || m.Source == "social-location"));
+        return memory.Memories.Any(m => m.Subject is { } name && m.Location is not null &&
+            (m.Source == "landmark" || m.Source == "search-result" || m.Source == "social-location") &&
+            !IsKnownLocationUnavailable(uid, name));
     }
 
     /// <summary>

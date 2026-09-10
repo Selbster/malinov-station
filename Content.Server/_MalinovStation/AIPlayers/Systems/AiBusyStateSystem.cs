@@ -18,7 +18,6 @@ public sealed partial class AiBusyStateSystem : EntitySystem
     [Dependency] private NPCSteeringSystem _steering = default!;
     [Dependency] private AiDoorApproachSystem _doors = default!;
     [Dependency] private AiTraceSystem _trace = default!;
-    [Dependency] private MemorySystem _memory = default!;
     [Dependency] private SharedDoAfterSystem _doAfter = default!;
 
     private const float ScanCooldown = 1f;

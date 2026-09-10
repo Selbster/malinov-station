@@ -22,6 +22,10 @@ public sealed partial class AiDecisionTraceComponent : Component
     [ViewVariables]
     public AiDecisionTrace? Last;
 
+    /// <summary>Latest cognitive request or applied response, separate from direct action dispatch.</summary>
+    [ViewVariables]
+    public AiDecisionTrace? LastCognitiveDecision;
+
     /// <summary>Recent records, including <see cref="Current"/>, retained for events carrying an older ID.</summary>
     [ViewVariables]
     public List<AiDecisionTrace> History = new();
@@ -49,6 +53,8 @@ public sealed class AiDecisionTrace
     public string? SelectedAction;
     public string? ExplorationTarget;
     public string? NavigationTarget;
+    public string? NavigationStart;
+    public string? NavigationEnd;
 
     /// <summary>The execution that owns these observations, independent of later cognitive decisions.</summary>
     public long? ExecutionId;

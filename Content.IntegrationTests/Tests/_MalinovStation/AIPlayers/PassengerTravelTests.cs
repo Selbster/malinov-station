@@ -11,25 +11,19 @@ using Content.Server._MalinovStation.AIPlayers.Systems;
 using Content.Server.GameTicking;
 using Content.Server.NPC.HTN;
 using Content.Shared.CCVar;
+using Content.Shared._MalinovStation.AIPlayers;
 using Content.Shared.GameTicking;
 using Content.Shared.Roles;
 using Content.Shared.Station.Components;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
+using Robust.Shared.Map.Components;
+using Robust.Shared.Maths;
 using Robust.Shared.Prototypes;
 
 namespace Content.IntegrationTests.Tests._MalinovStation.AIPlayers;
 
-/// <summary>
-/// AI Players 0.6, spec section 8/31: local reflex wander (untouched this milestone) must never be mistaken
-/// for proof of intentional travel capability. Proves a <c>GoToKnownLocation</c> cognitive decision produces a
-/// genuine, specific, persistent movement commitment - not an instantaneous label - that correctly resolves
-/// once arrival happens (simulated the same established way <see cref="AiBusyStateTests"/> already does, since
-/// real HTN pathfinding-to-completion isn't observable inside this integration test harness - see the
-/// commitment test's own doc comment for what was directly confirmed while building this), and that the spec
-/// section 34 travel telemetry (<see cref="AiTraceSystem.TravelDecided"/>) fires specifically for that decision
-/// and nothing else.
-/// </summary>
+/// <summary>Intentional travel telemetry and physical completion of a cognitive destination choice.</summary>
 [TestFixture]
 public sealed class PassengerTravelTests : GameTest
 {
@@ -66,6 +60,7 @@ public sealed class PassengerTravelTests : GameTest
     {
         var server = pair.Server;
         server.CfgMan.SetCVar(CCVars.GameMap, Map);
+        server.CfgMan.SetCVar(MalinovAiPlayerCVars.AiPlayersLlmEnabled, false);
         var ticker = server.System<GameTicker>();
 
         ticker.ToggleReadyAll(true);
@@ -126,22 +121,7 @@ public sealed class PassengerTravelTests : GameTest
         await server.WaitPost(() => server.System<GameTicker>().RestartRound());
     }
 
-    /// <summary>
-    /// Real HTN pathfinding-to-completion isn't observable inside this integration test harness (confirmed by
-    /// direct instrumentation while building this test: <see cref="Content.Server.NPC.HTN.HTNComponent.Plan"/>
-    /// stays null and no <see cref="Content.Server.NPC.Components.NPCSteeringComponent"/> is ever registered,
-    /// across 1000+ ticks, for an otherwise-healthy awake NPC - vanilla HTN's own async planning job apparently
-    /// never resolves under this harness's synchronous tick-stepping, a pre-existing engine/harness interaction
-    /// unrelated to this milestone's own code). Every existing test in this codebase that touches
-    /// <c>GoToKnownLocation</c> already works around exactly this by simulating arrival directly rather than
-    /// watching real pathfinding complete (see <see cref="AiBusyStateTests.AiBusyStateSystem_GoToKnownLocationBusy_ClearsOnceForcedDestinationKeyIsGone"/>'s
-    /// own "Simulate arrival, same as MoveToOperator's own RemoveKeyOnFinish would do" comment,
-    /// <see cref="LandmarkNavigationTests"/> never asserting real arrival). This test follows that same
-    /// established, honest precedent: it proves the decision produces a genuine, specific, persistent movement
-    /// commitment (not an instantaneous no-op label - the exact real destination coordinates, still in effect
-    /// several ticks later), then simulates the arrival a working pathfind would eventually produce and proves
-    /// the commitment correctly resolves in response.
-    /// </summary>
+    /// <summary>A named destination stays committed while the actor walks to it on a navigable floor.</summary>
     [Test]
     public async Task GoToKnownLocation_CreatesAGenuinePersistentMovementCommitment_NotJustAnIntentLabel()
     {
@@ -154,13 +134,31 @@ public sealed class PassengerTravelTests : GameTest
         await server.WaitPost(() =>
         {
             aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(Passenger, station, cognitiveMode: true)!.Value;
-            destination = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates.Offset(new Vector2(-6, 0));
+            var xform = server.EntMan.GetComponent<TransformComponent>(aiPlayer);
+            destination = xform.Coordinates.Offset(new Vector2(-6, 0));
+            var gridUid = xform.GridUid!.Value;
+            var grid = server.EntMan.GetComponent<MapGridComponent>(gridUid);
+            grid.CanSplit = false;
+            var maps = server.System<SharedMapSystem>();
+            var origin = maps.CoordinatesToTile(gridUid, grid, xform.Coordinates);
+            var tile = new Tile(server.ResolveDependency<ITileDefinitionManager>()["Plating"].TileId);
+            for (var x = -8; x <= 1; x++)
+            for (var y = -1; y <= 1; y++)
+                maps.SetTile(gridUid, grid, origin + new Vector2i(x, y), tile);
+            server.System<Content.Server.Gravity.GravitySystem>().EnableGravity(gridUid);
+            server.EntMan.GetComponent<Content.Shared.Gravity.GravityComponent>(gridUid).Inherent = true;
+            server.EntMan.GetComponent<HTNComponent>(aiPlayer).RootTask = new HTNCompoundTask { Task = "ForcedMoveCompound" };
+            server.EntMan.GetComponent<CognitiveModeComponent>(aiPlayer).ReflectionAccumulator = 10000f;
+            var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
+            goal.CurrentGoal = "Idle";
+            goal.ReconsiderAccumulator = 10000f;
 
             server.System<MemorySystem>().AddMemory(aiPlayer,
                 content: "There's a place nearby called \"Bar\".", importance: 0.25f, source: "landmark",
                 location: destination, subject: "Bar");
         });
 
+        await pair.RunTicksSync(60);
         var startCoords = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates;
         Assert.That(startCoords.TryDistance(server.EntMan, destination, out var initialDistance) && initialDistance > 3f, Is.True,
             "Test setup: the AI should start meaningfully far from the destination.");
@@ -193,19 +191,19 @@ public sealed class PassengerTravelTests : GameTest
                 "Applying the decision must not itself teleport the AI to the destination.");
         });
 
-        // Simulate the arrival a working pathfind would eventually produce (see this test's own doc comment).
-        var transform = server.System<SharedTransformSystem>();
-        await server.WaitPost(() =>
+        var completed = false;
+        for (var i = 0; i < 100 && !completed; i++)
         {
-            transform.SetCoordinates(aiPlayer, destination);
-            server.EntMan.GetComponent<HTNComponent>(aiPlayer).Blackboard.Remove<EntityCoordinates>(MoveToAction.ForcedDestinationKey);
-        });
-        await pair.RunTicksSync(40);
-
+            await pair.RunTicksSync(5);
+            await server.WaitPost(() => completed = server.EntMan.GetComponent<AiBusyStateComponent>(aiPlayer).CurrentAction is null);
+        }
         await server.WaitAssertion(() =>
         {
-            Assert.That(server.EntMan.GetComponent<AiBusyStateComponent>(aiPlayer).CurrentAction, Is.Null,
-                "The commitment should resolve once the AI actually reaches the destination.");
+            var busy = server.EntMan.GetComponent<AiBusyStateComponent>(aiPlayer);
+            Assert.That(completed, Is.True);
+            Assert.That(busy.LastResult?.Outcome, Is.EqualTo(AiActionOutcome.Completed));
+            var actual = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates;
+            Assert.That(actual.TryDistance(server.EntMan, destination, out var remaining) && remaining <= 1.5f, Is.True);
         });
 
         await server.WaitPost(() => server.EntMan.DeleteEntity(aiPlayer));

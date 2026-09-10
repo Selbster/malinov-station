@@ -263,11 +263,10 @@ public sealed partial class AiTraceSystem : EntitySystem
 
     /// <summary>
     /// A named action was attempted and failed. Called both by the internal HTN-plan diffing above (an
-    /// operator aborted mid-plan) and, since AI Players 0.3, directly by
-    /// <see cref="LlmGatewaySystem.TryApplyCognitiveDecision"/> when a proposed action's own CanDo/Do rejects
-    /// it - the same outcome-memory-plus-fast-reflection feedback applies either way.
+    /// operator aborted mid-plan) and by terminal action results, including CanDo/Do rejection.
+    /// Returns whether the outcome was written to cognitive memory.
     /// </summary>
-    public void ActionFailed(EntityUid uid, string action, string reason)
+    public bool ActionFailed(EntityUid uid, string action, string reason)
     {
         TraceEventsMetric.WithLabels("ActionFailed").Inc();
         _sawmill.Info($"[AI:{ToPrettyString(uid)}] ActionFailed: {action} (reason={reason})");
@@ -275,7 +274,7 @@ public sealed partial class AiTraceSystem : EntitySystem
         if (TryComp<CognitiveModeComponent>(uid, out var cognitive))
         {
             var content = $"Попытался (попыталась) выполнить {action}, но не вышло: {reason}.";
-            _memory.AddMemory(uid, content: content,
+            var memory = _memory.AddMemory(uid, content: content,
                 importance: MemoryImportanceScorer.Score("outcome", emotionalWeight: -0.1f, content: content),
                 source: "outcome", emotionalWeight: -0.1f);
             cognitive.ReflectionAccumulator = 0f;
@@ -298,7 +297,9 @@ public sealed partial class AiTraceSystem : EntitySystem
                         source: "repeated-failure");
                 }
             }
+            return memory is not null;
         }
+        return false;
     }
 
     /// <summary>

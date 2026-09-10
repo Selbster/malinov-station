@@ -12,12 +12,12 @@ public sealed partial class AiTraceSystem
     [Dependency] private IGameTiming _traceTiming = default!;
     public const int DecisionHistoryLimit = 16;
 
-    public int DecisionStarted(EntityUid uid, float boredom, float curiosity, string? topDesire)
+    public int DecisionStarted(EntityUid uid, float boredom, float curiosity, string? topDesire, bool replacePending = true)
     {
         if (!TryComp<AiDecisionTraceComponent>(uid, out var comp))
             return 0;
 
-        if (comp.Current is { Finished: false, ExecutionId: null, SelectedAction: null } previous)
+        if (replacePending && comp.Current is { Finished: false, ExecutionId: null, SelectedAction: null } previous)
             FinishRecord(uid, previous, AiActionResult.Cancelled("Решение заменено до выбора действия."), false);
 
         var trace = new AiDecisionTrace
@@ -56,15 +56,15 @@ public sealed partial class AiTraceSystem
             ? comp.History.Find(t => t.ExecutionId == executionId) : null;
 
     /// <summary>Creates a record for direct dispatch, or uses the unbound decision awaiting an action.</summary>
-    public int BeginAction(EntityUid uid, string action)
+    public int BeginAction(EntityUid uid, string action, int? decisionId = null)
     {
-        var trace = GetDecision(uid, GetCurrentDecisionId(uid));
+        var trace = decisionId is { } idToBind ? GetDecision(uid, idToBind) : null;
         if (trace is null || trace.Finished || trace.SelectedAction is not null)
         {
             var id = DecisionStarted(uid,
                 TryComp<NeedsComponent>(uid, out var needs) ? needs.Boredom : 0f,
                 TryComp<PersonalityComponent>(uid, out var personality) ? personality.Curiosity : 0f,
-                TryComp<IntentComponent>(uid, out var intent) ? intent.DesireServed : null);
+                TryComp<IntentComponent>(uid, out var intent) ? intent.DesireServed : null, replacePending: false);
             trace = GetDecision(uid, id);
             if (trace is not null && TryComp<IntentComponent>(uid, out var currentIntent))
                 trace.Intent = currentIntent.Name;
@@ -72,6 +72,7 @@ public sealed partial class AiTraceSystem
 
         if (trace is null)
             return 0;
+        Comp<AiDecisionTraceComponent>(uid).Current = trace;
         trace.SelectedAction = action;
         trace.ExecutionState = "ActionSelected";
         return trace.Id;
@@ -99,6 +100,7 @@ public sealed partial class AiTraceSystem
         trace.ExecutionId = executionId;
         trace.ExplorationTarget = target;
         trace.NavigationTarget = destination.ToString();
+        trace.NavigationStart = Transform(uid).Coordinates.ToString();
         trace.ExecutionState = "TargetSelected";
         return trace.Id;
     }
@@ -133,27 +135,30 @@ public sealed partial class AiTraceSystem
         trace.LocationKnowledgeUpdated = true;
     }
 
-    public void ExecutionFinished(EntityUid uid, long executionId, AiActionResult result, bool delivered)
+    public void ExecutionFinished(EntityUid uid, long executionId, AiActionResult result)
     {
         if (GetExecution(uid, executionId) is { } trace)
-            FinishRecord(uid, trace, result, delivered);
+            FinishRecord(uid, trace, result, publishFeedback: true);
     }
 
-    public void DecisionResult(EntityUid uid, int decisionId, AiActionResult result, bool delivered = false)
+    public void DecisionResult(EntityUid uid, int decisionId, AiActionResult result, bool publishFeedback = false)
     {
         if (GetDecision(uid, decisionId) is { } trace)
         {
             if (result.Outcome == AiActionOutcome.Started && trace.ExecutionId is null)
                 trace.ExecutionState = "Executing";
-            FinishRecord(uid, trace, result, delivered);
+            FinishRecord(uid, trace, result, publishFeedback);
         }
     }
 
-    private void FinishRecord(EntityUid uid, AiDecisionTrace trace, AiActionResult result, bool delivered)
+    private void FinishRecord(EntityUid uid, AiDecisionTrace trace, AiActionResult result, bool publishFeedback)
     {
         if (trace.Finished || result.Outcome == AiActionOutcome.Started)
             return;
         trace.Finished = true;
+        if (trace.ExecutionId is not null && TryComp<TransformComponent>(uid, out var xform))
+            trace.NavigationEnd = xform.Coordinates.ToString();
+        var delivered = publishFeedback && trace.SelectedAction is { } action && PublishActionResult(uid, action, result);
         trace.Result = result;
         trace.Feedback = $"{result.Outcome}: {result.Reason}";
         trace.CognitiveFeedbackDelivered = delivered;
@@ -169,6 +174,7 @@ public sealed partial class AiTraceSystem
         TraceEventsMetric.WithLabels("Decision").Inc();
         _sawmill.Info($"[AI:{ToPrettyString(uid)}] Decision #{trace.Id}, execution={trace.ExecutionId}, " +
             $"action={trace.SelectedAction}, target={trace.NavigationTarget}, progress={trace.MovementStarted}, " +
+            $"start={trace.NavigationStart}, end={trace.NavigationEnd}, " +
             $"result={result.Outcome}, reason={result.Reason}, cognitiveFeedback={delivered}");
     }
 
@@ -183,6 +189,30 @@ public sealed partial class AiTraceSystem
         return described;
     }
 
+    public bool IsCurrentCognitiveDecision(EntityUid uid, int decisionId) =>
+        TryComp<AiDecisionTraceComponent>(uid, out var comp) &&
+        comp.LastCognitiveDecision is { Finished: false } trace && trace.Id == decisionId;
+
+    public void MarkCognitiveDecision(EntityUid uid, int decisionId)
+    {
+        if (TryComp<AiDecisionTraceComponent>(uid, out var comp) && GetDecision(uid, decisionId) is { } trace)
+        {
+            if (comp.LastCognitiveDecision is { Finished: false, ExecutionId: null, SelectedAction: null } previous && previous != trace)
+                FinishRecord(uid, previous, AiActionResult.Cancelled("Решение заменено новым запросом."), false);
+            comp.LastCognitiveDecision = trace;
+        }
+    }
+
+    public string DescribeLastCognitiveDecision(EntityUid uid)
+    {
+        if (!TryComp<AiDecisionTraceComponent>(uid, out var comp) || comp.LastCognitiveDecision is not { } trace)
+            return "Последнее когнитивное решение: не было";
+
+        var age = (_traceTiming.CurTime - trace.StartedAt).TotalSeconds;
+        return $"Последнее когнитивное решение: #{trace.Id}, намерение={Or(trace.Intent)}, " +
+            $"действие={Or(trace.SelectedAction)}, состояние={trace.ExecutionState} ({age:0} с назад)";
+    }
+
     private static string Describe(AiDecisionTrace trace) =>
         $"Решение #{trace.Id}, исполнение={trace.ExecutionId?.ToString() ?? "-"}, состояние={trace.ExecutionState}:\n" +
         $"  скука={trace.Boredom:0.00} любопытство={trace.Curiosity:0.00} желание={Or(trace.TopDesire)}\n" +
@@ -190,6 +220,7 @@ public sealed partial class AiTraceSystem
         $"  пригодные={Or(trace.EligibleActions)}\n" +
         $"  выбрано={Or(trace.SelectedAction)}\n" +
         $"  цель={Or(trace.ExplorationTarget)} точка={Or(trace.NavigationTarget)}\n" +
+        $"  начало={Or(trace.NavigationStart)} конец={Or(trace.NavigationEnd)}\n" +
         $"  steering={trace.SteeringStarted} продвижение={trace.MovementStarted} открыто={Or(trace.Discovery)}\n" +
         $"  результат={trace.Result?.Outcome.ToString() ?? "-"} причина={Or(trace.Result?.Reason)}\n" +
         $"  передано когнитивному слою={trace.CognitiveFeedbackDelivered}";

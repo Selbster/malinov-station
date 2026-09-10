@@ -144,7 +144,7 @@ public sealed class AiSearchTests : GameTest
         await server.WaitAssertion(() =>
         {
             var actions = server.System<AiActionRegistrySystem>();
-            var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams("food"), out var reason);
+            var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams(ItemName), out var reason);
             Assert.That(ok, Is.True, reason);
 
             var memory = server.EntMan.GetComponent<MemoryComponent>(aiPlayer);
@@ -286,7 +286,7 @@ public sealed class AiSearchTests : GameTest
         await server.WaitAssertion(() =>
         {
             var actions = server.System<AiActionRegistrySystem>();
-            var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams("food"), out var reason);
+            var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams(ItemName), out var reason);
 
             Assert.That(ok, Is.False);
             Assert.That(SearchResultMemoryCount(pair, aiPlayer), Is.EqualTo(0));
@@ -323,7 +323,7 @@ public sealed class AiSearchTests : GameTest
         await server.WaitAssertion(() =>
         {
             var actions = server.System<AiActionRegistrySystem>();
-            var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams("food"), out var reason);
+            var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams(ItemName), out var reason);
 
             Assert.That(ok, Is.False, "A match behind a wall should not be found, even within radius.");
             Assert.That(SearchResultMemoryCount(pair, aiPlayer), Is.EqualTo(0));
@@ -362,7 +362,7 @@ public sealed class AiSearchTests : GameTest
         await server.WaitAssertion(() =>
         {
             var actions = server.System<AiActionRegistrySystem>();
-            var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams("food"), out var reason);
+            var ok = actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams(ItemName), out var reason);
 
             Assert.That(ok, Is.False, "An item the AI already holds shouldn't count as a fresh search find.");
         });
@@ -437,7 +437,7 @@ public sealed class AiSearchTests : GameTest
         await server.WaitAssertion(() =>
         {
             var actions = server.System<AiActionRegistrySystem>();
-            Assert.That(actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams("food"), out var reason), Is.True, reason);
+            Assert.That(actions.TryDoAction(aiPlayer, SearchAreaAction.ActionName, new SearchAreaActionParams(ItemName), out var reason), Is.True, reason);
 
             var memorySystem = server.System<MemorySystem>();
             var resolved = memorySystem.FindKnownLocation(aiPlayer, "food");
@@ -483,7 +483,7 @@ public sealed class AiSearchTests : GameTest
             var gateway = server.System<LlmGatewaySystem>();
             var decision = new LlmCognitiveDecision(
                 "hunger", "find_food", 0.7f, 0.8f, "I don't see food yet, let me look around",
-                SearchAreaAction.ActionName, new Dictionary<string, string> { ["keyword"] = "food" });
+                SearchAreaAction.ActionName, new Dictionary<string, string> { ["keyword"] = ItemName });
             Assert.That(gateway.TryApplyCognitiveDecision(aiPlayer, decision), Is.True);
 
             var intent = server.EntMan.GetComponent<IntentComponent>(aiPlayer);

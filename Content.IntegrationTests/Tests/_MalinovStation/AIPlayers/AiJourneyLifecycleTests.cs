@@ -40,7 +40,7 @@ namespace Content.IntegrationTests.Tests._MalinovStation.AIPlayers;
 
 /// <summary>Real HTN and physics execution on a floored corridor, without external model requests.</summary>
 [TestFixture]
-public sealed class AiJourneyLifecycleTests : GameTest
+public sealed partial class AiJourneyLifecycleTests : GameTest
 {
     [TestPrototypes]
     private const string Prototypes = @"
@@ -88,7 +88,7 @@ public sealed class AiJourneyLifecycleTests : GameTest
     private AiBusyStateSystem Journeys => Server.System<AiBusyStateSystem>();
     private AiTraceSystem Trace => Server.System<AiTraceSystem>();
 
-    private async Task Prepare(bool cognitive = true)
+    private async Task Prepare(bool cognitive = true, bool human = false)
     {
         await Server.WaitPost(() =>
         {
@@ -103,7 +103,7 @@ public sealed class AiJourneyLifecycleTests : GameTest
         {
             var stations = Server.EntMan.EntityQueryEnumerator<StationDataComponent>();
             Assert.That(stations.MoveNext(out var station, out _), Is.True);
-            _actor = Server.System<AIPlayerSystem>().SpawnAiPlayer("Passenger", station, cognitiveMode: cognitive)!.Value;
+            _actor = Server.System<AIPlayerSystem>().SpawnAiPlayer("Passenger", station, profile: human ? Content.Shared.Preferences.HumanoidCharacterProfile.RandomWithSpecies("Human") : null, cognitiveMode: cognitive)!.Value;
             _origin = Server.EntMan.GetComponent<TransformComponent>(_actor).Coordinates;
             var xform = Server.EntMan.GetComponent<TransformComponent>(_actor);
             var gridUid = xform.GridUid!.Value;
@@ -209,6 +209,8 @@ public sealed class AiJourneyLifecycleTests : GameTest
             Assert.Multiple(() =>
             {
                 Assert.That(trace.MovementStarted, Is.True);
+                Assert.That(trace.NavigationStart, Is.EqualTo(_origin.ToString()));
+                Assert.That(trace.NavigationEnd, Is.Not.Null.And.Not.EqualTo(trace.NavigationStart));
                 Assert.That(trace.Result?.Outcome, Is.EqualTo(AiActionOutcome.AccessDenied));
                 Assert.That(trace.Finished, Is.True);
                 Assert.That(trace.CognitiveFeedbackDelivered, Is.True);
@@ -267,7 +269,7 @@ public sealed class AiJourneyLifecycleTests : GameTest
             // Both repeated terminal notifications and late observations carry the old execution ID.
             Assert.That(Journeys.FinishJourney(_actor, old, AiActionResult.NoPath("Старый ответ")), Is.False);
             Journeys.QueueJourneyResult(_actor, old, AiActionResult.Failed("Поздний callback"));
-            Trace.ExecutionFinished(_actor, old, AiActionResult.Failed("Поздняя ошибка"), true);
+            Trace.ExecutionFinished(_actor, old, AiActionResult.Failed("Поздняя ошибка"));
         });
         await Until(() => Busy.ProgressConfirmed, "A new journey could not move after cancelled planning.");
         await Server.WaitAssertion(() =>

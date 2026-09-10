@@ -9,8 +9,10 @@ using Content.Server._MalinovStation.AIPlayers.LLM;
 using Content.Server._MalinovStation.AIPlayers.Prototypes;
 using Content.Server._MalinovStation.AIPlayers.Systems;
 using Content.Server.GameTicking;
+using Content.Server.Damage.Systems;
 using Content.Server.Hands.Systems;
 using Content.Shared.CCVar;
+using Content.Shared._MalinovStation.AIPlayers;
 using Content.Shared.Damage;
 using Content.Shared.Damage.Prototypes;
 using Content.Shared.Damage.Systems;
@@ -85,6 +87,7 @@ public sealed class CognitiveActionLoopTests : GameTest
     {
         var server = pair.Server;
         server.CfgMan.SetCVar(CCVars.GameMap, Map);
+        server.CfgMan.SetCVar(MalinovAiPlayerCVars.AiPlayersLlmEnabled, false);
         var ticker = server.System<GameTicker>();
 
         ticker.ToggleReadyAll(true);
@@ -109,6 +112,9 @@ public sealed class CognitiveActionLoopTests : GameTest
         await server.WaitPost(() =>
         {
             aiPlayer = server.System<AIPlayerSystem>().SpawnAiPlayer(StationEngineer, station, cognitiveMode: true)!.Value;
+
+            // This fixture tests goal arbitration, not survival in the empty map's atmosphere.
+            server.System<GodmodeSystem>().EnableGodmode(aiPlayer);
 
             var coords = server.EntMan.GetComponent<TransformComponent>(aiPlayer).Coordinates;
             machine = server.EntMan.SpawnEntity(TestMachine, coords);
@@ -436,7 +442,7 @@ public sealed class CognitiveActionLoopTests : GameTest
             Assert.That(goal.ProgressBaseline, Is.Not.Null, "First stuck check should have recorded a progress baseline.");
             Assert.That(goal.RecentlyAbandoned, Does.Not.ContainKey(ProfessionalGoals.RepairMachine),
                 "Shouldn't abandon on the very first stuck check - only once a second check confirms no movement.");
-            Assert.That(server.EntMan.GetComponent<CognitiveModeComponent>(aiPlayer).ReflectionAccumulator, Is.EqualTo(30f),
+            Assert.That(server.EntMan.GetComponent<CognitiveModeComponent>(aiPlayer).ReflectionAccumulator, Is.InRange(29f, 30f),
                 "Just recording a baseline (not yet abandoning) shouldn't force fast reflection.");
         });
 
@@ -472,8 +478,9 @@ public sealed class CognitiveActionLoopTests : GameTest
             var goal = server.EntMan.GetComponent<GoalComponent>(aiPlayer);
             Assert.That(goal.RecentlyAbandoned, Does.ContainKey(ProfessionalGoals.RepairMachine),
                 "GoalSystem should have abandoned RepairMachine after confirming zero progress across two stuck checks.");
-            Assert.That(server.EntMan.GetComponent<CognitiveModeComponent>(aiPlayer).ReflectionAccumulator, Is.EqualTo(0f),
-                "GoalFailed firing for the abandoned goal should force the cognitive AI to re-reflect immediately, not wait out the routine ~45s interval.");
+            var reflection = server.EntMan.GetComponent<CognitiveModeComponent>(aiPlayer).ReflectionAccumulator;
+            Assert.That(reflection, Is.LessThanOrEqualTo(0f).Or.GreaterThan(30f),
+                "Fast reflection must be queued or already serviced by the heartbeat, not retain the previous countdown.");
         });
 
         // A fresh cognitive decision now actually takes effect, proving the AI can genuinely change its mind

@@ -65,6 +65,7 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
     [Dependency] private MemorySystem _memory = default!;
     [Dependency] private AiBusyStateSystem _busyState = default!;
     [Dependency] private SharedDoAfterSystem _doAfter = default!;
+    [Dependency] private NPCSteeringSystem _steering = default!;
 
     /// <summary>How many upcoming polys of <see cref="NPCSteeringComponent.CurrentPath"/> to check for a door
     /// obstacle - bounded so this stays cheap and only ever considers the door the AI is actually about to
@@ -114,10 +115,24 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
 
     private void OnSteering(Entity<DoorApproachComponent> ent, ref NPCSteeringEvent args)
     {
+        // Doors can be opened by someone else while a route is in flight. Vanilla seek treats an invalid
+        // saved polygon as a terminal NoPath before its repath check, so request a fresh path instead.
+        foreach (var node in args.Steering.CurrentPath)
+        {
+            if (node.IsValid())
+                continue;
+            args.Steering.CurrentPath.Clear();
+            break;
+        }
+
         if (ent.Comp.ActiveDoor is null || args.Steering.Coordinates != ent.Comp.ApproachDestination)
             return;
 
-        // Approach owns movement until the door opens. Vanilla must not independently click the door,
+        if (ent.Comp.PryingSince is null && ent.Comp.OpeningWaitUntil is null && ent.Comp.LastAttemptAt is null &&
+            !_interaction.InRangeUnobstructed(ent.Owner, ent.Comp.ActiveDoor.Value, ent.Comp.ApproachRadius))
+            return;
+
+        // Approach owns movement through the opening pause. Vanilla must not independently click the door,
         // fail its obstacle check, or classify the deliberate pause for prying as being stuck.
         args.Steering.CanSeek = false;
         args.Steering.LastStuckTime = _timing.CurTime;
@@ -208,18 +223,19 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
                 continue;
 
             // An open door is passable regardless of what it would take to open it.
+            if (door.State == DoorState.Open)
+                ForgetDeniedDoor(uid, approach, doorUid);
             if (door.State != DoorState.Closed)
                 continue;
 
             // AI Players 0.6.3: the ordered judgement, asked without the momentary half - see JudgeDoor.
             // A door it could pry open is a way through, not a wall, so only a genuine Blocked is written off.
             var judgement = JudgeDoor(uid, doorUid, door, includeMomentaryState: false);
-            if (judgement.Passability == DoorPassability.Pry)
+            if (judgement.Passability == DoorPassability.Pry ||
+                (judgement.Passability == DoorPassability.Open && _door.CanOpen(doorUid, door, uid, quiet: true)))
             {
-                // A door denied while powered may now be legitimately opened with the carried tool.
-                approach.DeniedDoors.Remove(doorUid);
-                if (TryComp<NPCDeniedAccessComponent>(uid, out var denied))
-                    denied.DeniedDoors.Remove(doorUid);
+                // Forget a denial only after confirming the actor can actually pass under current conditions.
+                ForgetDeniedDoor(uid, approach, doorUid);
             }
             if (judgement.Passability != DoorPassability.Blocked)
                 continue;
@@ -336,6 +352,7 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         approach.ApproachDestination = steering.Coordinates;
         approach.ActiveSince = _timing.CurTime;
         approach.LastAttemptAt = null;
+        approach.NextActivateAttempt = TimeSpan.Zero;
         approach.PryTool = nearestTool;
         approach.PryingSince = null;
     }
@@ -344,15 +361,42 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
     {
         if (Deleted(doorUid) || !TryComp<DoorComponent>(doorUid, out var door))
         {
-            ClearApproach(approach);
+            CancelApproach(uid);
             return;
         }
 
-        if (door.State != DoorState.Closed)
+        if (IsWelded(doorUid, door))
         {
-            // Already opening (we clicked it, we pried it, or something/someone else did) - GentleApproach
-            // already lets vanilla steering walk an opening door through cleanly from here. Job done.
-            ClearApproach(approach);
+            MarkDenied(uid, approach, doorUid, "она заварена");
+            CancelApproach(uid);
+            return;
+        }
+
+        if (door.State is DoorState.Opening or DoorState.Open)
+        {
+            approach.OpeningWaitUntil ??= _timing.CurTime + TimeSpan.FromSeconds(approach.OpeningWaitSeconds);
+            // Collision avoidance must not take over while the leaves are still moving. The pause is
+            // anchored once, so repeated observations of Opening/Open cannot extend it indefinitely.
+            HoldStill(mover);
+            if (_timing.CurTime < approach.OpeningWaitUntil || door.State != DoorState.Open)
+            {
+                if (_timing.CurTime > approach.OpeningWaitUntil + ApproachTimeout)
+                {
+                    MarkDenied(uid, approach, doorUid, "она не закончила открываться");
+                    CancelApproach(uid);
+                }
+                return;
+            }
+
+            ResumeAfterOpening(uid, xform);
+            CancelApproach(uid);
+            return;
+        }
+
+        if (door.State != DoorState.Closed || approach.OpeningWaitUntil is not null)
+        {
+            // A closing door needs a fresh judgement, not a stale opening timer.
+            CancelApproach(uid);
             return;
         }
 
@@ -367,15 +411,41 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
                 return;
             }
 
-            if (_timing.CurTime - pryStarted <= PryTimeout)
+            if (_timing.CurTime >= approach.NextPryCheck)
             {
-                HoldStill(mover);
-                return;
+                approach.NextPryCheck = _timing.CurTime + TimeSpan.FromSeconds(approach.ScanCooldown);
+                var pryJudgement = JudgeDoor(uid, doorUid, door, includeMomentaryState: true);
+                if (pryJudgement.Passability == DoorPassability.Blocked)
+                {
+                    MarkDenied(uid, approach, doorUid, pryJudgement.Reason);
+                    CancelApproach(uid);
+                    return;
+                }
+
+                if (pryJudgement.Passability == DoorPassability.Open)
+                {
+                    // Power returned: stop levering and let the ordinary opening path below take over.
+                    if (_doAfter.IsRunning(approach.PryDoAfter))
+                        _doAfter.Cancel(approach.PryDoAfter);
+                    approach.PryDoAfter = null;
+                    approach.PryingSince = null;
+                    approach.PryTool = null;
+                    approach.ActiveSince = _timing.CurTime;
+                }
             }
 
-            MarkDenied(uid, approach, doorUid, "вскрыть её не вышло");
-            ClearApproach(approach);
-            return;
+            if (approach.PryingSince is not null)
+            {
+                if (_timing.CurTime - pryStarted <= PryTimeout)
+                {
+                    HoldStill(mover);
+                    return;
+                }
+
+                MarkDenied(uid, approach, doorUid, "вскрыть её не вышло");
+                CancelApproach(uid);
+                return;
+            }
         }
 
         if (_timing.CurTime - approach.ActiveSince > ApproachTimeout)
@@ -390,6 +460,13 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         if (currentJudgement.Passability == DoorPassability.Blocked)
         {
             MarkDenied(uid, approach, doorUid, currentJudgement.Reason);
+            CancelApproach(uid);
+            return;
+        }
+
+        if (!_interaction.InRangeUnobstructed(uid, doorUid, approach.ApproachRadius))
+        {
+            // Let the existing route take the corner; a direct approach must not walk into the side wall.
             CancelApproach(uid);
             return;
         }
@@ -451,8 +528,40 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
             return;
         }
 
-        _interaction.InteractionActivate(uid, doorUid);
-        approach.LastAttemptAt = _timing.CurTime;
+        HoldStill(mover);
+        if (_timing.CurTime < approach.NextActivateAttempt)
+            return;
+        approach.NextActivateAttempt = _timing.CurTime + TimeSpan.FromSeconds(approach.ScanCooldown);
+        if (_interaction.InteractionActivate(uid, doorUid))
+            approach.LastAttemptAt = _timing.CurTime;
+        else
+            Log.Debug($"Door activation rejected: actor={ToPrettyString(uid)}, door={ToPrettyString(doorUid)}, position={xform.Coordinates}");
+    }
+
+    private void ResumeAfterOpening(EntityUid uid, TransformComponent xform)
+    {
+        if (!TryComp<NPCSteeringComponent>(uid, out var steering))
+            return;
+
+        // Direct approach can pass nodes while vanilla seek is suspended. Resume from the actor's
+        // current position, using the same pruning as an asynchronously completed vanilla path request.
+        var position = _transform.GetMapCoordinates(uid, xform: xform);
+        var target = _transform.ToMapCoordinates(steering.Coordinates);
+        var path = steering.CurrentPath.ToList();
+        // Opening changes the navigation mesh. An invalid old node makes vanilla seek report NoPath
+        // before it reaches its repath check; an empty path instead requests a fresh route normally.
+        if (path.Any(node => !node.IsValid()))
+            path.Clear();
+        else
+            _steering.PrunePath(uid, position, target.Position - position.Position, path);
+        steering.CurrentPath.Clear();
+        foreach (var node in path)
+            steering.CurrentPath.Enqueue(node);
+
+        // The next steering tick must judge the open doorway, without blending in the closed door.
+        Array.Clear(steering.Interest);
+        Array.Clear(steering.Danger);
+        steering.LastSteerDirection = Vector2.Zero;
     }
 
     /// <summary>
@@ -484,6 +593,7 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         }
 
         approach.PryingSince = _timing.CurTime;
+        approach.NextPryCheck = _timing.CurTime + TimeSpan.FromSeconds(approach.ScanCooldown);
         approach.PryDoAfter = doAfter;
     }
 
@@ -497,6 +607,7 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
         approach.PryTool = null;
         approach.PryingSince = null;
         approach.LastAttemptAt = null;
+        approach.OpeningWaitUntil = null;
         approach.PryDoAfter = null;
     }
 
@@ -505,7 +616,8 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
     {
         if (!TryComp<DoorApproachComponent>(uid, out var approach))
             return;
-        _doAfter.Cancel(approach.PryDoAfter);
+        if (_doAfter.IsRunning(approach.PryDoAfter))
+            _doAfter.Cancel(approach.PryDoAfter);
         ClearApproach(approach);
     }
 
@@ -563,6 +675,8 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
     /// </summary>
     private void MarkDenied(EntityUid uid, DoorApproachComponent approach, EntityUid doorUid, string reason, bool blocking = true)
     {
+        if (blocking)
+            Log.Debug($"Door approach blocked: actor={ToPrettyString(uid)}, door={ToPrettyString(doorUid)}, position={Transform(uid).Coordinates}, reason={reason}");
         var expiry = _timing.CurTime + DeniedMemoryDuration;
 
         approach.DeniedDoors[doorUid] = expiry;
@@ -600,6 +714,13 @@ public sealed partial class AiDoorApproachSystem : EntitySystem
 
     private bool IsDenied(DoorApproachComponent approach, EntityUid doorUid) =>
         approach.DeniedDoors.TryGetValue(doorUid, out var expiry) && _timing.CurTime < expiry;
+
+    private void ForgetDeniedDoor(EntityUid uid, DoorApproachComponent approach, EntityUid doorUid)
+    {
+        approach.DeniedDoors.Remove(doorUid);
+        if (TryComp<NPCDeniedAccessComponent>(uid, out var denied))
+            denied.DeniedDoors.Remove(doorUid);
+    }
 
     /// <summary>
     /// AI Players 0.6.3: gives up on the current destination when the door in the way is one this AI can never

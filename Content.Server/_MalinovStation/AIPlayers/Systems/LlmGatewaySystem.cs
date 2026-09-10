@@ -211,6 +211,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
             TryComp<NeedsComponent>(uid, out var traceNeeds) ? traceNeeds.Boredom : 0f,
             TryComp<PersonalityComponent>(uid, out var tracePersonality) ? tracePersonality.Curiosity : 0f,
             context.CurrentDesires.Count > 0 ? context.CurrentDesires[0].Name : null);
+        _trace.MarkCognitiveDecision(uid, decisionId);
 
         _lastRequestAt[uid] = _timing.CurTime;
         _inFlight++;
@@ -347,7 +348,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// </summary>
     private void HandleCompletedIntentRequest(EntityUid uid, Task<LlmIntentDecision?> task, int decisionId)
     {
-        if (Deleted(uid) || _trace.GetCurrentDecisionId(uid) != decisionId ||
+        if (Deleted(uid) || !_trace.IsCurrentCognitiveDecision(uid, decisionId) ||
             _trace.GetDecision(uid, decisionId) is { Finished: true })
             return;
         if (task.IsFaulted)
@@ -454,7 +455,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
     /// </summary>
     private void HandleCompletedActionSelectionRequest(EntityUid uid, Task<LlmActionSelectionDecision?> task, LlmIntentDecision intent, int decisionId)
     {
-        if (Deleted(uid) || _trace.GetCurrentDecisionId(uid) != decisionId ||
+        if (Deleted(uid) || !_trace.IsCurrentCognitiveDecision(uid, decisionId) ||
             _trace.GetDecision(uid, decisionId) is { Finished: true })
             return;
         if (task.IsFaulted)
@@ -676,11 +677,11 @@ public sealed partial class LlmGatewaySystem : EntitySystem
         if (Deleted(uid) || !TryComp<IntentComponent>(uid, out var intent))
             return false;
 
-        if (decisionId is { } requestedId && (_trace.GetCurrentDecisionId(uid) != requestedId ||
+        if (decisionId is { } requestedId && (!_trace.IsCurrentCognitiveDecision(uid, requestedId) ||
             _trace.GetDecision(uid, requestedId) is { Finished: true }))
             return false;
 
-        var record = _trace.GetDecision(uid, _trace.GetCurrentDecisionId(uid));
+        var record = _trace.GetDecision(uid, decisionId ?? _trace.GetCurrentDecisionId(uid));
         if (record is null || record.Finished || record.SelectedAction is not null)
         {
             decisionId = _trace.DecisionStarted(uid,
@@ -689,6 +690,7 @@ public sealed partial class LlmGatewaySystem : EntitySystem
                 decision.Desire);
         }
         decisionId ??= _trace.GetCurrentDecisionId(uid);
+        _trace.MarkCognitiveDecision(uid, decisionId.Value);
         if (_trace.GetDecision(uid, decisionId.Value) is { } appliedTrace)
             appliedTrace.Intent = decision.Intention;
 
@@ -713,9 +715,18 @@ public sealed partial class LlmGatewaySystem : EntitySystem
             return false;
         }
 
-        if (!_actionRegistry.TryDoAction(uid, proposal.ActionName, proposal.Parameters, decision.Reason, out var doFailReason))
+        if (!HasValidTarget(uid, proposal.Parameters))
         {
-            _trace.ActionFailed(uid, proposal.ActionName, doFailReason);
+            if (_trace.GetDecision(uid, decisionId.Value) is { } rejectedTrace)
+                rejectedTrace.SelectedAction = proposal.ActionName;
+            _trace.LlmFailure(uid, "InvalidActionTarget");
+            _trace.DecisionResult(uid, decisionId.Value,
+                AiActionResult.Failed("Цель не входит в список подходящих целей этого действия."));
+            return false;
+        }
+
+        if (!_actionRegistry.TryDoAction(uid, proposal.ActionName, proposal.Parameters, decision.Reason, out _, decisionId))
+        {
             return false;
         }
 
