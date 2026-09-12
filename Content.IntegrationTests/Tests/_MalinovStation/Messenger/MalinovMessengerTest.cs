@@ -2772,7 +2772,7 @@ var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
-        string? accountName = null;
+        string accountName = null!;
         string senderKey = null!;
         string recipientKey = null!;
 
@@ -2996,7 +2996,7 @@ var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
-        string? accountName = null;
+        string accountName = null!;
         string senderKey = null!;
         string recipientKey = null!;
 
@@ -3138,7 +3138,7 @@ var messengerSystem = entSysMan.GetEntitySystem<MalinovMessengerCartridgeSystem>
         EntityUid pda2 = default;
         EntityUid prog1 = default;
         EntityUid prog2 = default;
-        string? accountName = null;
+        string accountName = null!;
         string senderKey = null!;
         string recipientKey = null!;
 
