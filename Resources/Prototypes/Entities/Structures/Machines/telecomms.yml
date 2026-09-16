@@ -179,6 +179,15 @@
       key_slots: !type:Container
       machine_board: !type:Container
       machine_parts: !type:Container
+  # Malinov edit - messenger relay server on the station TelecomServer
+  - type: DeviceNetwork
+    deviceNetId: Wireless
+    receiveFrequencyId: MalinovMessengerFrequency
+    transmitFrequencyId: MalinovMessengerFrequency
+    autoConnect: true
+  - type: WirelessNetworkConnection
+    range: 500
+  - type: MalinovMessengerServer
 
 - type: entity
   parent: TelecomServer

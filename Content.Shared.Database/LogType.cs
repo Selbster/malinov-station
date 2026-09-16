@@ -488,4 +488,26 @@ public enum LogType
     /// Silicon law changes.
     /// </summary>
     SiliconLaw = 105,
+
+    // Malinov edit start - messenger admin logs
+    /// <summary>
+    /// A messenger message was sent from one account to another.
+    /// </summary>
+    MalinovMessengerSend = 1200,
+
+    /// <summary>
+    /// A messenger message delivery failed at the relay.
+    /// </summary>
+    MalinovMessengerDeliveryFail = 1201,
+
+    /// <summary>
+    /// A messenger sender hit the anti-spam rate limit.
+    /// </summary>
+    MalinovMessengerRateLimited = 1202,
+
+    /// <summary>
+    /// A messenger sender was muted or unmuted by an administrator.
+    /// </summary>
+    MalinovMessengerMute = 1203,
+    // Malinov edit end
 }

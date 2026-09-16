@@ -1,0 +1,4 @@
+- type: soundCollection
+  id: malinov_messenger_notification
+  files:
+    - /Audio/_MalinovStation/Effects/malinov_messenger_notification.ogg

@@ -1,6 +1,8 @@
 #nullable enable
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Content.Client.CharacterInfo;
 using Content.Client.UserInterface.Systems.Chat;
@@ -11,6 +13,7 @@ using Content.Shared.Roles;
 using NUnit.Framework;
 using Robust.Client.UserInterface;
 using Robust.Shared.Configuration;
+using Robust.Shared.Localization;
 using Robust.Shared.Prototypes;
 
 namespace Content.IntegrationTests.Tests.Chat;
@@ -19,7 +22,24 @@ public sealed class ChatHighlightTest : GameTest
 {
     [SidedDependency(Side.Client)] private readonly IConfigurationManager _configManager = null!;
     [SidedDependency(Side.Client)] private readonly IUserInterfaceManager _uiManager = null!;
+    [SidedDependency(Side.Client)] private readonly ILocalizationManager _loc = null!;
     private static readonly ProtoId<JobPrototype> Captain = "Captain";
+
+    /// <summary>
+    /// Derives the expected auto-filled job highlights from the active locale,
+    /// so the test does not depend on the client's default culture.
+    /// </summary>
+    private (string NameKeyword, string QuotedKeyword) GetExpectedJobHighlights()
+    {
+        // Mirrors ChatUIController.OnCharacterUpdated + ReloadHighlights transformations.
+        var lines = _loc.GetString("highlights-" + Captain.Id.Replace(' ', '-').ToLower())
+            .Replace(", ", "\n")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var name = Regex.Escape(lines[0]);
+        var quoted = Regex.Escape(lines.First(l => l.StartsWith('"')).Trim('"'));
+        return (name, $"(?<!\\w){quoted}(?!\\w)");
+    }
 
     [Test]
     [RunOnSide(Side.Client)]
@@ -81,8 +101,9 @@ public sealed class ChatHighlightTest : GameTest
         Assert.That(activeHighlights, Contains.Item("ling"));
         Assert.That(activeHighlights, Contains.Item("rev"));
         // Auto:
-        Assert.That(activeHighlights, Contains.Item("Captain"));
-        Assert.That(activeHighlights, Contains.Item("(?<!\\w)Cap(?!\\w)")); // "Cap" becomes regex-escaped and word-bounded
+        var (jobName, jobQuoted) = GetExpectedJobHighlights();
+        Assert.That(activeHighlights, Contains.Item(jobName));
+        Assert.That(activeHighlights, Contains.Item(jobQuoted));
 
         // 5. Disable auto-fill highlights and verify auto-filled highlights are removed
         _configManager.SetCVar(CCVars.ChatAutoFillHighlights, false);
@@ -90,7 +111,7 @@ public sealed class ChatHighlightTest : GameTest
         activeHighlights = (List<string>)highlightsField.GetValue(chatController)!;
         Assert.That(activeHighlights, Contains.Item("ling"));
         Assert.That(activeHighlights, Contains.Item("rev"));
-        Assert.That(activeHighlights, Is.Not.Contains("Captain"));
+        Assert.That(activeHighlights, Is.Not.Contains(jobName));
     }
 
     [Test]
@@ -153,9 +174,10 @@ public sealed class ChatHighlightTest : GameTest
 
         // - Active highlights list must now merge both custom and auto-filled ones
         activeHighlights = (List<string>)highlightsField.GetValue(chatController)!;
+        var (jobName, jobQuoted) = GetExpectedJobHighlights();
         Assert.That(activeHighlights, Contains.Item("ling"));
         Assert.That(activeHighlights, Contains.Item("rev"));
-        Assert.That(activeHighlights, Contains.Item("Captain"));
-        Assert.That(activeHighlights, Contains.Item("(?<!\\w)Cap(?!\\w)"));
+        Assert.That(activeHighlights, Contains.Item(jobName));
+        Assert.That(activeHighlights, Contains.Item(jobQuoted));
     }
 }
