@@ -4,6 +4,7 @@ using Content.Shared.Shuttles.Events;
 using Content.Shared.Shuttles.UI.MapObjects;
 using Robust.Shared.Map;
 using Robust.Shared.Physics.Components;
+using Content.Shared._MalinovStation.Shuttles; // Malinov-Edit
 
 namespace Content.Server.Shuttles.Systems;
 
@@ -34,6 +35,10 @@ public sealed partial class ShuttleConsoleSystem
 
     private void OnBeaconFTLMessage(Entity<ShuttleConsoleComponent> ent, ref ShuttleConsoleFTLBeaconMessage args)
     {
+        // Malinov-Edit: reject malformed angles before reduction or coordinate calculations.
+        if (!double.IsFinite(args.Angle.Theta))
+            return;
+
         var beaconEnt = GetEntity(args.Beacon);
         if (!TryComp(beaconEnt, out TransformComponent? targetXform))
         {
@@ -60,7 +65,11 @@ public sealed partial class ShuttleConsoleSystem
 
     private void OnPositionFTLMessage(Entity<ShuttleConsoleComponent> entity, ref ShuttleConsoleFTLPositionMessage args)
     {
-        var mapUid = _mapSystem.GetMap(args.Coordinates.MapId);
+        // Malinov-Edit: reject non-finite network coordinates and unknown maps.
+        if (!MalinovFTLValidation.IsFinite(args.Coordinates.Position, args.Angle))
+            return;
+
+        var mapUid = _mapSystem.GetMapOrInvalid(args.Coordinates.MapId);
 
         // If it's beacons only block all position messages.
         if (!Exists(mapUid) || _shuttle.IsBeaconMap(mapUid))
@@ -111,6 +120,10 @@ public sealed partial class ShuttleConsoleSystem
     /// </summary>
     private void ConsoleFTL(Entity<ShuttleConsoleComponent> ent, EntityCoordinates targetCoordinates, Angle targetAngle, MapId targetMap)
     {
+        // Malinov-Edit: beacon positions must satisfy the same invariant as free destinations.
+        if (!targetCoordinates.IsValid(EntityManager) || !MalinovFTLValidation.IsFinite(targetCoordinates.Position, targetAngle))
+            return;
+
         var consoleUid = GetDroneConsole(ent.Owner);
 
         if (consoleUid == null)
@@ -151,7 +164,9 @@ public sealed partial class ShuttleConsoleSystem
         }
 
         // Client sends the "adjusted" coordinates and we adjust it back to get the actual transform coordinates.
-        var adjustedCoordinates = targetCoordinates.Offset(targetAngle.RotateVec(-shuttlePhysics.LocalCenter));
+        // Malinov-Edit: finite inputs can still overflow when adjusting the center of mass.
+        if (!MalinovFTLValidation.TryAdjustCoordinates(targetCoordinates, targetAngle, shuttlePhysics.LocalCenter, out var adjustedCoordinates))
+            return;
 
         var tagEv = new FTLTagEvent();
         RaiseLocalEvent(shuttleUid.Value, ref tagEv);

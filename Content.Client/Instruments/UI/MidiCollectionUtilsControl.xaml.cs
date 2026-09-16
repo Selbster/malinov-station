@@ -20,9 +20,7 @@ public sealed partial class MidiCollectionUtilsControl : Control
         RobustXamlLoader.Load(this);
         IoCManager.InjectDependencies(this);
 
-        _midiCollection.MidiFileAdded += _ => UpdateCount();
-        _midiCollection.MidiFileRemoved += _ => UpdateCount();
-        _midiCollection.MidiFilesReset += UpdateCount;
+        // Malinov edit - library subscriptions follow this control's tree lifetime.
 
         DeleteAllButton.StyleClasses.Add(StyleClass.Negative);
 

@@ -90,7 +90,8 @@ public abstract partial class SharedPuddleSystem : EntitySystem
         {
             // It's possible to have items in the queue that are already being deleted but threw a
             // SolutionContainerChangedEvent as a part of their shutdown, like during a round restart.
-            if (!TerminatingOrDeleted(ent))
+            // Malinov-Edit: discard queued deletions invalidated by PVS departure or prediction rollback.
+            if (CanDeleteQueuedPuddle(ent))
                 PredictedDel(ent);
         }
 
@@ -176,7 +177,8 @@ public abstract partial class SharedPuddleSystem : EntitySystem
 
     private void OnAnchorChanged(Entity<PuddleComponent> entity, ref AnchorStateChangedEvent args)
     {
-        if (!args.Anchored)
+        // Malinov-Edit: leaving PVS also unanchors puddles, but is not a predicted deletion.
+        if (!args.Anchored && !args.Detaching)
             PredictedQueueDel(entity.Owner);
     }
 

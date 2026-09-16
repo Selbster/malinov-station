@@ -262,6 +262,11 @@ public sealed partial class ShuttleSystem
         float? hyperspaceTime = null,
         string? priorityTag = null)
     {
+        // Malinov-Edit: validate before TrySetupFTL mutates the shuttle or creates FTLComponent.
+        if (!coordinates.IsValid(EntityManager) ||
+            !Content.Shared._MalinovStation.Shuttles.MalinovFTLValidation.IsFinite(coordinates.Position, angle))
+            return;
+
         if (!TrySetupFTL(shuttleUid, component, out var hyperspace))
             return;
 

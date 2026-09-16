@@ -423,8 +423,12 @@ public sealed partial class MappingState : GameplayStateBase
         var matches = new List<MappingPrototype>();
         foreach (var prototype in _allPrototypes)
         {
-            if (prototype.Name.Contains(args.Text, OrdinalIgnoreCase))
+            // Malinov edit start - search placeable prototypes by ID and localized name.
+            if (prototype.Prototype != null &&
+                (prototype.Name.Contains(args.Text, OrdinalIgnoreCase) ||
+                 prototype.Prototype.ID.Contains(args.Text, OrdinalIgnoreCase)))
                 matches.Add(prototype);
+            // Malinov edit end
         }
 
         matches.Sort(static (a, b) => string.Compare(a.Name, b.Name, OrdinalIgnoreCase));

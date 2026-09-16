@@ -19,11 +19,12 @@ public abstract partial class SharedPuddleSystem
 
     private void UpdateEvaporation(EntityUid uid, Solution solution)
     {
-        if (_evaporationQuery.HasComp(uid))
-            return;
-
         if (solution.GetTotalPrototypeQuantity(GetEvaporatingReagents(solution)) > FixedPoint2.Zero)
         {
+            // Malinov-Edit: retain the timer only while evaporating reagents remain.
+            if (_evaporationQuery.HasComp(uid))
+                return;
+
             var evaporation = AddComp<EvaporationComponent>(uid);
             evaporation.NextTick = _timing.CurTime + EvaporationCooldown;
             Dirty<EvaporationComponent>((uid, evaporation));

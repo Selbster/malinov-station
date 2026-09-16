@@ -37,12 +37,14 @@ namespace Content.Server.Construction
         // but for now I've isolated them in their own little file. This code is largely unchanged.
         // --- YOU HAVE BEEN WARNED! AAAH! ---
 
-        private readonly Dictionary<ICommonSession, HashSet<int>> _beingBuilt = new();
+        // Malinov-Edit: release completed requests and disconnected sessions.
+        private readonly Content.Server._MalinovStation.Construction.MalinovConstructionRequests _beingBuilt = new();
 
         private void InitializeInitial()
         {
-            SubscribeNetworkEvent<TryStartStructureConstructionMessage>(HandleStartStructureConstruction);
+            SubscribeNetworkEvent<TryStartStructureConstructionMessage>(MalinovHandleStartStructureConstruction); // Malinov-Edit
             SubscribeNetworkEvent<TryStartItemConstructionMessage>(HandleStartItemConstruction);
+            MalinovInitializeConstructionRequests(); // Malinov-Edit
         }
 
         // LEGACY CODE. See warning at the top of the file!
@@ -400,19 +402,19 @@ namespace Content.Server.Construction
         }
 
         // LEGACY CODE. See warning at the top of the file!
-        private async void HandleStartStructureConstruction(TryStartStructureConstructionMessage ev, EntitySessionEventArgs args)
+        private async Task HandleStartStructureConstruction(TryStartStructureConstructionMessage ev, EntitySessionEventArgs args) // Malinov-Edit
         {
             if (!ProtoMan.TryIndex(ev.PrototypeName, out ConstructionPrototype? constructionPrototype))
             {
                 Log.Error($"Tried to start construction of invalid recipe '{ev.PrototypeName}'!");
-                RaiseNetworkEvent(new AckStructureConstructionMessage(ev.Ack));
+                RaiseNetworkEvent(new AckStructureConstructionMessage(ev.Ack), args.SenderSession); // Malinov-Edit: ACKs belong to one client.
                 return;
             }
 
             if (!ProtoMan.TryIndex(constructionPrototype.Graph, out ConstructionGraphPrototype? constructionGraph))
             {
                 Log.Error($"Invalid construction graph '{constructionPrototype.Graph}' in recipe '{ev.PrototypeName}'!");
-                RaiseNetworkEvent(new AckStructureConstructionMessage(ev.Ack));
+                RaiseNetworkEvent(new AckStructureConstructionMessage(ev.Ack), args.SenderSession); // Malinov-Edit
                 return;
             }
 
@@ -439,19 +441,14 @@ namespace Content.Server.Construction
             var pathFind = constructionGraph.Path(startNode.Name, targetNode.Name);
 
 
-            if (_beingBuilt.TryGetValue(args.SenderSession, out var set))
+            // Malinov edit start - dispose also runs on exceptions and releases the final session entry.
+            using var request = _beingBuilt.TryBegin(args.SenderSession, ev.Ack);
+            if (request == null)
             {
-                if (!set.Add(ev.Ack))
-                {
-                    _popup.PopupEntity(Loc.GetString("construction-system-already-building"), user, user);
-                    return;
-                }
+                _popup.PopupEntity(Loc.GetString("construction-system-already-building"), user, user);
+                return;
             }
-            else
-            {
-                var newSet = new HashSet<int> {ev.Ack};
-                _beingBuilt[args.SenderSession] = newSet;
-            }
+            // Malinov edit end
 
             var location = GetCoordinates(ev.Location);
 
@@ -466,7 +463,7 @@ namespace Content.Server.Construction
 
             void Cleanup()
             {
-                _beingBuilt[args.SenderSession].Remove(ev.Ack);
+                request.Dispose(); // Malinov-Edit: safe after disconnect or round cleanup.
             }
 
             if (!_actionBlocker.CanInteract(user, null)
@@ -537,7 +534,11 @@ namespace Content.Server.Construction
                 return;
             }
 
-            RaiseNetworkEvent(new AckStructureConstructionMessage(ev.Ack, GetNetEntity(structure)));
+            // Malinov-Edit: do not acknowledge a request invalidated by disconnect or round cleanup.
+            if (!request.IsActive)
+                return;
+
+            RaiseNetworkEvent(new AckStructureConstructionMessage(ev.Ack, GetNetEntity(structure)), args.SenderSession); // Malinov-Edit
             _adminLogger.Add(LogType.Construction, LogImpact.Low, $"{ToPrettyString(user):player} has turned a {ev.PrototypeName} construction ghost into {ToPrettyString(structure)} at {Transform(structure).Coordinates}");
             Cleanup();
         }

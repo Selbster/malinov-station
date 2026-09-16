@@ -28,7 +28,7 @@ public sealed partial class PlanetLightSystem : EntitySystem
             }
             else
             {
-                _overlayMan.RemoveOverlay<AmbientOcclusionOverlay>();
+                RemoveLightOverlay<AmbientOcclusionOverlay>(); // Malinov edit - release cached render targets.
             }
         }
     }
@@ -41,10 +41,8 @@ public sealed partial class PlanetLightSystem : EntitySystem
 
         SubscribeLocalEvent<GetClearColorEvent>(OnClearColor);
 
-        _cfgManager.OnValueChanged(CCVars.AmbientOcclusion, val =>
-        {
-            AmbientOcclusion = val;
-        }, true);
+        // Malinov edit - automatically remove the setting subscription on shutdown.
+        Subs.CVar(_cfgManager, CCVars.AmbientOcclusion, SetAmbientOcclusion, true);
 
         _overlayMan.AddOverlay(new BeforeLightTargetOverlay());
         _overlayMan.AddOverlay(new RoofOverlay(EntityManager));
@@ -62,12 +60,6 @@ public sealed partial class PlanetLightSystem : EntitySystem
     public override void Shutdown()
     {
         base.Shutdown();
-        _overlayMan.RemoveOverlay<BeforeLightTargetOverlay>();
-        _overlayMan.RemoveOverlay<RoofOverlay>();
-        _overlayMan.RemoveOverlay<TileEmissionOverlay>();
-        _overlayMan.RemoveOverlay<LightBlurOverlay>();
-        _overlayMan.RemoveOverlay<SunShadowOverlay>();
-        _overlayMan.RemoveOverlay<AfterLightTargetOverlay>();
-        _overlayMan.RemoveOverlay<AmbientOcclusionOverlay>();
+        ShutdownLightOverlays(); // Malinov edit - release overlays as well as unregistering them.
     }
 }
