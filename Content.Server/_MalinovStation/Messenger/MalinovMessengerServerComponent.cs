@@ -1,4 +1,4 @@
-namespace Content.Shared._MalinovStation.Messenger;
+namespace Content.Server._MalinovStation.Messenger;
 
 /// <summary>
 ///     Marker component for the station Malinov Messenger relay server.

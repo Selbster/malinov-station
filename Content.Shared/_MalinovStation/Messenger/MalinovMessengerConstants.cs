@@ -72,6 +72,12 @@ public static class MalinovMessengerConstants
     public const string MutedNamesKey = "muted_names";
 
     /// <summary>
+    ///     Payload key carrying the localization key of a relay delivery error. Set on error
+    ///     replies instead of overloading <see cref="TextKey"/>.
+    /// </summary>
+    public const string ErrorKey = "error";
+
+    /// <summary>
     ///     Sound collection played for incoming messenger notifications.
     /// </summary>
     public const string NotificationSoundCollection = "malinov_messenger_notification";

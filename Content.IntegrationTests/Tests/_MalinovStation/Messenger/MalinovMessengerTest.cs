@@ -52,6 +52,10 @@ public sealed class MalinovMessengerTest : GameTest
       stationProto: StandardNanotrasenStation
       components:
         - type: StationRecords
+
+- type: entity
+  parent: SyndiPDA
+  id: MalinovMessengerTestSyndiChild
 ";
 
     [Test]
@@ -102,6 +106,33 @@ public sealed class MalinovMessengerTest : GameTest
             Assert.That(entityManager.TryGetComponent(pda, out CartridgeLoaderComponent loader), Is.True);
             Assert.That(cartridgeLoaderSystem.HasProgram<MalinovMessengerCartridgeComponent>((pda, loader)), Is.False,
                 "Messenger program should not be auto-installed in CentcomPDA");
+        });
+
+        await server.WaitRunTicks(2);
+        await server.WaitIdleAsync();
+    }
+
+    [Test]
+    public async Task MessengerProgramNotInstalledInChildOfExcludedPda()
+    {
+        var pair = Pair;
+        var server = pair.Server;
+
+        var entityManager = server.ResolveDependency<IEntityManager>();
+        var cartridgeLoaderSystem = entityManager.EntitySysManager.GetEntitySystem<CartridgeLoaderSystem>();
+
+        await pair.CreateTestMap();
+        var coords = pair.TestMap!.GridCoords;
+
+        EntityUid pda = default;
+
+        await server.WaitAssertion(() =>
+        {
+            pda = entityManager.SpawnEntity("MalinovMessengerTestSyndiChild", coords);
+
+            Assert.That(entityManager.TryGetComponent(pda, out CartridgeLoaderComponent loader), Is.True);
+            Assert.That(cartridgeLoaderSystem.HasProgram<MalinovMessengerCartridgeComponent>((pda, loader)), Is.False,
+                "Messenger program should not be auto-installed in a child of an excluded PDA");
         });
 
         await server.WaitRunTicks(2);

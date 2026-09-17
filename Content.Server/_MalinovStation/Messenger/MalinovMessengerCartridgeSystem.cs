@@ -51,6 +51,12 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
     [Dependency] private IPlayerManager _playerManager = default!;
     [Dependency] private SharedUserInterfaceSystem _uiSystem = default!;
 
+    /// <summary>
+    ///     Scratch buffer reused every tick while pruning expired peers, so the per-entity
+    ///     sweep in <see cref="Update"/> does not allocate a list on each entity.
+    /// </summary>
+    private readonly List<string> _expiredPeers = new();
+
     public override void Initialize()
     {
         base.Initialize();
@@ -73,15 +79,15 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
 
         while (query.MoveNext(out var uid, out var session, out _))
         {
-            var expired = new List<string>();
+            _expiredPeers.Clear();
 
             foreach (var (name, peer) in session.Peers)
             {
                 if (peer.Expiry < now)
-                    expired.Add(name);
+                    _expiredPeers.Add(name);
             }
 
-            foreach (var name in expired)
+            foreach (var name in _expiredPeers)
             {
                 session.Peers.Remove(name);
             }
@@ -594,6 +600,39 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         if (!packet.Data.TryGetValue(MalinovMessengerConstants.SenderNameKey, out var senderObj) || senderObj is not string sender)
             return;
 
+        // Server-side delivery error: empty sender name marks a relay-level failure. The relay
+        // reports the failure through a dedicated error key (not the message text), correlated
+        // back via the message id so the sender's optimistic history entry can be rolled back —
+        // the relay is the delivery authority.
+        if (string.IsNullOrEmpty(sender))
+        {
+            var errorKey = packet.Data.TryGetValue(MalinovMessengerConstants.ErrorKey, out var errorObj) && errorObj is string errorStr
+                ? errorStr
+                : null;
+
+            if (errorKey == null)
+                return;
+
+            var messageId = packet.Data.TryGetValue(MalinovMessengerConstants.MessageIdKey, out var idObj) && idObj is long idValue
+                ? idValue
+                : 0L;
+
+            RollbackPendingOutgoing(session, messageId);
+
+            if (errorKey == "malinov-messenger-error-muted")
+                session.IsMuted = true;
+
+            if (errorKey == "malinov-messenger-error-rate-limited")
+            {
+                var now = _timing.CurTime;
+                var window = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds));
+                session.RateLimitUntil = now + window;
+            }
+
+            SetSendError(uid, loaderUid, component, session, errorKey);
+            return;
+        }
+
         if (!packet.Data.TryGetValue(MalinovMessengerConstants.TextKey, out var textObj) || textObj is not string text)
             return;
 
@@ -604,31 +643,6 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
         var maxLength = _cfg.GetCVar(CCVars.MalinovMessengerMaxMessageLength);
         if (text.Length > maxLength)
             text = text[..maxLength];
-
-        // Server-side delivery error: empty sender name marks a relay-level failure.
-        // The outgoing message is correlated back via its id and rolled back (removed
-        // from the sender's history) because the relay is the delivery authority.
-        if (string.IsNullOrEmpty(sender))
-        {
-            var messageId = packet.Data.TryGetValue(MalinovMessengerConstants.MessageIdKey, out var idObj) && idObj is long idValue
-                ? idValue
-                : 0L;
-
-            RollbackPendingOutgoing(session, messageId);
-
-            if (text == "malinov-messenger-error-muted")
-                session.IsMuted = true;
-
-            if (text == "malinov-messenger-error-rate-limited")
-            {
-                var now = _timing.CurTime;
-                var window = TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.MalinovMessengerRateWindowSeconds));
-                session.RateLimitUntil = now + window;
-            }
-
-            SetSendError(uid, loaderUid, component, session, text);
-            return;
-        }
 
         // Ignore looped-back messages addressed to the local card.
         var selfKey = session.CardId;

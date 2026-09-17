@@ -341,7 +341,7 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
         {
             [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandMessage,
             [MalinovMessengerConstants.SenderNameKey] = string.Empty,
-            [MalinovMessengerConstants.TextKey] = errorKey,
+            [MalinovMessengerConstants.ErrorKey] = errorKey,
             [MalinovMessengerConstants.MessageIdKey] = messageId,
         };
 

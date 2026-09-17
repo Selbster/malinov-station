@@ -13,6 +13,7 @@ namespace Content.Server._MalinovStation.Messenger;
 public sealed partial class MalinovMessengerInstallerSystem : EntitySystem
 {
     [Dependency] private CartridgeLoaderSystem _cartridgeLoader = default!;
+    [Dependency] private IPrototypeManager _prototypeManager = default!;
 
     /// <summary>
     ///     PDA prototypes that should not receive the messenger program.
@@ -66,6 +67,12 @@ public sealed partial class MalinovMessengerInstallerSystem : EntitySystem
     {
         base.Initialize();
 
+        foreach (var id in ExcludedPdaPrototypes)
+        {
+            if (!_prototypeManager.HasIndex(id))
+                Log.Warning("Malinov Messenger installer: excluded PDA prototype '{Proto}' not found", id);
+        }
+
         SubscribeLocalEvent<CartridgeLoaderComponent, MapInitEvent>(OnMapInit);
     }
 
@@ -76,12 +83,27 @@ public sealed partial class MalinovMessengerInstallerSystem : EntitySystem
             return;
 
         var prototype = MetaData(ent.Owner).EntityPrototype?.ID;
-        if (prototype is null || ExcludedPdaPrototypes.Contains(prototype))
+        if (prototype is null || IsExcluded(prototype))
             return;
 
         if (_cartridgeLoader.HasProgram<MalinovMessengerCartridgeComponent>(ent.AsNullable()))
             return;
 
         _cartridgeLoader.InstallProgram(ent, MessengerProgramPrototype, deinstallable: false);
+    }
+
+    /// <summary>
+    ///     Checks the prototype itself and every parent against the exclusion set, so a child
+    ///     variant of an excluded PDA (e.g. <c>parent: SyndiPDA</c>) is excluded as well.
+    /// </summary>
+    private bool IsExcluded(string id)
+    {
+        foreach (var parent in _prototypeManager.EnumerateParents<EntityPrototype>(id, includeSelf: true))
+        {
+            if (ExcludedPdaPrototypes.Contains(parent.ID))
+                return true;
+        }
+
+        return false;
     }
 }
