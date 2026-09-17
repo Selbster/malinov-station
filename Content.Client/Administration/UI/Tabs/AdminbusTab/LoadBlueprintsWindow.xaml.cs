@@ -20,28 +20,18 @@ namespace Content.Client.Administration.UI.Tabs.AdminbusTab
         public LoadBlueprintsWindow()
         {
             RobustXamlLoader.Load(this);
+            MalinovBindEvents(); // Malinov added - subscribe once for the window's lifetime.
         }
 
         protected override void EnteredTree()
         {
-            var mapSystem = _entityManager.System<SharedMapSystem>();
-
-            foreach (var mapId in mapSystem.GetAllMapIds())
-            {
-                MapOptions.AddItem(mapId.ToString(), (int) mapId);
-            }
-
+            base.EnteredTree(); // Malinov added
             Reset();
-
-            MapOptions.OnItemSelected += OnOptionSelect;
-            RotationSpin.ValueChanged += OnRotate;
-            SubmitButton.OnPressed += OnSubmitButtonPressed;
-            TeleportButton.OnPressed += OnTeleportButtonPressed;
-            ResetButton.OnPressed += OnResetButtonPressed;
         }
 
         private void Reset()
         {
+            MalinovRefreshMaps(); // Malinov added - refresh maps after round changes and window reopening.
             var xformSystem = _entityManager.System<SharedTransformSystem>();
             var player = _playerManager.LocalEntity;
 
@@ -66,7 +56,7 @@ namespace Content.Client.Administration.UI.Tabs.AdminbusTab
             }
 
             if (currentMap != MapId.Nullspace)
-                MapOptions.Select((int) currentMap);
+                MapOptions.TrySelectId((int) currentMap); // Malinov edit - map IDs are not list indices.
 
             XCoordinate.Value = (int) position.X;
             YCoordinate.Value = (int) position.Y;
@@ -104,6 +94,9 @@ namespace Content.Client.Administration.UI.Tabs.AdminbusTab
 
         private void OnTeleportButtonPressed(BaseButton.ButtonEventArgs obj)
         {
+            if (!MalinovCanUseSelectedMap()) // Malinov added - reject missing or deleted maps.
+                return;
+
             IoCManager.Resolve<IClientConsoleHost>().ExecuteCommand(
                 $"tp {XCoordinate.Value} {YCoordinate.Value} {new MapId(MapOptions.SelectedId)}");
         }
@@ -111,6 +104,9 @@ namespace Content.Client.Administration.UI.Tabs.AdminbusTab
         private void OnSubmitButtonPressed(BaseButton.ButtonEventArgs obj)
         {
             if (MapPath.Text.Length == 0) return;
+
+            if (!MalinovCanUseSelectedMap()) // Malinov added - reject missing or deleted maps.
+                return;
 
             IoCManager.Resolve<IClientConsoleHost>().ExecuteCommand(
                 $"loadbp {new MapId(MapOptions.SelectedId)} \"{MapPath.Text}\" {XCoordinate.Value} {YCoordinate.Value} {RotationSpin.Value}");

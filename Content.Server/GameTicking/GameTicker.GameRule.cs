@@ -407,7 +407,7 @@ public sealed partial class GameTicker
             if (proto.Abstract)
                 continue;
 
-            if (proto.HasComponent<GameRuleComponent>())
+            if (HasComp<GameRuleComponent>(proto)) // Malinov edit - current prototype API.
                 yield return proto;
         }
     }

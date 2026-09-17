@@ -38,7 +38,7 @@ public sealed partial class AddActionCommand : LocalizedEntityCommands
         }
 
         if (!_prototypeManager.TryIndex<EntityPrototype>(args[1], out var proto) ||
-            !proto.HasComponent<ActionComponent>())
+            !proto.HasComp<ActionComponent>(EntityManager.ComponentFactory)) // Malinov edit - current prototype API.
         {
             shell.WriteError(Loc.GetString("cmd-addaction-action-not-found", ("action", args[1])));
             return;
@@ -63,7 +63,7 @@ public sealed partial class AddActionCommand : LocalizedEntityCommands
             return CompletionResult.Empty;
 
         var actionPrototypes = _prototypeManager.EnumeratePrototypes<EntityPrototype>()
-            .Where(p => p.HasComponent<ActionComponent>())
+            .Where(p => p.HasComp<ActionComponent>(EntityManager.ComponentFactory)) // Malinov edit - current prototype API.
             .Select(p => p.ID)
             .Order();
 

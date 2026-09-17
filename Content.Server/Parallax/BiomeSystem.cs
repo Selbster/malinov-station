@@ -593,7 +593,7 @@ public sealed partial class BiomeSystem : SharedBiomeSystem
                     continue;
 
                 // Check if it's a valid spawn, if so then use it.
-                var enumerator = _mapSystem.GetAnchoredEntitiesEnumerator(gridUid, grid, node);
+                var enumerator = _mapSystem.GetAnchoredEntities(gridUid, grid, node); // Malinov edit - equivalent current map API.
                 enumerator.MoveNext(out var existing);
 
                 if (!forced && existing != null)
@@ -811,7 +811,7 @@ public sealed partial class BiomeSystem : SharedBiomeSystem
                     continue;
 
                 // Don't mess with anything that's potentially anchored.
-                var anchored = _mapSystem.GetAnchoredEntitiesEnumerator(gridUid, grid, indices);
+                var anchored = _mapSystem.GetAnchoredEntities(gridUid, grid, indices); // Malinov edit - equivalent current map API.
 
                 if (anchored.MoveNext(out _) || !TryGetEntity(indices, component, (gridUid, grid), out var entPrototype))
                     continue;
@@ -844,7 +844,7 @@ public sealed partial class BiomeSystem : SharedBiomeSystem
                     continue;
 
                 // Don't mess with anything that's potentially anchored.
-                var anchored = _mapSystem.GetAnchoredEntitiesEnumerator(gridUid, grid, indices);
+                var anchored = _mapSystem.GetAnchoredEntities(gridUid, grid, indices); // Malinov edit - equivalent current map API.
 
                 if (anchored.MoveNext(out _) || !TryGetDecals(indices, component.Layers, seed, (gridUid, grid), out var decals))
                     continue;
@@ -958,7 +958,7 @@ public sealed partial class BiomeSystem : SharedBiomeSystem
                     continue;
 
                 // Don't mess with anything that's potentially anchored.
-                var anchored = _mapSystem.GetAnchoredEntitiesEnumerator(gridUid, grid, indices);
+                var anchored = _mapSystem.GetAnchoredEntities(gridUid, grid, indices); // Malinov edit - equivalent current map API.
 
                 if (anchored.MoveNext(out _))
                 {

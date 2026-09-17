@@ -1,5 +1,7 @@
 using Robust.Shared.Utility;
 using Content.Shared.DeviceNetwork.Components;
+using Robust.Shared.IoC; // Malinov-Edit
+using Robust.Shared.Localization; // Malinov-Edit
 
 namespace Content.Shared.DeviceNetwork
 {
@@ -64,6 +66,16 @@ namespace Content.Shared.DeviceNetwork
         /// </summary>
         public static string DeviceNetIdToLocalizedName(this int id)
         {
+            // Malinov-Edit: preserve the static helper for callers without injected localization.
+            if (!Enum.IsDefined(typeof(DeviceNetworkComponent.DeviceNetIdDefaults), id))
+                return id.ToString();
+
+            return id.DeviceNetIdToLocalizedName(IoCManager.Resolve<ILocalizationManager>());
+        }
+
+        // Malinov-Edit: allow systems to use their injected localization manager.
+        public static string DeviceNetIdToLocalizedName(this int id, ILocalizationManager localization)
+        {
 
             if (!Enum.IsDefined(typeof(DeviceNetworkComponent.DeviceNetIdDefaults), id))
                 return id.ToString();
@@ -71,7 +83,7 @@ namespace Content.Shared.DeviceNetwork
             var result = ((DeviceNetworkComponent.DeviceNetIdDefaults) id).ToString();
             var resultKebab = "device-net-id-" + CaseConversion.PascalToKebab(result);
 
-            return !Loc.TryGetString(resultKebab, out var name) ? result : name;
+            return !localization.TryGetString(resultKebab, out var name) ? result : name; // Malinov-Edit
         }
 
         #endregion

@@ -57,20 +57,20 @@ public sealed partial class SpawnExplosionWindow : DefaultWindow
 
     private void ExplosionSelected(ItemSelectedEventArgs args)
     {
-        ExplosionOption.SelectId(args.Id);
+        ExplosionOption.TrySelectId(args.Id); // Malinov-Edit: tolerate stale popup selections after a refresh.
         UpdatePreview();
     }
 
     private void MapSelected(ItemSelectedEventArgs args)
     {
-        MapOptions.SelectId(args.Id);
+        MapOptions.TrySelectId(args.Id); // Malinov-Edit: tolerate stale popup selections after a refresh.
         UpdatePreview();
     }
 
     protected override void EnteredTree()
     {
-        SetLocation();
         UpdateExplosionTypeOptions();
+        SetLocation(); // Malinov-Edit: populate explosion types before location callbacks can request a preview.
     }
 
     private void UpdateExplosionTypeOptions()
@@ -100,17 +100,7 @@ public sealed partial class SpawnExplosionWindow : DefaultWindow
     /// </summary>
     private void SetLocation()
     {
-        UpdateMapOptions();
-
-        if (!_entMan.TryGetComponent(_playerManager.LocalEntity, out TransformComponent? transform))
-            return;
-
-        _pausePreview = true;
-        MapOptions.Select(_mapData.IndexOf(transform.MapID));
-        (MapX.Value, MapY.Value) = _transform.GetMapCoordinates(_playerManager.LocalEntity!.Value, xform: transform).Position;
-        _pausePreview = false;
-
-        UpdatePreview();
+        MalinovSetLocation(); // Malinov-Edit: allow nullspace and an empty map list.
     }
 
     private void UpdatePreview()
@@ -118,14 +108,15 @@ public sealed partial class SpawnExplosionWindow : DefaultWindow
         if (_pausePreview)
             return;
 
-        if (!Preview.Pressed)
+        // Malinov-Edit: validate refreshed selections and maps deleted while the window is open.
+        var validSelection = MalinovUpdateSelection(out var mapId, out var explosionType);
+        if (!Preview.Pressed || !validSelection)
         {
             _eui.ClearOverlay();
             return;
         }
 
-        MapCoordinates coords = new(new Vector2(MapX.Value, MapY.Value), _mapData[MapOptions.SelectedId]);
-        var explosionType = _explosionTypes[ExplosionOption.SelectedId];
+        MapCoordinates coords = new(new Vector2(MapX.Value, MapY.Value), mapId);
         _eui.RequestPreviewData(coords, explosionType, Intensity.Value, Slope.Value, MaxIntensity.Value);
     }
 
@@ -137,8 +128,9 @@ public sealed partial class SpawnExplosionWindow : DefaultWindow
 
         // for the actual explosion, we will just re-use the explosion command.
         // so assemble command arguments:
-        var mapId = _mapData[MapOptions.SelectedId];
-        var explosionType = _explosionTypes[ExplosionOption.SelectedId];
+        // Malinov-Edit: do not submit stale or unavailable selections.
+        if (!MalinovUpdateSelection(out var mapId, out var explosionType))
+            return;
         var cmd = $"explosion {Intensity.Value} {Slope.Value} {MaxIntensity.Value} {MapX.Value} {MapY.Value} {mapId} {explosionType}";
 
         _conHost.ExecuteCommand(cmd);

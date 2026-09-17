@@ -93,7 +93,7 @@ public sealed partial class DecalSystem : SharedDecalSystem
         var moved = new HashSet<DecalIndex>();
         var toMove = new List<(DecalIndex Id, Decal Decal)>();
 
-        foreach (var tile in _mapSystem.GetAllTilesEnumerator(ev.Grid, grid))
+        foreach (var tile in _mapSystem.GetAllTiles(ev.Grid, grid)) // Malinov edit - equivalent current map API.
         {
             var tilePos = (Vector2) tile.GridIndices;
             var bounds = new Box2(tilePos - _boundsMinExpansion, tilePos + _boundsMaxExpansion);

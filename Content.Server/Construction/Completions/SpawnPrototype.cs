@@ -24,7 +24,9 @@ namespace Content.Server.Construction.Completions
 
             var coordinates = entityManager.GetComponent<TransformComponent>(uid).Coordinates;
 
-            if (EntityPrototypeHelpers.HasComponent<StackComponent>(Prototype))
+            // Malinov edit - preserve TryIndex behavior while using the current prototype API.
+            if (IoCManager.Resolve<IPrototypeManager>().TryIndex<EntityPrototype>(Prototype, out var prototype) &&
+                prototype.HasComp<StackComponent>(entityManager.ComponentFactory))
             {
                 var stackEnt = entityManager.SpawnEntity(Prototype, coordinates);
                 var stack = entityManager.GetComponent<StackComponent>(stackEnt);

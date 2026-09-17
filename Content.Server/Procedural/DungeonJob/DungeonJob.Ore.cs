@@ -35,7 +35,7 @@ public sealed partial class DungeonJob
                     continue;
 
                 // Check if it's a valid spawn, if so then use it.
-                var enumerator = _maps.GetAnchoredEntitiesEnumerator(_gridUid, _grid, node);
+                var enumerator = _maps.GetAnchoredEntities(_gridUid, _grid, node); // Malinov edit - equivalent current map API.
                 var found = false;
 
                 // We use existing entities as a mark to spawn in place

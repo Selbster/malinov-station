@@ -1,4 +1,3 @@
-using System.Linq;
 using Content.Client.Atmos.EntitySystems;
 using Content.Shared.Atmos.Prototypes;
 using JetBrains.Annotations;
@@ -20,6 +19,7 @@ namespace Content.Client.Administration.UI.Tabs.AtmosTab
 
         protected override void EnteredTree()
         {
+            MalinovResetOptions(); // Malinov-Edit - keep options aligned with the rebuilt lists.
             // Fill out grids
             var entManager = IoCManager.Resolve<IEntityManager>();
             var playerManager = IoCManager.Resolve<IPlayerManager>();
@@ -36,8 +36,6 @@ namespace Content.Client.Administration.UI.Tabs.AtmosTab
                 GridOptions.AddItem($"{uid} {(playerGrid == uid ? Loc.GetString("admin-ui-atmos-grid-current") : "")}");
             }
 
-            GridOptions.OnItemSelected += eventArgs => GridOptions.SelectId(eventArgs.Id);
-
             // Fill out gases
             _gasData = entManager.System<AtmosphereSystem>().Gases;
 
@@ -47,20 +45,13 @@ namespace Content.Client.Administration.UI.Tabs.AtmosTab
                 GasOptions.AddItem($"{gasName} ({gas.ID})");
             }
 
-            GasOptions.OnItemSelected += eventArgs => GasOptions.SelectId(eventArgs.Id);
-
-            SubmitButton.OnPressed += SubmitButtonOnOnPressed;
+            MalinovRefreshSubmitState(); // Malinov-Edit - callbacks are registered once in the constructor.
         }
 
         private void SubmitButtonOnOnPressed(BaseButton.ButtonEventArgs obj)
         {
-            if (_gridData == null || _gasData == null)
+            if (!MalinovTryGetSelection(out var gridIndex, out var gasId)) // Malinov-Edit - guard missing selections.
                 return;
-
-            var gridIndex = _gridData[GridOptions.SelectedId];
-
-            var gasList = _gasData.ToList();
-            var gasId = gasList[GasOptions.SelectedId].ID;
             IoCManager.Resolve<IClientConsoleHost>().ExecuteCommand(
                 $"addgas {TileXSpin.Value} {TileYSpin.Value} {gridIndex} {gasId} {AmountSpin.Value}");
         }

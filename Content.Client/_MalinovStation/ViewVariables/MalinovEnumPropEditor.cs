@@ -1,6 +1,7 @@
 using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
 using Robust.Client.ViewVariables;
+using Robust.Shared.Utility;
 
 namespace Content.Client._MalinovStation.ViewVariables;
 
@@ -14,7 +15,7 @@ internal sealed class MalinovEnumPropEditor : VVPropEditor
         var enumType = value!.GetType();
         var enumValues = Enum.GetValues(enumType);
         var enumNames = Enum.GetNames(enumType);
-        var underlyingType = Enum.GetUnderlyingType(enumType);
+        var typeCode = ((Enum) value).GetTypeCode();
         var currentValue = ToBits(value);
         var valuesById = new Dictionary<int, ulong>();
         var idsByValue = new Dictionary<ulong, int>();
@@ -31,7 +32,7 @@ internal sealed class MalinovEnumPropEditor : VVPropEditor
             options.AddItem(enumNames[i], i);
         }
 
-        var isFlags = enumType.IsDefined(typeof(FlagsAttribute), false);
+        var isFlags = enumType.HasCustomAttribute<FlagsAttribute>();
         var invalidId = -1;
         if (isFlags || !idsByValue.ContainsKey(currentValue))
         {
@@ -82,16 +83,51 @@ internal sealed class MalinovEnumPropEditor : VVPropEditor
 
             options.SelectId(idsByValue.TryGetValue(bits, out var id) ? id : invalidId);
             if (changeValue)
-                ValueChanged(Convert.ChangeType(Enum.ToObject(enumType, bits), underlyingType));
+                ValueChanged(FromBits(bits, typeCode));
         }
     }
 
     private static ulong ToBits(object value)
     {
-        return Type.GetTypeCode(Enum.GetUnderlyingType(value.GetType())) switch
+        // Boxed enums can be unboxed as their exact underlying type. Avoid Convert's
+        // numeric overloads and reflection APIs that are unavailable in the content sandbox.
+        return ((Enum) value).GetTypeCode() switch
         {
-            TypeCode.Byte or TypeCode.UInt16 or TypeCode.UInt32 or TypeCode.UInt64 => Convert.ToUInt64(value),
-            _ => unchecked((ulong) Convert.ToInt64(value)),
+            TypeCode.Byte => (byte) value,
+            TypeCode.SByte => unchecked((ulong) (sbyte) value),
+            TypeCode.Int16 => unchecked((ulong) (short) value),
+            TypeCode.UInt16 => (ushort) value,
+            TypeCode.Int32 => unchecked((ulong) (int) value),
+            TypeCode.UInt32 => (uint) value,
+            TypeCode.Int64 => unchecked((ulong) (long) value),
+            TypeCode.UInt64 => (ulong) value,
+            _ => throw new ArgumentOutOfRangeException(nameof(value)),
         };
+    }
+
+    private static object FromBits(ulong bits, TypeCode typeCode)
+    {
+        // Return separately so each value is boxed with its original integral type.
+        switch (typeCode)
+        {
+            case TypeCode.Byte:
+                return unchecked((byte) bits);
+            case TypeCode.SByte:
+                return unchecked((sbyte) bits);
+            case TypeCode.Int16:
+                return unchecked((short) bits);
+            case TypeCode.UInt16:
+                return unchecked((ushort) bits);
+            case TypeCode.Int32:
+                return unchecked((int) bits);
+            case TypeCode.UInt32:
+                return unchecked((uint) bits);
+            case TypeCode.Int64:
+                return unchecked((long) bits);
+            case TypeCode.UInt64:
+                return bits;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(typeCode));
+        }
     }
 }
