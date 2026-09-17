@@ -514,7 +514,7 @@ public sealed partial class ServerApi : IPostInjectInit
             if (gameRule.Abstract)
                 continue;
 
-            if (gameRule.HasComponent<GameRuleComponent>(_componentFactory))
+            if (gameRule.HasComp<GameRuleComponent>(_componentFactory)) // Malinov edit - current prototype API.
                 gameRules.Add(gameRule.ID);
         }
 

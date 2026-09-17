@@ -1,4 +1,5 @@
 using Content.Client.Administration.Managers;
+using Content.Client._MalinovStation.Entry; // Malinov-Edit
 using Content.Client.Changelog;
 using Content.Client.Chat.Managers;
 using Content.Client.DebugMon;
@@ -30,6 +31,7 @@ using Content.Shared.FeedbackSystem;
 using Content.Shared.Gravity;
 using Content.Shared.Localizations;
 using Robust.Client;
+using Robust.Client.Audio.Midi; // Malinov-Edit
 using Robust.Client.Graphics;
 using Robust.Client.Input;
 using Robust.Client.Replays.Loading;
@@ -80,6 +82,7 @@ namespace Content.Client.Entry
         [Dependency] private IEntitySystemManager _entitySystemManager = default!;
         [Dependency] private ClientsidePlaytimeTrackingManager _clientsidePlaytimeManager = default!;
         [Dependency] private ClientFeedbackManager _feedbackManager = null!;
+        [Dependency] private IMidiManager _midiManager = default!; // Malinov-Edit
 
         public override void PreInit()
         {
@@ -188,6 +191,13 @@ namespace Content.Client.Entry
             _userInterfaceManager.MainViewport.Visible = false;
 
             SwitchToDefaultState();
+        }
+
+        // Malinov-Edit - close native MIDI players before engine settings teardown.
+        public override void Shutdown()
+        {
+            MalinovMidiShutdown.ClosePlayers(_midiManager);
+            base.Shutdown();
         }
 
         private void SwitchToDefaultState(bool disconnected = false)

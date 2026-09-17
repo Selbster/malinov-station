@@ -23,7 +23,9 @@ public sealed class EntityCoordinatesConverter : AdminLogConverter<EntityCoordin
         WriteEntityInfo(writer, value.EntityId, entities, "parent");
         writer.WriteNumber("x", value.X);
         writer.WriteNumber("y", value.Y);
-        var mapUid = value.GetMapUid(entities);
+        // Malinov edit - GetMap does not include the old finite-coordinate/existence validation.
+        var transform = entities.System<SharedTransformSystem>();
+        var mapUid = transform.IsValid(value) ? transform.GetMap(value) : null;
         if (mapUid.HasValue)
         {
             WriteEntityInfo(writer, mapUid.Value, entities, "map");

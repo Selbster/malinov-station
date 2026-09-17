@@ -41,7 +41,7 @@ public sealed partial class AddObjectiveCommand : LocalizedEntityCommands
         }
 
         if (!_prototypes.TryIndex<EntityPrototype>(args[1], out var proto) ||
-            !proto.HasComponent<ObjectiveComponent>())
+            !proto.HasComp<ObjectiveComponent>(EntityManager.ComponentFactory)) // Malinov edit - current prototype API.
         {
             shell.WriteError(Loc.GetString("cmd-addobjective-objective-not-found", ("obj", args[1])));
             return;

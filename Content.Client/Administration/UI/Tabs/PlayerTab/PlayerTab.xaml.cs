@@ -46,14 +46,7 @@ public sealed partial class PlayerTab : Control
         RobustXamlLoader.Load(this);
 
         _adminSystem = _entManager.System<AdminSystem>();
-        _adminSystem.PlayerListChanged += RefreshPlayerList;
-        _adminSystem.OverlayEnabled += OverlayEnabled;
-        _adminSystem.OverlayDisabled += OverlayDisabled;
-
-        _config.OnValueChanged(CCVars.AdminPlayerTabRoleSetting, RoleSettingChanged, true);
-        _config.OnValueChanged(CCVars.AdminPlayerTabColorSetting, ColorSettingChanged, true);
-        _config.OnValueChanged(CCVars.AdminPlayerTabSymbolSetting, SymbolSettingChanged, true);
-
+        // Malinov edit - external subscriptions follow tree membership in PlayerTab.Malinov.cs.
 
         OverlayButton.OnPressed += OverlayButtonPressed;
         ShowDisconnectedButton.OnPressed += ShowDisconnectedPressed;
@@ -108,9 +101,7 @@ public sealed partial class PlayerTab : Control
 
         if (disposing)
         {
-            _adminSystem.PlayerListChanged -= RefreshPlayerList;
-            _adminSystem.OverlayEnabled -= OverlayEnabled;
-            _adminSystem.OverlayDisabled -= OverlayDisabled;
+            // Malinov edit - external subscriptions are removed by ExitedTree, including ordinary Close.
 
             OverlayButton.OnPressed -= OverlayButtonPressed;
 

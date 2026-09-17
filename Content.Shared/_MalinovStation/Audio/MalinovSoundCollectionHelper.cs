@@ -55,7 +55,6 @@ public static class MalinovSoundCollectionHelper
         if (files.Count == 0)
             return audio.ResolveSound(specifier);
 
-        ResolvedSoundSpecifier resolved = random.Pick(files);
-        return resolved;
+        return new ResolvedPathSpecifier(random.Pick(files));
     }
 }

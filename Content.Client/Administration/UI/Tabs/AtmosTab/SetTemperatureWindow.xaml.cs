@@ -27,6 +27,7 @@ namespace Content.Client.Administration.UI.Tabs.AtmosTab
             var gridQuery = entManager.AllEntityQueryEnumerator<MapGridComponent>();
             _data ??= new List<NetEntity>();
             _data.Clear();
+            GridOptions.Clear(); // Malinov added - rebuild options alongside their backing data.
 
             while (gridQuery.MoveNext(out var uid, out _))
             {
@@ -36,13 +37,12 @@ namespace Content.Client.Administration.UI.Tabs.AtmosTab
                 _data.Add(entManager.GetNetEntity(uid));
             }
 
-            GridOptions.OnItemSelected += eventArgs => GridOptions.SelectId(eventArgs.Id);
-            SubmitButton.OnPressed += SubmitButtonOnOnPressed;
+            SubmitButton.Disabled = _data.Count == 0; // Malinov edit - an empty grid list cannot be submitted.
         }
 
         private void SubmitButtonOnOnPressed(BaseButton.ButtonEventArgs obj)
         {
-            if (_data == null)
+            if (_data == null || (uint) GridOptions.SelectedId >= (uint) _data.Count) // Malinov edit - guard an empty selection.
                 return;
 
             var selectedGrid = _data[GridOptions.SelectedId];

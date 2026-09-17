@@ -22,11 +22,16 @@ namespace Content.Client.Administration.UI.Tabs.AtmosTab
         {
             RobustXamlLoader.Load(this);
             IoCManager.InjectDependencies(this);
+            // Malinov added start - subscribe once for the lifetime of the window.
+            GridOptions.OnItemSelected += eventArgs => GridOptions.SelectId(eventArgs.Id);
+            SubmitButton.OnPressed += SubmitButtonOnOnPressed;
+            // Malinov added end
         }
 
         protected override void EnteredTree()
         {
             _data.Clear();
+            GridOptions.Clear(); // Malinov added - rebuild options alongside their backing data.
 
             var player = _players.LocalEntity;
             var playerGrid = _entities.GetComponentOrNull<TransformComponent>(player)?.GridUid;
@@ -38,12 +43,17 @@ namespace Content.Client.Administration.UI.Tabs.AtmosTab
                 GridOptions.AddItem($"{uid} {(playerGrid == uid ? Loc.GetString($"admin-ui-atmos-grid-current") : "")}");
             }
 
-            GridOptions.OnItemSelected += eventArgs => GridOptions.SelectId(eventArgs.Id);
-            SubmitButton.OnPressed += SubmitButtonOnOnPressed;
+            SubmitButton.Disabled = _data.Count == 0; // Malinov edit - an empty grid list cannot be submitted.
         }
 
         private void SubmitButtonOnOnPressed(BaseButton.ButtonEventArgs obj)
         {
+            // Malinov added start - the grid list may be empty or its selected grid may have been deleted.
+            if ((uint) GridOptions.SelectedId >= (uint) _data.Count ||
+                !_entities.HasComponent<MapGridComponent>(_data[GridOptions.SelectedId].Owner))
+                return;
+            // Malinov added end
+
             var selectedGrid = _data[GridOptions.SelectedId].Owner;
             IoCManager.Resolve<IClientConsoleHost>().ExecuteCommand($"addatmos {_entities.GetNetEntity(selectedGrid)}");
         }

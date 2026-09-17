@@ -79,9 +79,7 @@ public sealed partial class FileMidiSource : InstrumentMidiSourceBase
 
         CurrentTrackLabel.Text = string.Empty;
 
-        _midiCollection.MidiFileAdded += AddTrack;
-        _midiCollection.MidiFileRemoved += RemoveTrack;
-        _midiCollection.MidiFilesReset += ReloadTrackList;
+        // Malinov edit - library subscriptions follow this control's tree lifetime.
 
         FilterBar.OnTextChanged += OnFilterBarTextChanged;
         TrackList.OnItemSelected += OnTrackListItemSelected;
@@ -203,7 +201,7 @@ public sealed partial class FileMidiSource : InstrumentMidiSourceBase
             await using (stream)
             {
                 // did the instrument menu get closed while waiting for the user to select a file?
-                if (Disposed)
+                if (Disposed || !IsInsideTree) // Malinov edit - closed windows are removed without disposal.
                     return;
 
                 if (stream == null)
@@ -256,6 +254,10 @@ public sealed partial class FileMidiSource : InstrumentMidiSourceBase
 
     private void OnShuffleButtonPressed(ButtonEventArgs obj)
     {
+        // Malinov added - a library reset or filter can leave no track to choose.
+        if (TrackList.Count == 0)
+            return;
+
         if (ShuffleButton.Pressed && LoopButton.Pressed)
         {
             LoopingToggled?.Invoke(false);
@@ -351,6 +353,8 @@ public sealed partial class FileMidiSource : InstrumentMidiSourceBase
             if (trackName.Contains(filterString))
                 TrackList.AddItem(track.FilenameWithoutExtension, null, true, track);
         }
+
+        UpdateShuffleAvailability(); // Malinov added - keep an empty list non-interactive.
     }
 
     private bool TryGetSelectedTrackPath([NotNullWhen(true)] out ResPath? trackPath)

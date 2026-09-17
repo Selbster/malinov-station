@@ -127,11 +127,7 @@ public sealed partial class InstrumentBoundUserInterface : BoundUserInterface
         _inputSource.OpenInputRequest -= OnOpenInputRequest;
         _inputSource.CloseInputRequest -= OnCloseInputRequest;
 
-        if (!EntMan.TryGetComponent(Owner, out InstrumentComponent? instrument))
-            return;
-
-        _fileSource.Instrument = (Owner, instrument);
-        instrument.OnMidiPlaybackEnded -= OnMidiPlaybackEnded;
+        UnsubscribeInstrumentEvents(); // Malinov edit - release subscriptions even if the entity was deleted.
     }
 
     private void OnSwitchFilteredChannel(int channelIndex, bool state)

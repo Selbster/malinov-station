@@ -57,7 +57,7 @@ public sealed partial class NetProbeCartridgeSystem : EntitySystem
             Name(target),
             networkComponent.Address,
             networkComponent.ReceiveFrequency?.FrequencyToString() ?? string.Empty,
-            networkComponent.DeviceNetId.DeviceNetIdToLocalizedName()
+            networkComponent.DeviceNetId.DeviceNetIdToLocalizedName(Loc) // Malinov-Edit
         );
 
         component.ProbedDevices.Add(device);

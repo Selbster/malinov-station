@@ -24,7 +24,9 @@ public sealed partial class GivePrototype : IGraphAction
         if (string.IsNullOrEmpty(Prototype))
             return;
 
-        if (EntityPrototypeHelpers.HasComponent<StackComponent>(Prototype))
+        // Malinov edit - preserve TryIndex behavior while using the current prototype API.
+        if (IoCManager.Resolve<IPrototypeManager>().TryIndex<EntityPrototype>(Prototype, out var prototype) &&
+            prototype.HasComp<StackComponent>(entityManager.ComponentFactory))
         {
             var stackSystem = entityManager.EntitySysManager.GetEntitySystem<StackSystem>();
             var stacks = stackSystem.SpawnMultipleNextToOrDrop(Prototype, Amount, userUid ?? uid);

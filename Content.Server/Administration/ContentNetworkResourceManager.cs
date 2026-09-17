@@ -3,7 +3,7 @@ using Content.Shared.CCVar;
 using Robust.Server.Upload;
 using Robust.Shared.Configuration;
 using Robust.Shared.Player;
-using Robust.Shared.Upload;
+using Robust.Shared.Utility; // Malinov edit - current resource upload event uses resource paths directly.
 
 namespace Content.Server.Administration;
 
@@ -19,13 +19,20 @@ public sealed partial class ContentNetworkResourceManager
     {
         _cfgManager.OnValueChanged(CCVars.ResourceUploadingStoreEnabled, value => StoreUploaded = value, true);
         AutoDelete(_cfgManager.GetCVar(CCVars.ResourceUploadingStoreDeletionDays));
-        _netRes.OnResourceUploaded += OnUploadResource;
+        _netRes.ResourcesUploaded += OnResourcesUploaded; // Malinov edit - current batched upload event.
     }
 
-    private async void OnUploadResource(ICommonSession session, NetworkResourceUploadMessage msg)
+    // Malinov added - retain one independently scheduled database write per uploaded file.
+    private void OnResourcesUploaded(NetworkResourcesUploadedEvent args)
+    {
+        foreach (var (relativePath, data) in args.Files)
+            OnUploadResource(args.Session, relativePath, data);
+    }
+
+    private async void OnUploadResource(ICommonSession session, ResPath relativePath, byte[] data) // Malinov edit
     {
         if (StoreUploaded)
-            await _serverDb.AddUploadedResourceLogAsync(session.UserId, DateTime.Now, msg.RelativePath.ToString(), msg.Data);
+            await _serverDb.AddUploadedResourceLogAsync(session.UserId, DateTime.Now, relativePath.ToString(), data); // Malinov edit
     }
 
     private async void AutoDelete(int days)
