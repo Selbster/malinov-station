@@ -428,8 +428,6 @@ public sealed class MalinovMessengerTest : GameTest
         await server.WaitAssertion(() =>
         {
             var session = entityManager.GetComponent<MalinovMessengerCartridgeSessionComponent>(program);
-            Assert.That(session.ServerAvailable, Is.True,
-                "Messenger cartridge should see an active TelecomServer");
             Assert.That(session.ServerAddress, Is.Not.Null,
                 "Messenger cartridge should have discovered the TelecomServer address");
         });

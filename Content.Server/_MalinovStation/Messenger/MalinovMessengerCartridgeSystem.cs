@@ -329,12 +329,10 @@ public sealed partial class MalinovMessengerCartridgeSystem : EntitySystem
             if (transform.MapID != mapId || !power.Powered)
                 continue;
 
-            session.ServerAvailable = true;
             session.ServerAddress = device.Address;
             return device.Address;
         }
 
-        session.ServerAvailable = false;
         session.ServerAddress = null;
         return null;
     }

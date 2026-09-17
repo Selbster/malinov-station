@@ -66,12 +66,6 @@ public sealed partial class MalinovMessengerCartridgeSessionComponent : Componen
     ///     Whether the station messenger server is currently reachable.
     /// </summary>
     [ViewVariables(VVAccess.ReadWrite)]
-    public bool ServerAvailable;
-
-    /// <summary>
-    ///     Cached address of the active station messenger server.
-    /// </summary>
-    [ViewVariables(VVAccess.ReadWrite)]
     public string? ServerAddress;
 
     /// <summary>

@@ -1,5 +1,4 @@
 malinov-messenger-program-name = Messenger
-malinov-messenger-no-contacts = No contacts yet.
 malinov-messenger-contacts-header = Contacts
 malinov-messenger-manifest-unavailable = Station manifest unavailable.
 malinov-messenger-contact-format = { $name }
@@ -10,11 +9,8 @@ malinov-messenger-close-chat-button = Close
 malinov-messenger-chat-header = Chat with { $name }
 malinov-messenger-chat-header-empty = Select a contact
 malinov-messenger-session-empty = No messages.
-malinov-messenger-message-format = { $name }: { $text }
 malinov-messenger-message-time-format = [{ $time }]
 malinov-messenger-error-offline = Recipient is offline or unknown.
-malinov-messenger-error-message-too-long = Message is too long.
-malinov-messenger-error-server-unavailable = Server unavailable.
 malinov-messenger-error-self = You cannot send messages to yourself.
 malinov-messenger-error-rate-limited = Too many messages, please wait.
 malinov-messenger-rate-limit-wait = Please wait { $seconds } s before sending another message.
