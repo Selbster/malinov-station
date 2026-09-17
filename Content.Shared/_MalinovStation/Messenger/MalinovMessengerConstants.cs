@@ -9,6 +9,8 @@ public static class MalinovMessengerConstants
 {
     /// <summary>
     ///     Device network frequency used by the messenger P2P channel.
+    ///     Must stay in sync with the <c>MalinovMessengerFrequency</c> deviceFrequency prototype
+    ///     (<c>frequency</c> field).
     /// </summary>
     public const uint Frequency = 2210;
 

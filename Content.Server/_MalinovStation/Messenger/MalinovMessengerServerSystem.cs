@@ -159,16 +159,7 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
 
     private void BroadcastDirectory(EntityUid uid, MalinovMessengerServerComponent component)
     {
-        var entries = new Dictionary<string, string>(component.Directory);
-        var names = new Dictionary<string, string>(component.Names);
-
-        var payload = new NetworkPayload
-        {
-            [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandDirectory,
-            [MalinovMessengerConstants.EntriesKey] = entries,
-            [MalinovMessengerConstants.DisplayNamesKey] = names,
-            [MalinovMessengerConstants.MutedNamesKey] = component.Muted.ToArray(),
-        };
+        var payload = BuildDirectoryPayload(component);
 
         foreach (var address in component.Directory.Values)
         {
@@ -178,18 +169,20 @@ public sealed partial class MalinovMessengerServerSystem : EntitySystem
 
     private void HandleDirectoryRequest(EntityUid uid, MalinovMessengerServerComponent component, DeviceNetworkPacketEvent args)
     {
-        var entries = new Dictionary<string, string>(component.Directory);
-        var names = new Dictionary<string, string>(component.Names);
-
-        var payload = new NetworkPayload
-        {
-            [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandDirectory,
-            [MalinovMessengerConstants.EntriesKey] = entries,
-            [MalinovMessengerConstants.DisplayNamesKey] = names,
-            [MalinovMessengerConstants.MutedNamesKey] = component.Muted.ToArray(),
-        };
+        var payload = BuildDirectoryPayload(component);
 
         _deviceNetwork.QueuePacket(uid, args.SenderAddress, payload, MalinovMessengerConstants.Frequency);
+    }
+
+    private NetworkPayload BuildDirectoryPayload(MalinovMessengerServerComponent component)
+    {
+        return new NetworkPayload
+        {
+            [MalinovMessengerConstants.CommandKey] = MalinovMessengerConstants.CommandDirectory,
+            [MalinovMessengerConstants.EntriesKey] = new Dictionary<string, string>(component.Directory),
+            [MalinovMessengerConstants.DisplayNamesKey] = new Dictionary<string, string>(component.Names),
+            [MalinovMessengerConstants.MutedNamesKey] = component.Muted.ToArray(),
+        };
     }
 
     private void HandleMessage(EntityUid uid, MalinovMessengerServerComponent component, DeviceNetworkPacketEvent args)

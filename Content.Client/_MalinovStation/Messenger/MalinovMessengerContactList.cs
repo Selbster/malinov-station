@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Robust.Client.Graphics;
 using Robust.Client.UserInterface.Controls;
 

@@ -1,4 +1,5 @@
 - type: deviceFrequency
   id: MalinovMessengerFrequency
   name: device-frequency-malinov-messenger
+  # Malinov edit - keep in sync with MalinovMessengerConstants.Frequency
   frequency: 2210
