@@ -127,7 +127,8 @@ public sealed partial class HumanTonedSkinColoration : ISkinColorationStrategy
         var val = Math.Round(colorValues.Z * 100f);
         // rangeOffset makes it so that this value
         // is 25 <= hue <= 45
-        if (hue < 25f || hue > 45f)
+        // Malinov edit - use the shared hue tolerance for byte RGB profile colors.
+        if (!SkinColorationUtils.IsHueInRange(colorValues.X, 25f / 360f, 45f / 360f))
         {
             reason = $"Hue {hue} is outside of expected ranges 25 and 45.";
             return false;

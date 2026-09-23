@@ -1,14 +1,15 @@
+# Custom records the source's terms; it does not grant redistribution permission.
 - files: ["Bedroom_-_In_my_Head.ogg"]
-  license: "TODO"
-  copyright: "TODO"
-  source: "TODO"
+  license: "Custom"
+  copyright: "In my Head by BEDROOM. All rights reserved, as stated on the source page. No redistribution permission is documented here."
+  source: "https://bedroom.bandcamp.com/track/in-my-head"
 
 - files: ["INTERWORLD_-_METAMORPHOSIS.ogg"]
-  license: "TODO"
-  copyright: "TODO"
-  source: "TODO"
+  license: "Custom"
+  copyright: "METAMORPHOSIS by INTERWORLD. All rights reserved, as stated on the source page. No redistribution permission is documented here."
+  source: "https://soundcloud.com/666astra666-ffdd/metamorphosis"
 
 - files: ["Mr_Kitty_-_After_Dark.ogg"]
-  license: "TODO"
-  copyright: "TODO"
-  source: "TODO"
+  license: "Custom"
+  copyright: "After Dark by Mr.Kitty. All rights reserved, as stated on the Negative Gain Productions source page. No redistribution permission is documented here."
+  source: "https://ngpofficial.bandcamp.com/track/after-dark-2"

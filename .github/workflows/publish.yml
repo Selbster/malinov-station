@@ -11,6 +11,8 @@ on:
 
 jobs:
   build:
+    # Malinov added - this workflow publishes to Wizard's Den infrastructure.
+    if: github.repository == 'space-wizards/space-station-14'
     runs-on: ubuntu-latest
 
     steps:
