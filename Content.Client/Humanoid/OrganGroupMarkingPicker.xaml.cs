@@ -1,3 +1,4 @@
+using Content.Client._MalinovStation.Humanoid; // Malinov added - torso and tail presentation.
 using Content.Shared.Body;
 using Content.Shared.Humanoid;
 using Content.Shared.Humanoid.Markings;
@@ -79,7 +80,7 @@ public sealed partial class OrganGroupMarkingPicker : Control
             LayerTabs.AddChild(control);
             if (Loc.TryGetString($"markings-layer-{layer}-{group.Id}", out var layerTitle))
                 LayerTabs.SetTabTitle(i, layerTitle);
-            else if (Loc.TryGetString($"markings-organ-{organ.Id}", out var organTitle))
+            else if (MarkingPickerGrouping.UseOrganTitle(organ) && Loc.TryGetString($"markings-organ-{organ.Id}", out var organTitle)) // Malinov edit - distinguish torso layers.
                 LayerTabs.SetTabTitle(i, organTitle);
             else
                 LayerTabs.SetTabTitle(i, Loc.GetString($"markings-layer-{layer}"));

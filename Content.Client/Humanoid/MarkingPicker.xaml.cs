@@ -1,4 +1,5 @@
 using System.Linq;
+using Content.Client._MalinovStation.Humanoid; // Malinov added - torso and tail presentation.
 using Content.Shared.Body;
 using Content.Shared.Humanoid;
 using Content.Shared.Humanoid.Markings;
@@ -76,7 +77,7 @@ public sealed partial class MarkingPicker : Control
         var i = 0;
         var groupedOrgans = new HashSet<ProtoId<OrganCategoryPrototype>>();
 
-        foreach (var (locKey, organs) in OrganGroups)
+        foreach (var (locKey, organs) in MarkingPickerGrouping.WithTorsoGroup(OrganGroups)) // Malinov edit - include tails under the torso.
         {
             var entries = new List<(ProtoId<OrganCategoryPrototype>, HumanoidVisualLayers, ProtoId<MarkingsGroupPrototype>)>();
 
@@ -91,7 +92,7 @@ public sealed partial class MarkingPicker : Control
                 // tab, so they're hidden here to avoid editing the same markings in two places.
                 foreach (var layer in organData.Layers)
                 {
-                    if (HairMarkingsPicker.Layers.Contains(layer))
+                    if (HairMarkingsPicker.Layers.Contains(layer) || MarkingPickerGrouping.IsHiddenTorsoLayer(organ, layer)) // Malinov edit - preserve torso exclusions.
                         continue;
 
                     entries.Add((organ, layer, organData.Group));

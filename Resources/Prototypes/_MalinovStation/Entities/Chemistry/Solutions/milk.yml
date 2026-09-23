@@ -1,0 +1,9 @@
+- type: entity
+  parent: Solution
+  id: SolutionMilk
+  categories: [ HideSpawnMenu ]
+  components:
+  - type: Solution
+    id: milk
+    solution:
+      maxVol: 50

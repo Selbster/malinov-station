@@ -212,7 +212,7 @@ public sealed partial class HumanoidProfileEditor
     {
         Profile = Profile?.WithSpecies(newSpecies);
         OnSkinColorOnValueChanged(); // Species may have special color prefs, make sure to update it.
-        _markingsModel.OrganData = _markingManager.GetMarkingData(newSpecies);
+        UpdateMarkings(); // Malinov edit - refresh profiles for newly added organs before rebuilding the pickers.
         _markingsModel.ValidateMarkings();
         // In case there's job restrictions for the species
         RefreshJobs();

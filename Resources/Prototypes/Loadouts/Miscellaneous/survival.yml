@@ -19,6 +19,9 @@
     - Moth
     - Reptilian
     - Vulpkanin
+    # Malinov added - human physiology for the new species.
+    - Draconid
+    - MuHuman
 
 - type: loadoutEffectGroup
   id: EffectSpeciesVox

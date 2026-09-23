@@ -9,8 +9,10 @@ public sealed partial class HumanoidProfileEditor
             return;
         }
 
-        _markingsModel.OrganData = _markingManager.GetMarkingData(Profile.Species);
+        // Malinov edit start - profiles must exist before OrganData rebuilds the pickers.
         _markingsModel.OrganProfileData = _markingManager.GetProfileData(Profile.Species, Profile.Sex, Profile.Appearance.SkinColor, Profile.Appearance.EyeColor);
+        _markingsModel.OrganData = _markingManager.GetMarkingData(Profile.Species);
+        // Malinov edit end
         _markingsModel.Markings = Profile.Appearance.Markings;
     }
 

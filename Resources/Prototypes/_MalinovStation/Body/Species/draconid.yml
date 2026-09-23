@@ -1,0 +1,101 @@
+# Horns remain empty until their sprites are available.
+- type: markingsGroup
+  id: DraconidHorns
+  onlyGroupWhitelisted: true
+  limits:
+    enum.HumanoidVisualLayers.HeadTop:
+      limit: 1
+      required: false
+      weight: 0
+
+- type: markingsGroup
+  id: DraconidTail
+  onlyGroupWhitelisted: true
+  limits:
+    enum.HumanoidVisualLayers.Tail:
+      limit: 1
+      required: true
+      default: [ DraconidTailSpikesAnimated ]
+      weight: 1
+    enum.HumanoidVisualLayers.TailOverlay:
+      limit: 0
+      required: false
+
+- type: entity
+  parent: AppearanceHuman
+  id: AppearanceDraconid
+  categories: [ HideSpawnMenu ]
+  name: draconid appearance
+  components:
+  - type: HumanoidProfile
+    species: Draconid
+  - type: InitialBody
+    # These dictionaries replace the human defaults, so preserve every organ and relationship.
+    organs:
+      Torso: OrganHumanTorsoWithTail
+      Head: OrganHumanHeadWithHorns
+      ArmLeft: OrganHumanArmLeft
+      ArmRight: OrganHumanArmRight
+      HandRight: OrganHumanHandRight
+      HandLeft: OrganHumanHandLeft
+      LegLeft: OrganHumanLegLeft
+      LegRight: OrganHumanLegRight
+      FootLeft: OrganHumanFootLeft
+      FootRight: OrganHumanFootRight
+      Brain: OrganHumanBrain
+      Eyes: OrganHumanEyes
+      Tongue: OrganHumanTongue
+      Appendix: OrganHumanAppendix
+      Ears: OrganHumanEars
+      Lungs: OrganHumanLungs
+      Heart: OrganHumanHeart
+      Stomach: OrganHumanStomach
+      Liver: OrganHumanLiver
+      Kidneys: OrganHumanKidneys
+      Horns: OrganDraconidHorns
+      Tail: OrganDraconidTail
+    relationships:
+      Torso: [Head, ArmLeft, ArmRight, LegLeft, LegRight, Appendix, Lungs, Heart, Stomach, Liver, Kidneys, Tail]
+      Head: [Brain, Eyes, Tongue, Ears, Horns]
+      ArmLeft: [HandLeft]
+      ArmRight: [HandRight]
+      LegLeft: [FootLeft]
+      LegRight: [FootRight]
+
+- type: entity
+  parent: [ AppearanceDraconid, MobHuman ]
+  id: MobDraconid
+  name: Urist McDraconid
+  suffix: WIP
+
+- type: entity
+  parent: OrganBaseHumanoidAppendage
+  id: OrganDraconidHorns
+  categories: [ HideSpawnMenu ]
+  name: draconid horns
+  components:
+  - type: Organ
+    category: Horns
+  - type: VisualOrgan
+    layer: enum.HumanoidVisualLayers.HeadTop
+  - type: VisualOrganMarkings
+    hideableLayers:
+    - enum.HumanoidVisualLayers.HeadTop
+    markingData:
+      group: DraconidHorns
+      layers: [ HeadTop ]
+
+- type: entity
+  parent: OrganBaseHumanoidAppendage
+  id: OrganDraconidTail
+  categories: [ HideSpawnMenu ]
+  name: draconid tail
+  components:
+  - type: Organ
+    category: Tail
+  - type: VisualOrgan
+    layer: enum.HumanoidVisualLayers.Tail
+  - type: VisualOrganMarkings
+    markingData:
+      group: DraconidTail
+      layers: [ Tail, TailOverlay ]

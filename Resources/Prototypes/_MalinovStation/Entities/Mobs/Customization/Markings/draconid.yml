@@ -1,0 +1,11 @@
+- type: marking
+  id: DraconidTailSpikesAnimated
+  bodyPart: Tail
+  groupWhitelist: [ DraconidTail ]
+  coloring:
+    default:
+      # Start with the sprite's neutral color instead of inheriting human skin color.
+      fallbackTypes: []
+  sprites:
+  - sprite: _MalinovStation/Mobs/Customization/Draconid/Tails/spikes.rsi
+    state: tail_spikes_wagging

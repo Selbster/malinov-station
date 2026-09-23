@@ -322,3 +322,6 @@ error.glsl
 
 # Local Codex temporary files
 /.codex-temp/
+
+# Malinov added - local documentation
+/Docs/

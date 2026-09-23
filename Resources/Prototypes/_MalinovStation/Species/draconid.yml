@@ -1,0 +1,7 @@
+- type: species
+  id: Draconid
+  name: species-name-draconid
+  roundStart: true # Temporarily enabled for character editor testing.
+  prototype: MobDraconid
+  dollPrototype: AppearanceDraconid
+  skinColoration: HumanToned

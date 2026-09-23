@@ -1,0 +1,9 @@
+ent-AppearanceMuHuman = внешность му-человека
+    .desc = { ent-AppearanceHuman.desc }
+ent-MobMuHuman = Урист МакМу
+    .desc = { ent-AppearanceMuHuman.desc }
+    .suffix = В разработке
+ent-OrganMuHumanHorns = рога му-человека
+    .desc = { "" }
+ent-OrganMuHumanTail = хвост му-человека
+    .desc = { "" }

@@ -1,0 +1,41 @@
+# These organs keep the human marking group; only the appendages own their new layers.
+- type: entity
+  parent: OrganHumanHead
+  id: OrganHumanHeadWithHorns
+  categories: [ HideSpawnMenu ]
+  suffix: horned humanoid
+  components:
+  - type: VisualOrganMarkings
+    markingData:
+      layers:
+      - Head
+      - Hair
+      - FacialHair
+      - Snout
+      - SnoutCover
+      - HeadSide
+
+- type: entity
+  parent: OrganHumanTorso
+  id: OrganHumanTorsoWithTail
+  categories: [ HideSpawnMenu ]
+  suffix: tailed humanoid
+  components:
+  - type: VisualOrganMarkings
+    markingData:
+      layers:
+      - Chest
+      - Overlay
+      - UndergarmentTop
+      - UndergarmentBottom
+      - Special
+
+# A technical organ, not a loose item. Its body layer stays empty until markings have art.
+- type: entity
+  id: OrganBaseHumanoidAppendage
+  abstract: true
+  components:
+  - type: Organ
+  - type: ChildOrgan
+  - type: VisualOrgan
+    data: {}

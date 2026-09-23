@@ -1,0 +1,9 @@
+ent-AppearanceDraconid = внешность драконида
+    .desc = { ent-AppearanceHuman.desc }
+ent-MobDraconid = Урист МакДраконид
+    .desc = { ent-AppearanceDraconid.desc }
+    .suffix = В разработке
+ent-OrganDraconidHorns = рога драконида
+    .desc = { "" }
+ent-OrganDraconidTail = хвост драконида
+    .desc = { "" }

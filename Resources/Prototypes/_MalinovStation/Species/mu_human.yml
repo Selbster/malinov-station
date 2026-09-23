@@ -1,0 +1,7 @@
+- type: species
+  id: MuHuman
+  name: species-name-mu-human
+  roundStart: false # Enable after the horns and tail have finished sprites and markings.
+  prototype: MobMuHuman
+  dollPrototype: AppearanceMuHuman
+  skinColoration: HumanToned
