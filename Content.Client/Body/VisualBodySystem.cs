@@ -247,6 +247,8 @@ public sealed partial class VisualBodySystem : SharedVisualBodySystem
                     // TODO: fix this when LayerSetShader is moved out of component
                     target.Comp.LayerSetShader(index + i + 1 + numDisplacements, shader);
                 }
+
+                TrackDirectionalTail(ent, target, proto, layerId); // Malinov added - directional tail ordering.
             }
 
             applied.Add(marking);
@@ -279,6 +281,7 @@ public sealed partial class VisualBodySystem : SharedVisualBodySystem
                 if (proto.CanBeDisplaced)
                     _displacement.EnsureDisplacementIsNotOnSprite((target, target.Comp), layerId);
 
+                _directionalTail.Untrack(target, layerId); // Malinov added - release removed tail layers.
                 if (!_sprite.LayerMapTryGet(target, layerId, out var index, false))
                     continue;
 

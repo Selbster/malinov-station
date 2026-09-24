@@ -1,0 +1,6 @@
+- type: markingsGroup
+  id: TailMatchesSkin
+  abstract: true
+  appearances:
+    enum.HumanoidVisualLayers.Tail:
+      matchSkin: true

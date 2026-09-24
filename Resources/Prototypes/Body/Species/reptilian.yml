@@ -1,6 +1,7 @@
 - type: markingsGroup
-  parent: Undergarments
+  parent: [ Undergarments, TailMatchesSkin ] # Malinov edit - keep the tail the same color as the skin.
   id: Reptilian
+  directionalTail: true # Malinov added - tails follow the viewing direction.
   onlyGroupWhitelisted: true
   limits:
     enum.HumanoidVisualLayers.Hair:

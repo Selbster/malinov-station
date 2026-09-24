@@ -8,4 +8,4 @@
       fallbackTypes: []
   sprites:
   - sprite: _MalinovStation/Mobs/Customization/Draconid/Tails/spikes.rsi
-    state: tail_spikes_wagging
+    state: tail_spikes

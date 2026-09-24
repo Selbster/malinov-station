@@ -10,6 +10,7 @@
 
 - type: markingsGroup
   id: DraconidTail
+  directionalTail: true
   onlyGroupWhitelisted: true
   limits:
     enum.HumanoidVisualLayers.Tail:

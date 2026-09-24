@@ -8,6 +8,18 @@
   },
   "states": [
     {
+      "name": "tail_spikes",
+      "directions": 4
+    },
+    {
+      "name": "tail_spikes_front",
+      "directions": 4
+    },
+    {
+      "name": "tail_spikes_behind",
+      "directions": 4
+    },
+    {
       "name": "tail_spikes_wagging",
       "directions": 4,
       "delays": [
