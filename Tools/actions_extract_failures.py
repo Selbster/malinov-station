@@ -36,8 +36,15 @@ def item_generator(json_input):
 
 def extract(filename):
     """Extract all failures from an XML file."""
-    with open(filename, 'r', encoding='utf-8') as xml_file:
-        xml_data = xmltodict.parse(xml_file.read())
+    # Malinov edit start - aborted or skipped test runs may not produce NUnit XML.
+    try:
+        with open(filename, 'r', encoding='utf-8') as xml_file:
+            xml_data = xmltodict.parse(xml_file.read())
+    except FileNotFoundError:
+        print(f'::warning::NUnit report not found: {filename}. '
+              'The test run may have crashed or not started; check the preceding steps.')
+        return []
+    # Malinov edit end
 
     failures = []
     for item in item_generator(xml_data['test-run']):
