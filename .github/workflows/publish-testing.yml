@@ -11,7 +11,14 @@ on:
 
 jobs:
   build:
+    # Malinov added - this workflow publishes to Wizard's Den infrastructure.
+    if: github.repository == 'space-wizards/space-station-14'
     runs-on: ubuntu-latest
+
+    # Malinov added - changelog generation only needs repository and PR read access.
+    permissions:
+      contents: read
+      pull-requests: read
 
     steps:
     - uses: actions/checkout@v7
@@ -39,10 +46,12 @@ jobs:
         ss14-changelog update -d Resources/Changelog
       env:
         REPO: ${{ github.repository }}
-        BRANCH: master
+        # Malinov edit - inspect the branch selected for this run.
+        BRANCH: ${{ github.ref_name }}
         CHANGELOG_REPO_PATH: Resources/Changelog
         EXTRA_CATEGORIES: Admin,Maps,Rules
-        GITHUB_TOKEN: ${{ secrets.CL_ACCESS_TOKEN }}
+        # Malinov edit - use the workflow token when no custom token is configured.
+        GITHUB_TOKEN: ${{ secrets.CL_ACCESS_TOKEN || github.token }}
 
     - name: Build Packaging
       run: dotnet build Content.Packaging --configuration Release --no-restore /m
