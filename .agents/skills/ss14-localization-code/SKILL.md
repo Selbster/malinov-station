@@ -64,7 +64,7 @@ using Robust.Shared.Localization;
 
 public sealed class MyNotSystem : SomeBaseClass
 {
-    [Dependency] private readonly ILocalizationManager _loc = default!;
+    [Dependency] private ILocalizationManager _loc = default!;
 
     public void DoSomething()
     {
@@ -96,7 +96,7 @@ There is also a static class `Loc` (`Robust.Shared.Localization.Loc`) — a wrap
 var text = Loc.GetString("my-key");
 
 // ❌ Redundant (inside a system): custom [Dependency] ILocalizationManager _loc
-[Dependency] private readonly ILocalizationManager _loc = default!;
+[Dependency] private ILocalizationManager _loc = default!;
 ```
 
 The static class `Loc` is **not** marked `[Obsolete]` (only `Loc.TryGetString` is obsolete). It is acceptable only where DI is unavailable: static utilities and extension methods without IoC. Where possible, prefer passing `ILocalizationManager` as a method argument.
@@ -181,7 +181,7 @@ public sealed partial class ClumsyComponent : Component
 public sealed class ClumsySystem : EntitySystem
 {
     // We do not import ILocalizationManager — it is built into EntitySystem as Loc
-    [Dependency] private readonly SharedPopupSystem _popup = default!;
+    [Dependency] private SharedPopupSystem _popup = default!;
 
     private void OnGunShootFailed(Entity<ClumsyComponent> ent)
     {

@@ -16,6 +16,9 @@ This is a mandatory rule, not a recommendation ⚠️
 2. The class must be `partial` if `[GenerateTypedNameReferences]` is used.
 3. The root type in XAML must be the same as the class in `xaml.cs` or its base class.
 4. There must be exactly one matching `.xaml` for the class.
+5. If the XAML root element is the class itself (`<tiles:MyWidget ...>`), the class needs a parameterless
+   constructor, otherwise XamlIL fails with "Type needs to have a parameterless ctor". Keep one and chain
+   other constructors to it (`: this()`), or use a base-type root (`<Control>`, as `NanoTaskItemControl` does).
 
 If these requirements are violated, the typed-name references generator throws compile-time errors (`RXN0001`, `RXN0002`, `RXN0005`).
 
@@ -66,6 +69,9 @@ The practical equivalent for UI elements is:
 1. Use `[Dependency]` for normal IoC element dependencies.
 2. Call `IoCManager.InjectDependencies(this)` in the constructor after `RobustXamlLoader.Load(this)`.
 3. For `UIController` and dependencies on `EntitySystem` use `[UISystemDependency]`.
+4. Declare `[Dependency]` fields **without** `readonly` and make the declaring class `partial`.
+   The engine analyzers warn otherwise (`RA0051`: dependency is readonly, `RA0049`: type with
+   dependencies is not partial) and say both will become errors.
 
 Example for a UI element:
 
@@ -73,8 +79,8 @@ Example for a UI element:
 [GenerateTypedNameReferences]
 public partial class FancyWindow : BaseWindow
 {
-    [Dependency] private readonly IEntitySystemManager _sysMan = default!;
-    [Dependency] private readonly IStylesheetManager _styleMan = default!;
+    [Dependency] private IEntitySystemManager _sysMan = default!;
+    [Dependency] private IStylesheetManager _styleMan = default!;
 
     public FancyWindow()
     {
@@ -87,10 +93,10 @@ public partial class FancyWindow : BaseWindow
 Example for `UIController`:
 
 ```csharp
-public sealed class GuidebookUIController : UIController
+public sealed partial class GuidebookUIController : UIController
 {
     [UISystemDependency] private readonly GuidebookSystem _guidebookSystem = default!;
-    [Dependency] private readonly IPrototypeManager _prototypeManager = default!;
+    [Dependency] private IPrototypeManager _prototypeManager = default!;
 }
 ```
 

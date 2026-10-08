@@ -177,7 +177,7 @@ public abstract partial class SharedMySystem
     /*
      * Target-handling part of the system.
      */
-    [Dependency] private readonly SharedPopupSystem _popup = default!;
+    [Dependency] private SharedPopupSystem _popup = default!;
     ...
 }
 

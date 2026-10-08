@@ -166,6 +166,19 @@ return
 ];
 ```
 
+Changing the parent's class at runtime does not restyle the child ⚠️
+Robust restyles only the control whose class or pseudo-class changed (`StyleClassCollection` → `Restyle()` of that
+control). A child matched through `ParentOf` keeps its old style until something restyles it, so after toggling a class
+the child's rule depends on, restyle the subtree yourself. Classes set before the control is first styled need nothing.
+
+```csharp
+// The title label is styled by `.ParentOf(E<Label>())` on the header's accent class.
+header.AddStyleClass(AccentClass);
+header.ForceRunStyleUpdate(); // Restyles the header and its children now; vanilla ContextMenuPopup does the same.
+```
+
+The engine's own `Button` handles this for its label by restyling it in `StylePropertiesChanged`.
+
 ### 2) Changing parent by child (no direct selector)
 
 This is not done purely with CSS style; the working pattern is as follows:
@@ -310,6 +323,7 @@ E()
 - All interactive states are covered by pseudo-classes.
 - For each `Prop(...)` operation, helper wrappers are used where possible.
 - Contextual styles via `ParentOf(...)` are applied deliberately.
+- A parent class toggled at runtime is followed by a restyle of the children that depend on it.
 - Textures are connected via the stylesheet API and correct patch margins.
 - Colors are taken from semantic palettes and status models.
 - Fonts and sizes are set as system rules, not ad-hoc.

@@ -261,7 +261,7 @@ public sealed partial class MyContainerComponent : Component
 ### Working in the system
 
 ```csharp
-[Dependency] private readonly SharedContainerSystem _container = default!;
+[Dependency] private SharedContainerSystem _container = default!;
 
 // Get container
 if (_container.TryGetContainer(uid, "my_slot", out var container))
@@ -408,7 +408,7 @@ instead of being assigned in `Initialize()` (e.g.
 `Content.Shared/Damage/Systems/SharedStaminaSystem.cs`):
 
 ```csharp
-[Dependency] private readonly EntityQuery<StaminaComponent> _stamQuery = default!;
+[Dependency] private EntityQuery<StaminaComponent> _stamQuery = default!;
 ```
 
 Both forms are equivalent; `[Dependency]` injection is more concise and does not need

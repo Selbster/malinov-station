@@ -444,7 +444,7 @@ public async Task<Preference?> GetPlayerPreferencesAsync(NetUserId userId, Cance
 
 ## Extension rules
 
-1. When adding a new table, create the entity class in `Content.Server.Database/Model.cs` (or a separate file in the same namespace). Add a `DbSet<T>` to `ServerDbContext`.
+1. When adding a new table, create the entity class in `Content.Server.Database/Model.cs` (or a separate file in the same namespace). Add a `DbSet<T>` to `ServerDbContext` for a table that is queried on its own. A child table reached only through a navigation needs none: EF finds it through the navigation, as with `Job`, `Antag` and `Trait` of `Profile`. In a fork, data annotations (`[PrimaryKey]`, `[ForeignKey]`, `[Column]`) configure such a table without editing the vanilla `OnModelCreating`.
 2. If a property type needs engine-specific conversion, add a `ValueConverter` in `SqliteServerDbContext.OnModelCreating` and, if needed, a check constraint in `PostgresServerDbContext.OnModelCreating`.
 3. For new business logic (read/write), create an `abstract` or `virtual` method in `ServerDbBase`. If the difference between engines is minimal, implement in `ServerDbBase`. If the difference is significant, make it abstract and implement in subclasses.
 4. Do not add new logic to `ServerDbContext` — it is an EF Core context whose job is only to describe the model and configuration.

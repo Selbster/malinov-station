@@ -48,7 +48,24 @@ or:
 dotnet run --project Content.Client/Content.Client.csproj --configuration Tools
 ```
 
-Stop the client process before finishing the task.
+A client started alone stops at the main menu: it has nothing to connect to, so screens that need a connection
+(lobby, in-game UI) are never shown. When the change touches such a screen, start the server first and wait until it
+is up:
+
+```powershell
+dotnet run --project Content.Server/Content.Server.csproj
+```
+
+Then start the client with `--connect`, so it connects to the local server (`localhost:1212`) by itself; without it
+the client waits in the main menu for someone to press the connect button:
+
+```powershell
+dotnet run --project Content.Client/Content.Client.csproj -- --connect
+```
+
+If a server is already running on port 1212, connect to it instead of starting a second one.
+
+Stop the client and server processes you started before finishing the task.
 
 ## 4. Test commands
 

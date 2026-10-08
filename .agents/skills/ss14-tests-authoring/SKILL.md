@@ -167,6 +167,8 @@ await client.WaitPost(() => client.ResolveDependency<IClientNetManager>().Client
 - Reliance on documentation contrary to current code.
 - Ignoring cleanup and hoping for automatic dispose.
 - Spawning entities in `WaitPost(...)` without deleting them in cleanup. Stale entities leak into the next test on a reused pair. Mark `Dirty = true` or explicitly `DelEntity(...)` in cleanup.
+- "Re-entering" a client state by requesting the state the client is already in. `IStateManager.RequestStateChange` returns the current state when its type matches, so nothing exits or enters and the test passes vacuously. Switch to another state first (for example `GameplayState`, as `InteractionTest` does) and back.
+- Expecting client network events sent within one client tick to reach the server in order. `RaiseNetworkEvent` sends them with sequence 0 and the server queue orders by (tick, sequence) only, so their order is undefined; number such changes and drop stale ones on the server.
 
 ## Examples from actual code
 
