@@ -1,0 +1,9 @@
+<tiles:MalinovCreditsTileWidget
+    xmlns="https://spacestation14.io"
+    xmlns:info="clr-namespace:Content.Client.Info"
+    xmlns:tiles="clr-namespace:Content.Client._MalinovStation.Lobby.Tiles"
+    Orientation="Vertical">
+    <info:DevInfoBanner Margin="3 3 3 3" />
+    <RichTextLabel Name="SongLabel" Access="Public" HorizontalAlignment="Left" />
+    <RichTextLabel Name="BackgroundLabel" Access="Public" HorizontalAlignment="Left" />
+</tiles:MalinovCreditsTileWidget>

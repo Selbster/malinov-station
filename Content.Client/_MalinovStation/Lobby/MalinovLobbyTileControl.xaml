@@ -1,0 +1,15 @@
+<malinov:MalinovLobbyTileControl
+    xmlns="https://spacestation14.io"
+    xmlns:malinov="clr-namespace:Content.Client._MalinovStation.Lobby"
+    RectClipContent="True">
+    <BoxContainer Orientation="Vertical">
+        <!-- The title stays a direct child of the header: the accent style colors it through the header. -->
+        <PanelContainer Name="Header" Access="Public">
+            <Label Name="TitleLabel" Margin="8 2" />
+            <Button Name="HideButton" Access="Public" Visible="False"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="2 1" />
+        </PanelContainer>
+        <Control Name="ContentSlot" Access="Public" VerticalExpand="True" Margin="4" />
+    </BoxContainer>
+    <!-- The handles for resizing the tile from its edges and corners are added over the content in code. -->
+</malinov:MalinovLobbyTileControl>

@@ -19,36 +19,43 @@ namespace Content.Client.Lobby.UI
             SetAnchorPreset(MainContainer, LayoutPreset.Wide);
             SetAnchorPreset(Background, LayoutPreset.Wide);
 
-            LobbySong.SetMarkup(Loc.GetString("lobby-state-song-no-song-text"));
+            // Malinov edit start - song credits live in the credits lobby tile (MalinovCreditsTileWidget)
+            // LobbySong.SetMarkup(Loc.GetString("lobby-state-song-no-song-text"));
+            // Malinov edit end
 
             LeaveButton.OnPressed += _ => _consoleHost.ExecuteCommand("disconnect");
             OptionsButton.OnPressed += _ => UserInterfaceManager.GetUIController<OptionsUIController>().ToggleWindow();
 
-            CollapseButton.OnPressed += _ => TogglePanel(false);
-            ExpandButton.OnPressed += _ => TogglePanel(true);
+            // Malinov edit start - the collapsible right panel is gone, lobby tiles replace it
+            // CollapseButton.OnPressed += _ => TogglePanel(false);
+            // ExpandButton.OnPressed += _ => TogglePanel(true);
+            // Malinov edit end
         }
 
         public void SwitchState(LobbyGuiState state)
         {
-            DefaultState.Visible = false;
+            // Malinov edit start - the tile grid replaces DefaultState and RightSide
+            TileHost.Visible = false;
             CharacterSetupState.Visible = false;
+            // Malinov edit end
 
             switch (state)
             {
                 case LobbyGuiState.Default:
-                    DefaultState.Visible = true;
-                    RightSide.Visible = true;
+                    TileHost.Visible = true; // Malinov-Edit
                     break;
                 case LobbyGuiState.CharacterSetup:
                     CharacterSetupState.Visible = true;
 
-                    var actualWidth = (float) UserInterfaceManager.RootControl.PixelWidth;
-                    var setupWidth = (float) LeftSide.PixelWidth;
-
-                    if (1 - (setupWidth / actualWidth) > 0.30)
-                    {
-                        RightSide.Visible = false;
-                    }
+                    // Malinov edit start - character setup takes the whole screen
+                    // var actualWidth = (float) UserInterfaceManager.RootControl.PixelWidth;
+                    // var setupWidth = (float) LeftSide.PixelWidth;
+                    //
+                    // if (1 - (setupWidth / actualWidth) > 0.30)
+                    // {
+                    //     RightSide.Visible = false;
+                    // }
+                    // Malinov edit end
 
                     UserInterfaceManager.GetUIController<LobbyUIController>().ReloadCharacterSetup();
 
@@ -56,11 +63,13 @@ namespace Content.Client.Lobby.UI
             }
         }
 
-        private void TogglePanel(bool value)
-        {
-            RightSide.Visible = value;
-            ExpandPanel.Visible = !value;
-        }
+        // Malinov edit start - the collapsible right panel is gone, lobby tiles replace it
+        // private void TogglePanel(bool value)
+        // {
+        //     RightSide.Visible = value;
+        //     ExpandPanel.Visible = !value;
+        // }
+        // Malinov edit end
 
         public enum LobbyGuiState : byte
         {

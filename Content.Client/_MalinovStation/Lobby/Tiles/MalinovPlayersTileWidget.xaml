@@ -1,0 +1,14 @@
+<tiles:MalinovPlayersTileWidget
+    xmlns="https://spacestation14.io"
+    xmlns:tiles="clr-namespace:Content.Client._MalinovStation.Lobby.Tiles"
+    Orientation="Horizontal"
+    VerticalAlignment="Center">
+    <BoxContainer Orientation="Vertical" HorizontalExpand="True">
+        <Label Name="OnlineValue" Access="Public" StyleClasses="LabelHeadingBigger" Align="Center" />
+        <Label Text="{Loc 'malinov-lobby-tile-players-online'}" StyleClasses="LabelSubText" Align="Center" />
+    </BoxContainer>
+    <BoxContainer Orientation="Vertical" HorizontalExpand="True">
+        <Label Name="CountValue" Access="Public" StyleClasses="LabelHeadingBigger" Align="Center" />
+        <Label Name="CountCaption" Access="Public" StyleClasses="LabelSubText" Align="Center" />
+    </BoxContainer>
+</tiles:MalinovPlayersTileWidget>

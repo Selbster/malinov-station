@@ -38,6 +38,7 @@ namespace Content.Server.GameTicking
         public void UpdateInfoText()
         {
             RaiseNetworkEvent(GetInfoMsg(), Filter.Empty().AddPlayers(_playerManager.NetworkedSessions));
+            MalinovSendLobbyInfo(); // Malinov-Edit - structured lobby info for the tile lobby
         }
 
         private string GetInfoText()
@@ -158,6 +159,8 @@ namespace Content.Server.GameTicking
                     continue;
                 RaiseNetworkEvent(GetStatusMsg(playerSession), playerSession.Channel);
             }
+
+            MalinovSendLobbyInfo(); // Malinov-Edit - the ready count changed
         }
 
         public void ToggleReady(ICommonSession player, bool ready)

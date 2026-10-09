@@ -1,0 +1,11 @@
+<tiles:MalinovRoundTileWidget
+    xmlns="https://spacestation14.io"
+    xmlns:tiles="clr-namespace:Content.Client._MalinovStation.Lobby.Tiles"
+    Orientation="Vertical"
+    Margin="3 0 3 0">
+    <RichTextLabel Name="NumberLabel" Access="Public" Visible="False" />
+    <RichTextLabel Name="MapLabel" Access="Public" Visible="False" />
+    <RichTextLabel Name="ModeLabel" Access="Public" Visible="False" />
+    <RichTextLabel Name="ModeDescriptionLabel" Access="Public" Visible="False" />
+    <Label Name="RoundTimeLabel" Access="Public" StyleClasses="LabelSubText" />
+</tiles:MalinovRoundTileWidget>

@@ -1,0 +1,14 @@
+<tiles:MalinovChangelogTileWidget
+    xmlns="https://spacestation14.io"
+    xmlns:tiles="clr-namespace:Content.Client._MalinovStation.Lobby.Tiles"
+    Orientation="Vertical"
+    SeparationOverride="4">
+    <!-- The scroll container asks for no height, so a long list does not make the rows of the board grow. -->
+    <ScrollContainer VerticalExpand="True" HScrollEnabled="False">
+        <BoxContainer Name="Entries" Access="Public" Orientation="Vertical" />
+    </ScrollContainer>
+    <Label Name="EmptyLabel" Access="Public" Visible="False" HorizontalAlignment="Center"
+           StyleClasses="LabelSubText" Text="{Loc 'malinov-lobby-changelog-empty'}" />
+    <Button Name="OpenButton" Access="Public" HorizontalAlignment="Right"
+            Text="{Loc 'malinov-lobby-changelog-open-button'}" />
+</tiles:MalinovChangelogTileWidget>

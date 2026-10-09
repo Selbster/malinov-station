@@ -51,6 +51,7 @@ namespace Content.Server.Database
         public DbSet<IPIntelCache> IPIntelCache { get; set; } = null!;
         public DbSet<CustomVoteLog> CustomVoteLog { get; set; } = null!;
         public DbSet<CustomVoteLogOption> CustomVoteLogOption { get; set; } = null!;
+        public DbSet<MalinovPlayerLobbyLayout> MalinovPlayerLobbyLayout { get; set; } = null!; // Malinov-Edit
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

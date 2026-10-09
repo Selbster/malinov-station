@@ -194,6 +194,7 @@ namespace Content.Server.GameTicking
 
             _playerGameStatuses[session.UserId] = PlayerGameStatus.JoinedGame;
             _db.AddRoundPlayers(RoundId, session.UserId);
+            MalinovOnPlayerJoinedGame(); // Malinov-Edit - the in-game count changed
 
             if (_adminManager.HasAdminFlag(session, AdminFlags.Admin))
             {

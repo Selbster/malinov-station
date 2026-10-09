@@ -1,0 +1,10 @@
+<tiles:MalinovServerTileWidget
+    xmlns="https://spacestation14.io"
+    xmlns:info="clr-namespace:Content.Client.Info"
+    xmlns:tiles="clr-namespace:Content.Client._MalinovStation.Lobby.Tiles"
+    Orientation="Vertical"
+    SeparationOverride="4"
+    VerticalAlignment="Center">
+    <Label Name="ServerName" Access="Public" StyleClasses="LabelHeadingBigger" HorizontalAlignment="Center" />
+    <info:LinkBanner HorizontalAlignment="Center" Margin="3 3 3 3" />
+</tiles:MalinovServerTileWidget>

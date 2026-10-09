@@ -980,6 +980,56 @@ namespace Content.Server.Database.Migrations.Postgres
                     b.ToTable("job", (string)null);
                 });
 
+            modelBuilder.Entity("Content.Server.Database.MalinovPlayerLobbyLayout", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.PrimitiveCollection<List<string>>("HiddenTiles")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("hidden_tiles");
+
+                    b.HasKey("UserId")
+                        .HasName("PK_malinov_player_lobby_layout");
+
+                    b.ToTable("malinov_player_lobby_layout", (string)null);
+                });
+
+            modelBuilder.Entity("Content.Server.Database.MalinovPlayerLobbyTile", b =>
+                {
+                    b.Property<Guid>("LayoutUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("layout_user_id");
+
+                    b.Property<string>("TileId")
+                        .HasColumnType("text")
+                        .HasColumnName("tile_id");
+
+                    b.Property<int>("Column")
+                        .HasColumnType("integer")
+                        .HasColumnName("board_column");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<int>("Row")
+                        .HasColumnType("integer")
+                        .HasColumnName("board_row");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.HasKey("LayoutUserId", "TileId")
+                        .HasName("PK_malinov_player_lobby_tile");
+
+                    b.ToTable("malinov_player_lobby_tile", (string)null);
+                });
+
             modelBuilder.Entity("Content.Server.Database.PlayTime", b =>
                 {
                     b.Property<int>("Id")
@@ -1946,6 +1996,18 @@ namespace Content.Server.Database.Migrations.Postgres
                     b.Navigation("Profile");
                 });
 
+            modelBuilder.Entity("Content.Server.Database.MalinovPlayerLobbyTile", b =>
+                {
+                    b.HasOne("Content.Server.Database.MalinovPlayerLobbyLayout", "Layout")
+                        .WithMany("Tiles")
+                        .HasForeignKey("LayoutUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_malinov_player_lobby_tile_malinov_player_lobby_layout_layou~");
+
+                    b.Navigation("Layout");
+                });
+
             modelBuilder.Entity("Content.Server.Database.Player", b =>
                 {
                     b.OwnsOne("Content.Server.Database.TypedHwid", "LastSeenHWId", b1 =>
@@ -2154,6 +2216,11 @@ namespace Content.Server.Database.Migrations.Postgres
             modelBuilder.Entity("Content.Server.Database.CustomVoteLog", b =>
                 {
                     b.Navigation("Options");
+                });
+
+            modelBuilder.Entity("Content.Server.Database.MalinovPlayerLobbyLayout", b =>
+                {
+                    b.Navigation("Tiles");
                 });
 
             modelBuilder.Entity("Content.Server.Database.Player", b =>

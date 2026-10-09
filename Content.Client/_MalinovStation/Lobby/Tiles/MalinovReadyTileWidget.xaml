@@ -1,0 +1,21 @@
+<tiles:MalinovReadyTileWidget
+    xmlns="https://spacestation14.io"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cc="clr-namespace:Content.Client.Administration.UI.CustomControls"
+    xmlns:lobbyUi="clr-namespace:Content.Client.Lobby.UI"
+    xmlns:tiles="clr-namespace:Content.Client._MalinovStation.Lobby.Tiles"
+    Orientation="Vertical"
+    SeparationOverride="4"
+    VerticalAlignment="Center">
+    <Label Name="CountdownLabel" Access="Public" StyleClasses="LabelHeading" Align="Center" />
+    <BoxContainer Orientation="Horizontal" SeparationOverride="6">
+        <cc:UICommandButton Name="ObserveButton" Access="Public" Command="observe"
+                            Text="{Loc 'ui-lobby-observe-button'}"
+                            StyleClasses="ButtonBig" HorizontalExpand="True"
+                            WindowType="{x:Type lobbyUi:ObserveWarningWindow}" />
+        <Button Name="ReadyButton" Access="Public" ToggleMode="True"
+                Text="{Loc 'ui-lobby-ready-up-button'}"
+                StyleClasses="ButtonBig" HorizontalExpand="True" />
+    </BoxContainer>
+    <RichTextLabel Name="PlaytimeComment" Access="Public" Visible="False" HorizontalAlignment="Center" />
+</tiles:MalinovReadyTileWidget>

@@ -3,6 +3,7 @@ using System;
 using Content.Server.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Content.Server.Database.Migrations.Sqlite
 {
     [DbContext(typeof(SqliteServerDbContext))]
-    partial class SqliteServerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007225904_MalinovLobbyLayout")]
+    partial class MalinovLobbyLayout
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.6");
@@ -938,42 +941,15 @@ namespace Content.Server.Database.Migrations.Sqlite
                         .HasColumnType("TEXT")
                         .HasColumnName("hidden_tiles");
 
+                    b.PrimitiveCollection<string>("TileOrder")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("tile_order");
+
                     b.HasKey("UserId")
                         .HasName("PK_malinov_player_lobby_layout");
 
                     b.ToTable("malinov_player_lobby_layout", (string)null);
-                });
-
-            modelBuilder.Entity("Content.Server.Database.MalinovPlayerLobbyTile", b =>
-                {
-                    b.Property<Guid>("LayoutUserId")
-                        .HasColumnType("TEXT")
-                        .HasColumnName("layout_user_id");
-
-                    b.Property<string>("TileId")
-                        .HasColumnType("TEXT")
-                        .HasColumnName("tile_id");
-
-                    b.Property<int>("Column")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("board_column");
-
-                    b.Property<int>("Height")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("height");
-
-                    b.Property<int>("Row")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("board_row");
-
-                    b.Property<int>("Width")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("width");
-
-                    b.HasKey("LayoutUserId", "TileId")
-                        .HasName("PK_malinov_player_lobby_tile");
-
-                    b.ToTable("malinov_player_lobby_tile", (string)null);
                 });
 
             modelBuilder.Entity("Content.Server.Database.PlayTime", b =>
@@ -1913,18 +1889,6 @@ namespace Content.Server.Database.Migrations.Sqlite
                     b.Navigation("Profile");
                 });
 
-            modelBuilder.Entity("Content.Server.Database.MalinovPlayerLobbyTile", b =>
-                {
-                    b.HasOne("Content.Server.Database.MalinovPlayerLobbyLayout", "Layout")
-                        .WithMany("Tiles")
-                        .HasForeignKey("LayoutUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("FK_malinov_player_lobby_tile_malinov_player_lobby_layout_layout_user_id");
-
-                    b.Navigation("Layout");
-                });
-
             modelBuilder.Entity("Content.Server.Database.Player", b =>
                 {
                     b.OwnsOne("Content.Server.Database.TypedHwid", "LastSeenHWId", b1 =>
@@ -2133,11 +2097,6 @@ namespace Content.Server.Database.Migrations.Sqlite
             modelBuilder.Entity("Content.Server.Database.CustomVoteLog", b =>
                 {
                     b.Navigation("Options");
-                });
-
-            modelBuilder.Entity("Content.Server.Database.MalinovPlayerLobbyLayout", b =>
-                {
-                    b.Navigation("Tiles");
                 });
 
             modelBuilder.Entity("Content.Server.Database.Player", b =>

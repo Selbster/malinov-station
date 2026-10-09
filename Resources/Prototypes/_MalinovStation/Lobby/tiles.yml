@@ -1,0 +1,88 @@
+# Lobby tiles on a board of six columns: readiness, players and the round on top, a large chat on the left,
+# character, menu and server on the right, what's new, music and art across the bottom.
+# Tiles go on the default board by order; minSize and maxSize bound the sizes a player may give them.
+
+# Readiness and the menu cannot be hidden: without them a player could not join a round,
+# leave, or bring hidden tiles back.
+- type: malinovLobbyTile
+  id: MalinovLobbyTileReady
+  title: malinov-lobby-tile-ready-title
+  widget: Ready
+  order: 0
+  size: 2, 1
+  minSize: 2, 1
+  maxSize: 6, 2
+  hideable: false
+
+- type: malinovLobbyTile
+  id: MalinovLobbyTilePlayers
+  title: malinov-lobby-tile-players-title
+  widget: Players
+  order: 10
+  size: 2, 1
+  minSize: 1, 1
+  maxSize: 6, 2
+
+- type: malinovLobbyTile
+  id: MalinovLobbyTileRound
+  title: malinov-lobby-tile-round-title
+  widget: Round
+  order: 20
+  size: 2, 1
+  minSize: 2, 1
+  maxSize: 6, 3
+
+- type: malinovLobbyTile
+  id: MalinovLobbyTileChat
+  title: malinov-lobby-tile-chat-title
+  widget: Chat
+  order: 30
+  size: 4, 4
+  minSize: 2, 2
+  maxSize: 6, 8
+
+# The character preview has its own heading, so the tile has none.
+- type: malinovLobbyTile
+  id: MalinovLobbyTileCharacter
+  widget: Character
+  order: 40
+  size: 2, 2
+  minSize: 2, 2
+  maxSize: 4, 4
+
+- type: malinovLobbyTile
+  id: MalinovLobbyTileActions
+  title: malinov-lobby-tile-actions-title
+  widget: Actions
+  order: 50
+  size: 2, 1
+  minSize: 2, 1
+  maxSize: 6, 2
+  hideable: false
+
+- type: malinovLobbyTile
+  id: MalinovLobbyTileServerInfo
+  title: malinov-lobby-tile-server-info-title
+  widget: ServerInfo
+  order: 60
+  size: 2, 1
+  minSize: 1, 1
+  maxSize: 6, 2
+
+- type: malinovLobbyTile
+  id: MalinovLobbyTileChangelog
+  title: malinov-lobby-tile-changelog-title
+  widget: Changelog
+  order: 65
+  size: 4, 2
+  minSize: 2, 2
+  maxSize: 6, 8
+
+- type: malinovLobbyTile
+  id: MalinovLobbyTileCredits
+  title: malinov-lobby-tile-credits-title
+  widget: Credits
+  order: 70
+  size: 2, 2
+  minSize: 2, 1
+  maxSize: 6, 2
