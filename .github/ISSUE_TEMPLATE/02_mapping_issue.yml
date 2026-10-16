@@ -1,37 +1,37 @@
-name: Report an mapping issue
-description: For issues regarding mapping.
+name: Сообщить об ошибке карты
+description: Для проблем, связанных с маппингом.
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to fill out an issue. This template is intended for any issues related to mapping.
-        For feedback or help running Space Station 14, please join our [Discord](https://discord.gg/rGvu9hKffJ).
+        Спасибо, что нашли время заполнить issue. Этот шаблон предназначен для проблем, связанных с маппингом.
+        Для отзывов или помощи с запуском Space Station 14, пожалуйста, присоединяйтесь к нашему Discord серверу (https://discord.gg/C7muKakYqV).
   - type: input
     attributes:
-      label: What version did the issue occur in?
-      description: You can find the version by opening the changelog in-game and looking at the bottom right corner of the changelog window.
+      label: В какой версии возникла проблема?
+      description: Вы можете найти версию, открыв changelog в игре и посмотрев в правый нижний угол окна changelog.
       placeholder: wizards/aa1337b
     validations:
       required: false
   - type: input
     attributes:
-      label: On what station, shuttle, or grid did the issue occur on?
-      description: The name of the station, shuttle, or grid. If you do not know the name, try to describe it.
+      label: На какой станции, шаттле или сетке возникла проблема?
+      description: Название станции, шаттла или сетки. Если вы не знаете название, постарайтесь описать его.
       placeholder: Bagel
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Description
+      label: Описание
       description: |
-        A clear and concise description of what the issue is.
-        If the issue is visual in nature, consider posting a screenshot.
+        Четкое и краткое описание проблемы.
+        Если проблема визуального характера, приложите скриншот.
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Reproduction
-      description: List the steps required to reproduce the issue.
+      label: Воспроизведение
+      description: Перечислите шаги, необходимые для воспроизведения проблемы.
       placeholder: |
         1.
         2.
@@ -41,8 +41,8 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: Additional Context
-      description: Add any other additional context about the issue here.
+      label: Дополнительный контекст
+      description: Добавьте здесь любые дополнительные сведения о проблеме.
     validations:
       required: false
 

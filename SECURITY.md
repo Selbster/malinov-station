@@ -1,9 +1,9 @@
-# Reporting a security vulnerability
-You can report a security vulnerability through Discord or through email.
+# Сообщение об уязвимости безопасности
 
-If you want to send an email, you can contact us at <support@spacestation14.com>.
-If you want to contact us through Discord, you can join [our server](https://discord.gg/MwDDf6t)
-and then **privately** message anyone with the `@Wizard` or `@SS14 Maintainer` role.
+Вы можете сообщить об уязвимости безопасности через Discord.
+Если вы хотите связаться с нами через Discord, вы можете присоединиться к нашему серверу, а затем написать личное сообщение участнику с ролью @Руководитель Проекта или же @Главный Разработчик.
+В любом случае не раскрывайте информацию об уязвимости публично, пока мы явно не дадим вам на это разрешение.
 
-In either case, **do not publicly disclose the vulnerability until we explicitly give
-you permission to do so**.
+Ссылка на Discord сервер: https://discord.gg/C7muKakYqV
+
+Если уязвимость затрагивает и оригинальную Space Station 14 (например, движок RobustToolbox или общий с ней код), сообщите о ней также разработчикам Space Station 14 согласно их [политике безопасности](https://github.com/space-wizards/space-station-14/security/policy).

@@ -1,42 +1,42 @@
-<!-- Guidelines: https://docs.spacestation14.io/en/getting-started/pr-guideline -->
+<!-- Руководства: https://docs.spacestation14.io/en/getting-started/pr-guideline -->
 
-## About the PR
-<!-- What did you change? -->
+## О PR
+<!-- Что вы изменили? -->
 
-## Why / Balance
-<!-- Discuss how this would affect game balance or explain why it was changed. Link any relevant discussions or issues. -->
+## Почему / Баланс
+<!-- Обсудите, как это повлияет на баланс игры или объясните, почему это было изменено. Ссылка на соответствующие обсуждения или задачи. -->
 
-## Technical details
-<!-- Summary of code changes for easier review. -->
+## Технические детали
+<!-- Краткое описание изменений в коде для более простого просмотра. -->
 
-## Test plan
+## План тестирования
 <!--
-Describe how you tested the pull request, and how someone reviewing this PR can test it themselves.
+Опишите, как вы тестировали пулл-реквест, и как человек, проверяющий этот PR, может протестировать его самостоятельно.
 -->
 
-## Media
-<!-- Attach media if the PR makes in-game changes (clothing, items, features, etc).
-Small fixes/refactors are exempt. Media may be used in SS14 progress reports with credit. -->
+## Медиа
+<!-- Приложите медиа, если PR вносит изменения в игру (одежда, предметы, функции и т.д.).
+Небольшие исправления/рефакторинг не обязательны. Медиа может быть использовано в отчётах о прогрессе SS14 с указанием авторства. -->
 
-## Requirements
-<!-- Confirm the following by placing an X in the brackets without spaces inside (for example: [X] ): -->
-- [ ] I have read and am following the [Pull Request and Changelog Guidelines](https://docs.spacestation14.com/en/general-development/codebase-info/pull-request-guidelines.html).
-- [ ] I have tested this pull request and written instructions on how to test it
-- [ ] I have added media to this PR or it does not require an in-game showcase.
-<!-- You should understand that not following the above may get your PR closed at maintainer’s discretion -->
+## Требования
+<!-- Подтвердите следующее, поставив X в скобках без пробелов внутри (например: [X] ): -->
+- [ ] Я прочитал и соблюдаю [Руководство по Pull Request и Changelog](https://docs.spacestation14.com/en/general-development/codebase-info/pull-request-guidelines.html).
+- [ ] Я протестировал этот пулл-реквест и написал инструкции по его тестированию.
+- [ ] Я добавил медиа к этому PR или он не требует демонстрации в игре.
+<!-- Вы должны понимать, что несоблюдение вышеизложенного может привести к закрытию PR по усмотрению мейнтейнера -->
 
-## Breaking changes
-<!-- List any breaking changes, including namespaces, public class/method/field changes, prototype renames; and provide instructions for fixing them.
-This will be posted in #codebase-changes. -->
+## Ломающие изменения
+<!-- Перечислите любые ломающие изменения, включая пространства имён, публичные классы/методы/поля, переименования прототипов; и предоставьте инструкции по их исправлению.
+Это будет опубликовано в #codebase-changes. -->
 
 ## Changelog
-<!-- Add a Changelog entry to make players aware of new features or changes that could affect gameplay.
-Make sure to read the guidelines and take this Changelog template out of the comment block in order for it to show up.
-Changelog must have a :cl: symbol, so the bot recognizes the changes and adds them to the game's changelog. -->
+<!-- Добавьте запись в Changelog, чтобы игроки узнали о новых функциях или изменениях, которые могут повлиять на игровой процесс.
+Убедитесь, что вы прочитали руководство и вынесли этот шаблон Changelog из блока комментариев, чтобы он отображался.
+Changelog должен содержать символ :cl:, чтобы бот распознал изменения и добавил их в игровой Changelog. -->
 <!--
 :cl:
-- add: Added fun!
-- remove: Removed fun!
-- tweak: Changed fun!
-- fix: Fixed fun!
+- add: Добавлено веселье!
+- remove: Удалено веселье!
+- tweak: Изменено веселье!
+- fix: Исправлено веселье!
 -->
