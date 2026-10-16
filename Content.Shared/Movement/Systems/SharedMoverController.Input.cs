@@ -135,7 +135,7 @@ namespace Content.Shared.Movement.Systems
             args.State = new InputMoverComponentState()
             {
                 CanMove = entity.Comp.CanMove,
-                RelativeEntity = GetNetEntity(entity.Comp.RelativeEntity),
+                RelativeEntity = TryGetNetEntity(entity.Comp.RelativeEntity, out var relativeEntity) ? relativeEntity : null, // Malinov-Edit: the relative grid can be deleted before the mover gets a new one.
                 LerpTarget = entity.Comp.LerpTarget,
                 HeldMoveButtons = entity.Comp.HeldMoveButtons,
                 RelativeRotation = entity.Comp.RelativeRotation,

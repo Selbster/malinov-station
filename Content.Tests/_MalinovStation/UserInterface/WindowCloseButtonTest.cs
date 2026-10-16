@@ -2,7 +2,6 @@
 using System;
 using System.Numerics;
 using System.Reflection;
-using Content.Client._MalinovStation.UserInterface;
 using NUnit.Framework;
 using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
@@ -16,6 +15,10 @@ using Robust.UnitTesting;
 
 namespace Content.Tests._MalinovStation.UserInterface;
 
+/// <summary>
+/// Header close button behaviour of reused windows. Since engine 288.1.0 <see cref="DefaultWindow"/>
+/// re-subscribes its close button in EnteredTree, so no content-side repair is needed.
+/// </summary>
 [TestFixture]
 public sealed class WindowCloseButtonTest : RobustUnitTest
 {
@@ -36,9 +39,6 @@ public sealed class WindowCloseButtonTest : RobustUnitTest
     public void SetupUi()
     {
         IoCManager.Resolve<IUserInterfaceManager>().InitializeTesting();
-        var controller = new MalinovWindowCloseUIController();
-        IoCManager.InjectDependencies(controller);
-        controller.Initialize();
     }
 
     [Test]
