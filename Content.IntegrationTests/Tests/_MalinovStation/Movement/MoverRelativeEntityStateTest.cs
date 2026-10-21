@@ -1,3 +1,4 @@
+#nullable enable
 using Content.IntegrationTests.Fixtures;
 using Content.Shared.Movement.Components;
 using Robust.Shared.GameObjects;
